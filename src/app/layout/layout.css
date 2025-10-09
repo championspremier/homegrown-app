@@ -1,0 +1,266 @@
+/* ========== THEME VARIABLES ========== */
+:root {
+  --bg: #0b0b0b;
+  --surface: #101010;
+  --text: #ffffff;
+  --border: #818181;
+  --muted: #9ca3af;
+  --accent: rgb(94, 89, 58);
+  --hover: rgba(188, 188, 188, 0.1);
+}
+
+html[data-theme="light"] {
+  --bg: #f8f9fb;
+  --surface: #ffffff;
+  --text: #111111;
+  --border: #bebebe;
+  --muted: #6b7280;
+  --accent: #325463;
+  --hover: rgba(111, 111, 111, 0.05);
+}
+
+/* ========== BASE LAYOUT ========== */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Zalando Sans Expanded', 'Racing Sans One', sans-serif;
+}
+
+/* ========== SIDEBAR ========== */
+.sidebar {
+  width: 220px;
+  height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;   /* keeps toggle next to logo */
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;                  /* lets the toggle slide off-screen cleanly */
+}
+
+.img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: block;
+  /* DARK MODE (default): keep the logo as-is (white) */
+  filter: none;
+  cursor: pointer;
+}
+
+/* LIGHT MODE: flip white mono logo to black */
+html[data-theme="light"] .img {
+  /* For a white-on-transparent PNG, this produces a solid black logo */
+  filter: invert(1) brightness(0.9) contrast(1.05);
+}
+
+/* Toggle button next to image */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;                    /* don’t let it squish */
+  transition: opacity 200ms ease, border-color 120ms ease;
+}
+
+/* ========== NAV ========== */
+.icons { padding: 8px 6px; }
+
+.nav-list {
+  width: 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.nav-list li:hover {
+  background: var(--hover);
+}
+
+.nav-list li.active {
+  background: rgba(173, 50, 50, 0.08);
+}
+
+.button { padding: 0; } /* we’ll pad the link instead */
+.nav-link {
+  width: auto;
+    display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.nav-link .bx { font-size: 22px; }
+
+/* The text label next to the icon */
+.nav-link .label {
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  /* Optional micro animation when breakpoint changes */
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+
+/* Boxicons base */
+.bx {
+  font-size: 22px;
+  color: var(--text);
+}
+
+/* ========== MAIN CONTENT ========== */
+.main-content {
+  flex: 1;
+  height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  height: 120px;
+  background: var(--surface);
+  margin: 0 40px 0 40px;
+}
+
+.content-area {
+  flex: 1;
+  padding: 16px;
+}
+
+/* ========== Player Leaderboard ========== */
+.players {
+  width: 80px;
+  height: 100px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--text);
+  margin: 10px;
+  background-color:  var(--surface);
+  cursor: pointer;
+}
+
+.player-circle-img {
+  position: relative;                 /* <-- key */
+  width: 65px;
+  height: 65px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background-color: var(--muted);
+  margin: 10px 0;
+  overflow: visible;                  /* ensure badge can sit outside edge */
+}
+
+/* if you use a real <img> inside */
+.player-circle-img .avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* mini circle badge */
+.player-leader-position {
+  position: absolute;
+  top: -6px;                          /* position on top edge */
+  right: -6px;                        /* move to top-right; change to left for top-left */
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);         /* badge fill */
+  border: none;    /* nice ring */
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.85;                      /* requested opacity */
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  z-index: 2;
+}
+
+.player-name {
+  margin-top: 0;
+  text-align: center;
+  color: var(--text);
+}
+
+/* ========== UTILS / SMALL SCREENS ========== */
+@media (max-width: 900px) {
+  .sidebar { 
+    width: 72px;
+    transition: ease-in-out width 200ms; 
+  }
+
+  .sidebar-header {
+    justify-content: left;       /* center the logo when collapsed */
+  }
+
+  /* slide the toggle off-canvas on narrow width */
+  .theme-toggle {
+    transform: translateX(140%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .nav-list { align-items: center; }
+  .nav-link { justify-content: center; padding: 10px; }
+
+  /* Hide the text labels (keep icons centered) */
+  .nav-link .label {
+    opacity: 0;
+    transform: translateX(-6px);
+    position: absolute;      /* removes it from layout flow */
+    pointer-events: none;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    width: 1px;
+    overflow: hidden;
+  }
+}
