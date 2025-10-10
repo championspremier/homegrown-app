@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login / Sign Up</title>
+    <link
+      href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="login.css" />
+  </head>
+  <body>
+    <main class="da-wrap mode-login" id="authRoot">
+      <!-- Left panel (Login OR switch-to-login button depending on mode) -->
+      <section class="da-panel da-left">
+        <header class="da-top gold">
+          <img
+            src="../../../public/icons/hd.png"
+            alt="HD Logo"
+            class="da-logo"
+          />
+          <h1 class="da-title" id="daLeftTitle">Login to your account</h1>
+        </header>
+
+        <!-- LOGIN FORM (visible in mode-login) -->
+        <form class="da-card" id="loginForm" autocomplete="on" novalidate>
+          <label class="da-input" for="loginEmail">
+            <i class="bx bx-envelope"></i>
+            <input
+              id="loginEmail"
+              name="email"
+              type="email"
+              placeholder="Email Address"
+              inputmode="email"
+            />
+          </label>
+
+          <label class="da-input" for="loginPassword">
+            <i class="bx bx-lock-alt"></i>
+            <input
+              id="loginPassword"
+              name="password"
+              type="password"
+              placeholder="Password"
+            />
+          </label>
+
+          <button type="button" class="da-btn gold" id="loginBtn">
+            <span>Login</span>
+          </button>
+
+          <div class="da-social-hint">Sign in with…</div>
+          <div class="da-socials">
+            <button type="button" class="da-chip">
+              <i class="bx bxl-apple"></i><span>Apple</span>
+            </button>
+            <button type="button" class="da-chip">
+              <i class="bx bxl-google"></i><span>Google</span>
+            </button>
+            <button type="button" class="da-chip">
+              <i class="bx bxl-facebook-square"></i><span>Facebook</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- SWITCH TO LOGIN BUTTON (visible in mode-signup) -->
+        <div class="da-switch" id="toLogin">
+          <button class="da-btn outline">
+            <i class="bx bx-log-in"></i><span>Back to Login</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Right panel (Sign-up CTA or full Sign-up form) -->
+      <section class="da-panel da-right">
+        <!-- SIGN-UP CTA (visible in mode-login) -->
+        <div class="da-card cta" id="signupCTA">
+          <header class="da-top">
+            <h2 class="da-title" id="daRightTitle">New here?</h2>
+          </header>
+          <button class="da-btn gold" id="toSignup">
+            <i class="bx bx-user-plus"></i><span>Sign up</span>
+          </button>
+        </div>
+
+        <!-- SIGN-UP FORM (visible in mode-signup) -->
+        <form class="da-card" id="signupForm" autocomplete="on" novalidate>
+          <!-- Email -->
+          <label class="da-input" for="suEmail">
+            <i class="bx bx-envelope"></i>
+            <input
+              id="suEmail"
+              name="email"
+              type="email"
+              placeholder="Email Address"
+              inputmode="email"
+            />
+          </label>
+
+          <!-- Password -->
+          <label class="da-input" for="suPass">
+            <i class="bx bx-lock-alt"></i>
+            <input
+              id="suPass"
+              name="password"
+              type="password"
+              placeholder="Password"
+            />
+          </label>
+
+          <!-- Confirm Password -->
+          <label class="da-input" for="suPass2">
+            <i class="bx bx-lock"></i>
+            <input
+              id="suPass2"
+              name="passwordConfirm"
+              type="password"
+              placeholder="Password Confirmed"
+            />
+          </label>
+
+          <!-- Phone (country code + number) -->
+          <div class="da-input da-phone">
+            <div class="cc-wrap">
+              <select id="suCC" aria-label="Country code">
+                <option value="+1" selected>US +1</option>
+                <option value="+44">UK +44</option>
+                <option value="+351">PT +351</option>
+                <option value="+55">BR +55</option>
+                <option value="+34">ES +34</option>
+              </select>
+              <i class="bx bx-chevron-down cc-caret" aria-hidden="true"></i>
+            </div>
+            <input
+              id="suPhone"
+              name="phone"
+              type="tel"
+              placeholder="Phone Number"
+              inputmode="tel"
+            />
+          </div>
+
+          <!-- Terms -->
+          <label class="da-check">
+            <input type="checkbox" id="suTerms" required />
+            <span
+              >I agree to the
+              <a href="#" target="_blank" rel="noopener"
+                >Terms + Conditions</a
+              ></span
+            >
+          </label>
+
+          <!-- Submit -->
+          <button type="submit" class="da-btn gold" id="signupBtn">
+            <span>Sign Up</span>
+          </button>
+        </form>
+      </section>
+    </main>
+
+    <script src="login.js" defer></script>
+  </body>
+</html>
