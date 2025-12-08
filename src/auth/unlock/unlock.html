@@ -26,7 +26,7 @@
       <!-- Right: Headline + Slider -->
       <section class="unl-right">
         <h1 class="unl-h1">
-          Improve your <span class="unl-accent">Game IQ</span>
+          Improve <span class="unl-accent" id="unl-accent-text">Game IQ</span>
         </h1>
 
         <div class="unl-sliderRow">
@@ -42,22 +42,17 @@
             tabindex="0"
           >
             <div id="unl-fill" class="unl-fill"></div>
-            <div id="unl-dot" class="unl-dot" aria-hidden="true">
+            <!-- Cue content inside track, behind dot -->
+            <div class="unl-cue">
+              <span class="unl-cue-sheen" aria-hidden="true"></span>
+              <i class="bx bx-chevrons-right"></i>
+              <span>Slide the <strong>dot</strong> to begin</span>
+            </div>
+            <div id="unl-dot" class="unl-dot">
               <i class="bx bx-chevron-right"></i>
             </div>
           </div>
-
-          <!-- Cue -->
-          <div class="unl-cue">
-            <span class="unl-cue-sheen" aria-hidden="true"></span>
-            <i class="bx bx-chevrons-right"></i>
-            <span>Slide the <strong>dot</strong> to begin</span>
-          </div>
         </div>
-
-        <p class="unl-meta">
-          <span class="unl-pill">Tip</span> Drag, tap, or use ← → keys.
-        </p>
       </section>
     </main>
 

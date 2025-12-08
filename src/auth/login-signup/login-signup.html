@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login / Sign Up</title>
+    <link
+      href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="login-signup.css" />
+  </head>
+  <body>
+    <main class="auth-wrap" id="authRoot">
+      <!-- Left Panel: Login Form (Initial State) -->
+      <section class="auth-panel auth-left">
+        <div class="auth-content">
+          <h1 class="auth-title" id="leftTitle">Login</h1>
+          
+          <!-- Login Form (Visible Initially) -->
+          <form class="auth-form" id="loginForm" autocomplete="on" novalidate>
+            <label class="auth-input" for="loginEmail">
+              <i class="bx bx-envelope"></i>
+              <input
+                id="loginEmail"
+                name="email"
+                type="email"
+                placeholder="Email"
+                inputmode="email"
+              />
+            </label>
+
+            <label class="auth-input" for="loginPassword">
+              <i class="bx bx-lock-alt"></i>
+              <input
+                id="loginPassword"
+                name="password"
+                type="password"
+                placeholder="Password"
+                autocomplete="current-password"
+              />
+            </label>
+
+            <button type="button" class="auth-btn primary" id="loginBtn">
+              <span>Login</span>
+            </button>
+
+            <div class="auth-social-hint">Or Sign In with Google</div>
+            <div class="auth-socials">
+              <button type="button" class="auth-social-btn">
+                <i class="bx bxl-google"></i>
+              </button>
+            </div>
+          </form>
+          
+          <!-- Sign Up Form (Hidden Initially) -->
+          <form class="auth-form" id="signupForm" autocomplete="on" novalidate style="display: none;">
+            <label class="auth-input" for="suUsername">
+              <i class="bx bx-user"></i>
+              <input
+                id="suUsername"
+                name="username"
+                type="text"
+                placeholder="Username"
+              />
+            </label>
+
+            <label class="auth-input" for="suEmail">
+              <i class="bx bx-envelope"></i>
+              <input
+                id="suEmail"
+                name="email"
+                type="email"
+                placeholder="Email"
+                inputmode="email"
+              />
+            </label>
+
+            <label class="auth-input" for="suPass">
+              <i class="bx bx-lock-alt"></i>
+              <input
+                id="suPass"
+                name="password"
+                type="password"
+                placeholder="Password"
+                autocomplete="new-password"
+              />
+            </label>
+
+            <button type="submit" class="auth-btn primary" id="signupBtn">
+              <span>Sign Up</span>
+            </button>
+
+            <div class="auth-social-hint">Or Sign Up with Google</div>
+            <div class="auth-socials">
+              <button type="button" class="auth-social-btn">
+                <i class="bx bxl-google"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Right Panel: CTA Panel -->
+      <section class="auth-panel auth-right">
+        <div class="auth-content">
+          <h2 class="auth-title" id="rightTitle">New Here?</h2>
+          <p class="auth-description" id="rightDescription">
+            Join Homegrown and start your journey to becoming an elite soccer player.
+          </p>
+          <button class="auth-btn secondary" id="toSignup">
+            <span>Sign Up</span>
+          </button>
+          <button class="auth-btn secondary" id="toLogin" style="display: none;">
+            <span>Login</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <script src="login-signup.js" defer></script>
+  </body>
+</html>
+

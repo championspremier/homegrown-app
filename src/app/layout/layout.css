@@ -39,15 +39,33 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  transition: width 300ms ease;
+  position: relative;
+  z-index: 100;
+  overflow: visible;
+}
+
+.sidebar.closed {
+  width: 80px;
 }
 
 .sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;   /* keeps toggle next to logo */
+  justify-content: center;
   gap: 12px;
   padding: 12px;
-  overflow: hidden;                  /* lets the toggle slide off-screen cleanly */
+  position: relative;
+}
+
+/* Keep logo visible when sidebar is closed */
+.sidebar.closed .sidebar-header .img {
+  width: 40px;
+  height: 40px;
+}
+
+.sidebar-header-spacer {
+  height: 60px; /* Space for toggle button */
 }
 
 .img {
@@ -66,20 +84,70 @@ html[data-theme="light"] .img {
   filter: invert(1) brightness(0.9) contrast(1.05);
 }
 
-/* Toggle button next to image */
-.theme-toggle {
-  display: inline-flex;
+/* Mobile logo (football icon) - hidden on desktop */
+.mobile-logo {
+  display: none !important;
+  font-size: 40px;
+  color: var(--text);
+}
+
+/* Desktop logo - visible on desktop */
+.desktop-logo {
+  display: block !important;
+}
+
+/* Sidebar toggle button - positioned half outside sidebar */
+.sidebar-toggle {
+  position: absolute;
+  right: -20px;
+  top: 12px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 36px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  border-radius: 10px;
-  cursor: pointer;
-  flex-shrink: 0;                    /* don’t let it squish */
-  transition: opacity 200ms ease, border-color 120ms ease;
+  z-index: 101;
+  transition: background 200ms ease, border-color 200ms ease, transform 300ms ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-toggle:hover {
+  background: var(--hover);
+}
+
+.toggle-chevron {
+  font-size: 20px;
+  transition: opacity 200ms ease;
+}
+
+/* Hide all mobile chevrons by default (desktop) */
+.sidebar-toggle .mobile-chevron {
+  display: none !important;
+}
+
+/* Desktop: Show left chevron when open, hide right */
+@media (min-width: 769px) {
+  .sidebar:not(.closed) .sidebar-toggle .desktop-chevron.open-icon {
+    display: block !important;
+  }
+
+  .sidebar:not(.closed) .sidebar-toggle .desktop-chevron.closed-icon {
+    display: none !important;
+  }
+
+  /* Desktop: Show right chevron when closed, hide left */
+  .sidebar.closed .sidebar-toggle .desktop-chevron.open-icon {
+    display: none !important;
+  }
+
+  .sidebar.closed .sidebar-toggle .desktop-chevron.closed-icon {
+    display: block !important;
+  }
 }
 
 /* ========== NAV ========== */
@@ -111,13 +179,17 @@ html[data-theme="light"] .img {
 }
 
 .nav-list li.active {
-  background: rgba(173, 50, 50, 0.08);
+  background: rgba(120, 120, 120, 0.08);
+  box-shadow: 0px 0 3px 1px var(--text);
 }
 
-.button { padding: 0; } /* we’ll pad the link instead */
+.button { 
+  padding: 0;
+  width: 100%;
+} /* we'll pad the link instead */
 .nav-link {
-  width: auto;
-    display: flex;
+  width: 100%;
+  display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -138,6 +210,29 @@ html[data-theme="light"] .img {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
+/* Hide labels when sidebar is closed */
+.sidebar.closed .nav-link .label {
+  opacity: 0;
+  transform: translateX(-6px);
+  position: absolute;
+  pointer-events: none;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+}
+
+/* Center icons when sidebar is closed */
+.sidebar.closed .nav-link {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar.closed .nav-list {
+  align-items: center;
+}
+
 
 /* Boxicons base */
 .bx {
@@ -152,12 +247,42 @@ html[data-theme="light"] .img {
   background: var(--bg);
   display: flex;
   flex-direction: column;
+  transition: margin-left 300ms ease;
+  margin-left: 0;
+}
+
+/* Adjust main content when sidebar is open */
+body:has(.sidebar:not(.closed)) .main-content {
+  margin-left: 0;
 }
 
 .top-bar {
   height: 120px;
-  background: var(--surface);
-  margin: 0 40px 0 40px;
+  background: var(--bg);
+  margin: 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Theme toggle in top-bar */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 200ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.theme-toggle:hover {
+  background: var(--hover);
 }
 
 .content-area {
@@ -178,7 +303,7 @@ html[data-theme="light"] .img {
   font-weight: bold;
   color: var(--text);
   margin: 10px;
-  background-color:  var(--surface);
+  background-color:  var(--bg);
   cursor: pointer;
 }
 
@@ -230,22 +355,29 @@ html[data-theme="light"] .img {
   color: var(--text);
 }
 
-/* ========== UTILS / SMALL SCREENS ========== */
+/* ========== UTILS / SMALL SCREENS (Tablet) ========== */
 @media (max-width: 900px) {
   .sidebar { 
-    width: 72px;
-    transition: ease-in-out width 200ms; 
+    width: 80px;
+    position: fixed;
+    left: 0;
+    top: 0;
+  }
+
+  .sidebar.closed {
+    width: 80px;
+  }
+
+  .main-content {
+    margin-left: 80px;
+  }
+
+  .sidebar.closed ~ .main-content {
+    margin-left: 0;
   }
 
   .sidebar-header {
-    justify-content: left;       /* center the logo when collapsed */
-  }
-
-  /* slide the toggle off-canvas on narrow width */
-  .theme-toggle {
-    transform: translateX(140%);
-    opacity: 0;
-    pointer-events: none;
+    justify-content: center;
   }
 
   .nav-list { align-items: center; }
@@ -262,5 +394,144 @@ html[data-theme="light"] .img {
     height: 1px;
     width: 1px;
     overflow: hidden;
+  }
+}
+
+/* ========== MOBILE / IPHONE SIZE ========== */
+@media (max-width: 768px) {
+  body {
+    flex-direction: column;
+    padding-bottom: 80px; /* Space for bottom sidebar */
+  }
+
+  .sidebar {
+    width: 100%;
+    height: 80px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    flex-direction: row;
+    z-index: 1000;
+  }
+
+  /* Sidebar always open on mobile - ignore closed class */
+  .sidebar.closed {
+    transform: none;
+    width: 100%;
+  }
+
+  /* Hide sidebar header completely on mobile */
+  .sidebar-header {
+    display: none !important;
+  }
+
+  .sidebar-header-spacer {
+    display: none;
+  }
+
+  /* Hide desktop logo, show mobile logo */
+  .desktop-logo {
+    display: none !important;
+  }
+
+  .mobile-logo {
+    display: none !important;
+  }
+
+  /* Replace Solo link football icon with hd.png on mobile */
+  .nav-link .solo-icon-desktop {
+    display: inline-block;
+  }
+
+  .nav-link .solo-icon-mobile {
+    display: none !important;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: contain;
+    filter: none;
+  }
+
+  /* LIGHT MODE: flip white mono logo to black in Solo link */
+  html[data-theme="light"] .nav-link .solo-icon-mobile {
+    filter: invert(1) brightness(0.9) contrast(1.05);
+  }
+
+  /* On mobile, hide football icon and show hd.png */
+  .nav-link[data-page="solo"] .solo-icon-desktop {
+    display: none !important;
+  }
+
+  .nav-link[data-page="solo"] .solo-icon-mobile {
+    display: block !important;
+  }
+
+  /* Navigation horizontal layout */
+  .icons {
+    width: 100%;
+    padding: 0;
+  }
+
+  .nav-list {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    height: 100%;
+    gap: 0;
+    padding: 0 8px;
+  }
+
+  .nav-list li {
+    flex: 1;
+    height: 100%;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .nav-link {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 8px 4px;
+    gap: 4px;
+  }
+
+  .nav-link .bx {
+    font-size: 24px;
+  }
+
+  .nav-link .label {
+    font-size: 11px;
+    opacity: 1 !important;
+    position: static !important;
+    transform: none !important;
+    clip: auto !important;
+    clip-path: none !important;
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+  }
+
+  /* Hide toggle button on mobile - not needed */
+  .sidebar-toggle {
+    display: none !important;
+  }
+
+  /* Main content adjustments */
+  .main-content {
+    margin-left: 0;
+    margin-bottom: 80px;
+    width: 100%;
+  }
+
+  .top-bar {
+    margin: 0 20px;
   }
 }

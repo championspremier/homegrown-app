@@ -1,0 +1,208 @@
+/* Header row */
+.top-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Toggle button */
+.schedule-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  width: 40px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, transform .12s ease;
+}
+.schedule-toggle:hover { background: var(--hover); }
+.schedule-toggle:active { transform: translateY(1px); }
+
+/* Collapsible panel */
+.hiddenSchedule {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 240ms ease, opacity 180ms ease, margin-top 180ms ease;
+  margin-top: 0;
+}
+.hiddenSchedule.is-open {
+  max-height: 900px; /* large enough for widget */
+  opacity: 1;
+  margin-top: 10px;
+}
+
+/* Widget shell */
+.weekly-widget {
+  display: grid;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+/* Bars */
+.month-bar,
+.week-bar {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+}
+.month-label,
+.week-range {
+  text-align: center;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Week nav chevrons */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  width: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, transform .12s ease;
+}
+.nav-btn:hover { background: var(--hover); }
+.nav-btn:active { transform: translateY(1px); }
+
+/* Week strip */
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+/* Day cell */
+.day {
+  display: grid;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  align-items: center;
+  gap: 4px;
+  height: 58px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 4px;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+}
+.day:hover { background: var(--hover); transform: translateY(-1px); }
+.day:active { transform: translateY(0); }
+
+/* Day text */
+.day .wd { font-weight: 700; letter-spacing: .3px; }   /* weekday letter(s) */
+.day .dt { font-size: .9rem; color: var(--muted); }    /* date number */
+
+/* States */
+.day.is-selected {
+  border-color: var(--border);
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  background: var(--bg);
+}
+.day.is-today {
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* Focus */
+.day:focus-visible {
+  outline: 2px solid rgba(255,255,255,.6);
+  outline-offset: 2px;
+}
+
+/* Small screens */
+@media (max-width: 480px) {
+  .day { height: 52px; }
+  .day .wd { font-size: .95rem; }
+  .day .dt { font-size: .85rem; }
+}
+
+
+/* OBJECTIVES AND QUIZ */
+.sectionTwo {
+  display: flex;
+  margin: 10px;
+  flex-direction: column;
+  height: 400px;
+  width: 100%;
+}
+
+.currentCurFocus {
+  height: 20%;
+  text-align: center;
+}
+
+.bottomSec {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  height: 80%;
+  width: 100%;
+  gap: 10px;
+}
+
+.objectivesFromCoach {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 70%;
+}
+
+.objectivesFromCoach, .curriculumQuiz {
+  height: 100%;
+  width: 50%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 6px 4px;
+} 
+
+.coachAndTime {
+  display: flex;
+  flex-direction: row;
+  gap: 40px;
+  height: 20%;
+}
+
+.objectives {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  height: 10%;
+  padding-top: 10px;
+}
+
+.objectivesToggle {
+  display: flex;
+  justify-content: center;
+  align-content: center;
+  height: 25px;
+  width: 25px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
