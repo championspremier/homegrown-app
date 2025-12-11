@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Coach Login / Sign Up</title>
+    <link
+      href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Racing+Sans+One&family=Zalando+Sans+Expanded:ital,wght@0,200..900;1,200..900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../login-signup/login-signup.css" />
+  </head>
+  <body>
+    <main class="auth-wrap" id="authRoot">
+      <!-- Left Panel: Login Form (Initial State) -->
+      <section class="auth-panel auth-left">
+        <img
+          class="auth-logo"
+          src="../../../public/icons/hd.png"
+          alt="Homegrown logo"
+        />
+        <div class="auth-content">
+          <h1 class="auth-title" id="leftTitle">Coach Login</h1>
+          
+          <!-- Login Form (Visible Initially) -->
+          <form class="auth-form" id="loginForm" autocomplete="on" novalidate>
+            <label class="auth-input" for="loginEmail">
+              <i class="bx bx-envelope"></i>
+              <input
+                id="loginEmail"
+                name="email"
+                type="email"
+                placeholder="Email"
+                inputmode="email"
+                autocomplete="username"
+              />
+            </label>
+
+            <label class="auth-input" for="loginPassword">
+              <i class="bx bx-lock-alt"></i>
+              <input
+                id="loginPassword"
+                name="password"
+                type="password"
+                placeholder="Password"
+                autocomplete="current-password"
+              />
+            </label>
+
+            <button type="button" class="auth-btn primary" id="loginBtn">
+              <span>Login</span>
+            </button>
+
+            <div class="auth-social-hint">Or Sign In with Google</div>
+            <div class="auth-socials">
+              <button type="button" class="auth-social-btn">
+                <i class="bx bxl-google"></i>
+              </button>
+            </div>
+          </form>
+
+          <!-- Coach Signup Form (Hidden Initially) -->
+          <form class="auth-form coach-signup-form" id="coachSignupForm" autocomplete="on" novalidate style="display: none;">
+            <!-- First Name -->
+            <label class="auth-input" for="suCoachFirstName">
+              <i class="bx bx-user"></i>
+              <input
+                id="suCoachFirstName"
+                name="coachFirstName"
+                type="text"
+                placeholder="First Name"
+                autocomplete="given-name"
+                required
+              />
+            </label>
+
+            <!-- Last Name -->
+            <label class="auth-input" for="suCoachLastName">
+              <i class="bx bx-user"></i>
+              <input
+                id="suCoachLastName"
+                name="coachLastName"
+                type="text"
+                placeholder="Last Name"
+                autocomplete="family-name"
+                required
+              />
+            </label>
+
+            <!-- Email -->
+            <label class="auth-input" for="suCoachEmail">
+              <i class="bx bx-envelope"></i>
+              <input
+                id="suCoachEmail"
+                name="coachEmail"
+                type="email"
+                placeholder="Email"
+                inputmode="email"
+                autocomplete="username"
+                required
+              />
+            </label>
+
+            <!-- Phone Number -->
+            <label class="auth-input" for="suCoachPhone">
+              <i class="bx bx-phone"></i>
+              <input
+                id="suCoachPhone"
+                name="coachPhone"
+                type="tel"
+                placeholder="Phone Number"
+                inputmode="tel"
+                autocomplete="tel"
+                required
+              />
+            </label>
+
+            <!-- Password -->
+            <label class="auth-input" for="suCoachPass">
+              <i class="bx bx-lock-alt"></i>
+              <input
+                id="suCoachPass"
+                name="coachPassword"
+                type="password"
+                placeholder="Password"
+                autocomplete="new-password"
+                required
+                minlength="6"
+              />
+            </label>
+
+            <!-- Confirm Password -->
+            <label class="auth-input" for="suCoachPassConfirm">
+              <i class="bx bx-lock-alt"></i>
+              <input
+                id="suCoachPassConfirm"
+                name="coachPasswordConfirm"
+                type="password"
+                placeholder="Confirm Password"
+                autocomplete="new-password"
+                required
+                minlength="6"
+              />
+            </label>
+
+            <button type="button" class="auth-btn primary" id="coachSignupBtn">
+              <span>Sign Up</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Right Panel: Toggle Between Login and Signup -->
+      <section class="auth-panel auth-right">
+        <div class="auth-content">
+          <h1 class="auth-title" id="rightTitle">Welcome Back!</h1>
+          <p class="auth-subtitle" id="rightSubtitle">
+            To keep connected with us please login with your personal info
+          </p>
+          <button type="button" class="auth-btn secondary" id="toggleBtn">
+            <span id="toggleBtnText">Sign Up</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="coach-login.js"></script>
+  </body>
+</html>
+

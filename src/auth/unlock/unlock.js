@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (hasInteracted) {
-      const rotY = (value / 100) * 70;
+      const rotY = (value / 100) * 1000;
       const tilt = 6;
       const scale = 1 + (value / 100) * 0.05;
       logo.style.transform = `rotateX(${tilt}deg) rotateY(${rotY}deg) scale(${scale})`;

@@ -1,2 +1,140 @@
-/* Schedule page styles */
+/* 
+ * This CSS file uses CSS variables and base styles from layout.css
+ * Layout.css is loaded in index.html and provides:
+ * - CSS variables (--bg, --surface, --text, --border, --muted, --accent, --hover)
+ * - Base typography and layout styles
+ */
 
+/* Schedule page styles */
+.schedule-container {
+  padding: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.schedule-container h1 {
+  margin: 0 0 40px 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.schedule-options {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.schedule-option {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.schedule-option:hover {
+  border-color: var(--accent);
+}
+
+.option-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.option-header:hover {
+  background: var(--hover);
+}
+
+.option-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.option-chevron {
+  font-size: 24px;
+  color: var(--text);
+  transition: transform 0.3s ease, color 0.2s ease;
+}
+
+.schedule-option.is-open .option-chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.option-dropdown {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+  padding: 0 24px;
+}
+
+.schedule-option.is-open .option-dropdown {
+  max-height: 500px;
+  opacity: 1;
+  padding: 0 24px 20px 24px;
+}
+
+.option-item {
+  width: 100%;
+  padding: 14px 16px;
+  margin-top: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Zalando Sans Expanded', 'Racing Sans One', sans-serif;
+}
+
+.option-item:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateX(4px);
+}
+
+.option-item:active {
+  transform: translateX(2px);
+}
+
+.option-item span {
+  display: block;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .schedule-container {
+    padding: 20px;
+  }
+
+  .schedule-container h1 {
+    font-size: 1.5rem;
+    margin-bottom: 24px;
+  }
+
+  .option-header {
+    padding: 16px 20px;
+  }
+
+  .option-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .option-item {
+    padding: 12px 14px;
+    font-size: 0.95rem;
+  }
+}

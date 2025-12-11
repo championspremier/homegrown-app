@@ -8,12 +8,23 @@
       href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
       rel="stylesheet"
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Racing+Sans+One&family=Zalando+Sans+Expanded:ital,wght@0,200..900;1,200..900&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="login-signup.css" />
   </head>
   <body>
     <main class="auth-wrap" id="authRoot">
       <!-- Left Panel: Login Form (Initial State) -->
       <section class="auth-panel auth-left">
+        <img
+          class="auth-logo"
+          src="../../../public/icons/hd.png"
+          alt="Homegrown logo"
+        />
         <div class="auth-content">
           <h1 class="auth-title" id="leftTitle">Login</h1>
           
@@ -27,6 +38,7 @@
                 type="email"
                 placeholder="Email"
                 inputmode="email"
+                autocomplete="username"
               />
             </label>
 
@@ -53,41 +65,357 @@
             </div>
           </form>
           
-          <!-- Sign Up Form (Hidden Initially) -->
-          <form class="auth-form" id="signupForm" autocomplete="on" novalidate style="display: none;">
-            <label class="auth-input" for="suUsername">
-              <i class="bx bx-user"></i>
-              <input
-                id="suUsername"
-                name="username"
-                type="text"
-                placeholder="Username"
-              />
-            </label>
+          <!-- Role Selector (Hidden Initially) -->
+          <div class="role-selector" id="roleSelector" style="display: none;">
+            <h2 class="role-selector-title">Create a Login for...</h2>
+            <div class="role-options">
+              <button type="button" class="role-option" id="rolePlayerOnly">
+                <span class="role-option-title">Player Only</span>
+              </button>
+              <span class="role-divider">OR</span>
+              <button type="button" class="role-option" id="roleParentPlayer">
+                <span class="role-option-title">Parent + Player</span>
+              </button>
+            </div>
+          </div>
 
-            <label class="auth-input" for="suEmail">
+          <!-- Player Only Signup Form (Hidden Initially) -->
+          <form class="auth-form player-signup-form" id="playerSignupForm" autocomplete="on" novalidate style="display: none;">
+            <!-- Player Email & Password -->
+            <label class="auth-input" for="suPlayerEmail">
               <i class="bx bx-envelope"></i>
               <input
-                id="suEmail"
-                name="email"
+                id="suPlayerEmail"
+                name="playerEmail"
                 type="email"
-                placeholder="Email"
+                placeholder="Player Email"
                 inputmode="email"
+                autocomplete="username"
+                required
               />
             </label>
 
-            <label class="auth-input" for="suPass">
+            <label class="auth-input" for="suPlayerPass">
               <i class="bx bx-lock-alt"></i>
               <input
-                id="suPass"
-                name="password"
+                id="suPlayerPass"
+                name="playerPassword"
                 type="password"
-                placeholder="Password"
+                placeholder="Player Password"
                 autocomplete="new-password"
+                required
               />
             </label>
 
-            <button type="submit" class="auth-btn primary" id="signupBtn">
+            <label class="auth-input" for="suPlayerPhone">
+              <i class="bx bx-phone"></i>
+              <input
+                id="suPlayerPhone"
+                name="playerPhone"
+                type="tel"
+                placeholder="Phone Number (optional)"
+                inputmode="tel"
+                autocomplete="tel"
+              />
+            </label>
+
+            <!-- Player Information -->
+            <label class="auth-input" for="suPlayerName">
+              <i class="bx bx-user"></i>
+              <input
+                id="suPlayerName"
+                name="playerName"
+                type="text"
+                placeholder="First & Last Name"
+                required
+              />
+            </label>
+
+            <label class="auth-input" for="suProgramType">
+              <i class="bx bx-check-square"></i>
+              <select id="suProgramType" name="programType" required>
+                <option value="">I'm here for the...</option>
+                <option value="On-field Program">On-field Program</option>
+                <option value="The Virtual Program">The Virtual Program</option>
+                <option value="Homegrown App">Homegrown App</option>
+              </select>
+            </label>
+
+            <label class="auth-input" for="suTeamName">
+              <i class="bx bx-football"></i>
+              <input
+                id="suTeamName"
+                name="teamName"
+                type="text"
+                placeholder="Team/Club Name (e.g., NVA, DCU)"
+              />
+            </label>
+
+            <label class="auth-input" for="suBirthDate">
+              <i class="bx bx-calendar"></i>
+              <input
+                id="suBirthDate"
+                name="birthDate"
+                type="date"
+                placeholder="Birth Date"
+                required
+              />
+            </label>
+
+            <label class="auth-input" for="suCompetitiveLevel">
+              <i class="bx bx-trophy"></i>
+              <select id="suCompetitiveLevel" name="competitiveLevel" required>
+                <option value="">Competitive Level</option>
+                <option value="MLS Next Homegrown">MLS Next Homegrown</option>
+                <option value="MLS Next Academy">MLS Next Academy</option>
+                <option value="ECNL">ECNL</option>
+                <option value="ECNL RL">ECNL RL</option>
+                <option value="NCSL">NCSL</option>
+                <option value="NAL">NAL</option>
+                <option value="EDP">EDP</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <div class="auth-input-wrapper">
+              <label class="auth-input positions-label" id="positionsLabel" for="suPositions">
+                <i class="bx bx-checkbox-square"></i>
+                <span class="positions-placeholder" id="positionsPlaceholder">Select Positions</span>
+              </label>
+              <div class="positions-container" id="positionsContainer">
+                <label class="position-checkbox"><input type="checkbox" name="positions" value="GK"> GK</label>
+                <label class="position-checkbox"><input type="checkbox" name="positions" value="Central Defender"> Central Defender</label>
+                <label class="position-checkbox"><input type="checkbox" name="positions" value="Mid-Defensive"> Mid-Defensive</label>
+                <label class="position-checkbox"><input type="checkbox" name="positions" value="Mid-Offensive"> Mid-Offensive</label>
+                <label class="position-checkbox"><input type="checkbox" name="positions" value="Winger"> Winger</label>
+                <label class="position-checkbox"><input type="checkbox" name="positions" value="Full-Back"> Full-Back</label>
+                <label class="position-checkbox"><input type="checkbox" name="positions" value="Forward"> Forward</label>
+              </div>
+            </div>
+
+            <label class="auth-input" for="suReferralSource">
+              <i class="bx bx-share-alt"></i>
+              <select id="suReferralSource" name="referralSource">
+                <option value="">How'd you hear about us?</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Instagram">Instagram</option>
+                <option value="Tik Tok">Tik Tok</option>
+                <option value="Coach">Coach</option>
+                <option value="Referral">Referral</option>
+                <option value="Google">Google</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <button type="submit" class="auth-btn primary" id="playerSignupBtn">
+              <span>Sign Up</span>
+            </button>
+
+            <div class="auth-social-hint">Or Sign Up with Google</div>
+            <div class="auth-socials">
+              <button type="button" class="auth-social-btn">
+                <i class="bx bxl-google"></i>
+              </button>
+            </div>
+          </form>
+
+          <!-- Parent + Player Signup Form (Hidden Initially) -->
+          <form class="auth-form parent-player-signup-form" id="parentPlayerSignupForm" autocomplete="on" novalidate style="display: none;">
+            <div class="two-column-form">
+              <!-- Left Column: Parent Information -->
+              <div class="form-column parent-column">
+                <h3 class="form-column-title">Parent Information</h3>
+                
+                <label class="auth-input" for="suParentFirstName">
+                  <i class="bx bx-user"></i>
+                  <input
+                    id="suParentFirstName"
+                    name="parentFirstName"
+                    type="text"
+                    placeholder="First Name"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentLastName">
+                  <i class="bx bx-user"></i>
+                  <input
+                    id="suParentLastName"
+                    name="parentLastName"
+                    type="text"
+                    placeholder="Last Name"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentEmail">
+                  <i class="bx bx-envelope"></i>
+                  <input
+                    id="suParentEmail"
+                    name="parentEmail"
+                    type="email"
+                    placeholder="Parent Email"
+                    inputmode="email"
+                    autocomplete="username"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentPass">
+                  <i class="bx bx-lock-alt"></i>
+                  <input
+                    id="suParentPass"
+                    name="parentPassword"
+                    type="password"
+                    placeholder="Parent Password"
+                    autocomplete="new-password"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentPhone">
+                  <i class="bx bx-phone"></i>
+                  <input
+                    id="suParentPhone"
+                    name="parentPhone"
+                    type="tel"
+                    placeholder="Phone Number"
+                    inputmode="tel"
+                    autocomplete="tel"
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentBirthDate">
+                  <i class="bx bx-calendar"></i>
+                  <input
+                    id="suParentBirthDate"
+                    name="parentBirthDate"
+                    type="date"
+                    placeholder="Birth Date"
+                    required
+                  />
+                </label>
+              </div>
+
+              <!-- Right Column: Player Information -->
+              <div class="form-column player-column">
+                <h3 class="form-column-title">Player Information</h3>
+                
+                <label class="auth-input" for="suParentPlayerEmail">
+                  <i class="bx bx-envelope"></i>
+                  <input
+                    id="suParentPlayerEmail"
+                    name="parentPlayerEmail"
+                    type="email"
+                    placeholder="Player Email"
+                    inputmode="email"
+                    autocomplete="username"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentPlayerPass">
+                  <i class="bx bx-lock-alt"></i>
+                  <input
+                    id="suParentPlayerPass"
+                    name="parentPlayerPassword"
+                    type="password"
+                    placeholder="Player Password"
+                    autocomplete="new-password"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentPlayerName">
+                  <i class="bx bx-user"></i>
+                  <input
+                    id="suParentPlayerName"
+                    name="parentPlayerName"
+                    type="text"
+                    placeholder="First & Last Name"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentProgramType">
+                  <i class="bx bx-check-square"></i>
+                  <select id="suParentProgramType" name="parentProgramType" required>
+                    <option value="">I'm here for the...</option>
+                    <option value="On-field Program">On-field Program</option>
+                    <option value="The Virtual Program">The Virtual Program</option>
+                    <option value="Homegrown App">Homegrown App</option>
+                  </select>
+                </label>
+
+                <label class="auth-input" for="suParentTeamName">
+                  <i class="bx bx-football"></i>
+                  <input
+                    id="suParentTeamName"
+                    name="parentTeamName"
+                    type="text"
+                    placeholder="Team/Club Name (e.g., NVA, DCU)"
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentPlayerBirthDate">
+                  <i class="bx bx-calendar"></i>
+                  <input
+                    id="suParentPlayerBirthDate"
+                    name="parentPlayerBirthDate"
+                    type="date"
+                    placeholder="Birth Date"
+                    required
+                  />
+                </label>
+
+                <label class="auth-input" for="suParentCompetitiveLevel">
+                  <i class="bx bx-trophy"></i>
+                  <select id="suParentCompetitiveLevel" name="parentCompetitiveLevel" required>
+                    <option value="">Competitive Level</option>
+                    <option value="MLS Next Homegrown">MLS Next Homegrown</option>
+                    <option value="MLS Next Academy">MLS Next Academy</option>
+                    <option value="ECNL">ECNL</option>
+                    <option value="ECNL RL">ECNL RL</option>
+                    <option value="NCSL">NCSL</option>
+                    <option value="NAL">NAL</option>
+                    <option value="EDP">EDP</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+
+                <div class="auth-input-wrapper">
+                  <label class="auth-input positions-label" id="parentPositionsLabel" for="suParentPositions">
+                    <i class="bx bx-checkbox-square"></i>
+                    <span class="positions-placeholder" id="parentPositionsPlaceholder">Select Positions</span>
+                  </label>
+                  <div class="positions-container" id="parentPositionsContainer">
+                    <label class="position-checkbox"><input type="checkbox" name="parentPositions" value="GK"> GK</label>
+                    <label class="position-checkbox"><input type="checkbox" name="parentPositions" value="Central Defender"> Central Defender</label>
+                    <label class="position-checkbox"><input type="checkbox" name="parentPositions" value="Mid-Defensive"> Mid-Defensive</label>
+                    <label class="position-checkbox"><input type="checkbox" name="parentPositions" value="Mid-Offensive"> Mid-Offensive</label>
+                    <label class="position-checkbox"><input type="checkbox" name="parentPositions" value="Winger"> Winger</label>
+                    <label class="position-checkbox"><input type="checkbox" name="parentPositions" value="Full-Back"> Full-Back</label>
+                    <label class="position-checkbox"><input type="checkbox" name="parentPositions" value="Forward"> Forward</label>
+                  </div>
+                </div>
+
+                <label class="auth-input" for="suParentReferralSource">
+                  <i class="bx bx-share-alt"></i>
+                  <select id="suParentReferralSource" name="parentReferralSource">
+                    <option value="">How'd you hear about us?</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="Instagram">Instagram</option>
+                    <option value="Tik Tok">Tik Tok</option>
+                    <option value="Coach">Coach</option>
+                    <option value="Referral">Referral</option>
+                    <option value="Google">Google</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" class="auth-btn primary" id="parentPlayerSignupBtn">
               <span>Sign Up</span>
             </button>
 
@@ -108,17 +436,22 @@
           <p class="auth-description" id="rightDescription">
             Join Homegrown and start your journey to becoming an elite soccer player.
           </p>
-          <button class="auth-btn secondary" id="toSignup">
-            <span>Sign Up</span>
-          </button>
-          <button class="auth-btn secondary" id="toLogin" style="display: none;">
-            <span>Login</span>
-          </button>
+          <div class="auth-buttons-container">
+            <button class="auth-btn secondary" id="toSignup">
+              <span>Sign Up</span>
+            </button>
+            <button class="auth-btn secondary" id="toLogin" style="display: none;">
+              <span>Login</span>
+            </button>
+            <button class="auth-btn secondary" id="toCoachLogin" style="display: none;">
+              <span>Coach Login/Signup</span>
+            </button>
+          </div>
         </div>
       </section>
     </main>
 
-    <script src="login-signup.js" defer></script>
+    <script type="module" src="login-signup.js" defer></script>
   </body>
 </html>
 

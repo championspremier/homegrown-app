@@ -25,7 +25,8 @@ html[data-theme="light"] {
 body {
   margin: 0;
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: 'Zalando Sans Expanded', 'Racing Sans One', sans-serif;
@@ -39,10 +40,27 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  transition: width 300ms ease;
+  transition: width 300ms ease, transform 300ms ease;
   position: relative;
   z-index: 100;
   overflow: visible;
+}
+
+/* Hide Solo navigation for parents */
+body[data-role="parent"] .button[title="Solo"],
+body[data-role="parent"] .button[title="Solo"] *,
+body[data-role="parent"] .nav-link[data-page="solo"],
+body[data-role="parent"] .nav-link[data-page="solo"] *,
+body[data-role="parent"] li:has(.nav-link[data-page="solo"]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .sidebar.closed {
@@ -287,7 +305,36 @@ body:has(.sidebar:not(.closed)) .main-content {
 
 .content-area {
   flex: 1;
-  padding: 16px;
+  padding: 20px;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Base styles for content loaded into content-area */
+.content-area > * {
+  max-width: 100%;
+}
+
+.content-area h1,
+.content-area h2,
+.content-area h3,
+.content-area h4,
+.content-area h5,
+.content-area h6 {
+  color: var(--text);
+  margin: 0.5em 0;
+  font-family: inherit;
+}
+
+.content-area p {
+  color: var(--text);
+  margin: 0.5em 0;
+}
+
+.content-area button,
+.content-area a {
+  color: var(--text);
 }
 
 /* ========== Player Leaderboard ========== */
@@ -357,43 +404,92 @@ body:has(.sidebar:not(.closed)) .main-content {
 
 /* ========== UTILS / SMALL SCREENS (Tablet) ========== */
 @media (max-width: 900px) {
+  /* Sidebar always icon-only (80px) - no open/close */
   .sidebar { 
-    width: 80px;
+    width: 80px !important; /* Always 80px - icon-only */
     position: fixed;
     left: 0;
     top: 0;
+    z-index: 100;
+    transform: translateX(0) !important; /* Always fully visible */
   }
 
   .sidebar.closed {
-    width: 80px;
+    width: 80px !important; /* Same width whether closed or not */
+    transform: translateX(0) !important; /* Always fully visible */
   }
 
+  /* Hide toggle button in this media range - use more specific selector */
+  .sidebar .sidebar-toggle,
+  #sidebarToggle,
+  button.sidebar-toggle,
+  button#sidebarToggle {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    z-index: -1 !important;
+  }
+
+  /* Remove spacer since toggle is hidden */
+  .sidebar-header-spacer {
+    display: none !important;
+  }
+
+  /* Main content always has margin for 80px sidebar */
   .main-content {
-    margin-left: 80px;
-  }
-
-  .sidebar.closed ~ .main-content {
-    margin-left: 0;
+    margin-left: 80px; /* Always 80px margin */
+    transition: none; /* No transition needed */
   }
 
   .sidebar-header {
     justify-content: center;
   }
 
-  .nav-list { align-items: center; }
-  .nav-link { justify-content: center; padding: 10px; }
+  .nav-list { 
+    align-items: center; 
+  }
+  
+  .nav-link { 
+    justify-content: center; 
+    padding: 10px;
+    position: relative; /* For tooltip positioning */
+  }
 
-  /* Hide the text labels (keep icons centered) */
+  /* Always hide labels - icons only */
   .nav-link .label {
+    display: none !important;
+  }
+
+  /* Tooltip styles - always show on hover */
+  .nav-link::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 6px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.875rem;
+    white-space: nowrap;
     opacity: 0;
-    transform: translateX(-6px);
-    position: absolute;      /* removes it from layout flow */
     pointer-events: none;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    height: 1px;
-    width: 1px;
-    overflow: hidden;
+    transition: opacity 0.2s ease;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .nav-link:hover::before {
+    opacity: 1;
   }
 }
 
@@ -405,7 +501,7 @@ body:has(.sidebar:not(.closed)) .main-content {
   }
 
   .sidebar {
-    width: 100%;
+    width: 100% !important;
     height: 80px;
     position: fixed;
     bottom: 0;
@@ -416,12 +512,13 @@ body:has(.sidebar:not(.closed)) .main-content {
     border-top: 1px solid var(--border);
     flex-direction: row;
     z-index: 1000;
+    transform: none !important;
   }
 
   /* Sidebar always open on mobile - ignore closed class */
   .sidebar.closed {
-    transform: none;
-    width: 100%;
+    transform: none !important;
+    width: 100% !important;
   }
 
   /* Hide sidebar header completely on mobile */
@@ -472,31 +569,35 @@ body:has(.sidebar:not(.closed)) .main-content {
 
   /* Navigation horizontal layout */
   .icons {
-    width: 100%;
+    width: 100% !important;
     padding: 0;
+    flex: 1;
   }
 
   .nav-list {
-    flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: center !important;
     height: 100%;
+    width: 100% !important;
     gap: 0;
     padding: 0 8px;
+    margin: 0;
   }
 
   .nav-list li {
-    flex: 1;
+    flex: 1 1 0 !important;
     height: 100%;
     padding: 0;
     justify-content: center;
+    min-width: 0;
   }
 
   .nav-link {
-    flex-direction: column;
-    justify-content: center;
+    flex-direction: column !important;
+    justify-content: center !important;
     align-items: center;
-    width: 100%;
+    width: 100% !important;
     height: 100%;
     padding: 8px 4px;
     gap: 4px;
