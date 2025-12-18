@@ -3,7 +3,6 @@
 // To reach src/auth/config/supabase.js, we need to go up 4 levels to src/, then into auth/
 import { initSupabase } from '../../../../auth/config/supabase.js';
 
-console.log('Coach Settings page loaded');
 
 // Initialize Supabase
 let supabase;
@@ -13,7 +12,6 @@ initSupabase().then(client => {
   if (client) {
     supabase = client;
     supabaseReady = true;
-    console.log('✅ Supabase initialized in coach settings');
   } else {
     console.error('❌ Supabase client is null');
   }
@@ -36,7 +34,7 @@ if (window.initThemeToggle) {
     
     function applyTheme(theme) {
       root.setAttribute('data-theme', theme);
-      btn.innerHTML = theme === 'light' ? '<i class="bx bx-moon bx-flashing-hover"></i>' : '<i class="bx bx-sun bx-spin-hover"></i>';
+      btn.innerHTML = theme === 'light' ? '<i class="bx bx-moon"></i>' : '<i class="bx bx-sun"></i>';
       localStorage.setItem(STORAGE_KEY, theme);
     }
     

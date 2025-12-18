@@ -31,7 +31,6 @@ initSupabase().then(client => {
   if (client) {
     supabase = client;
     supabaseReady = true;
-    console.log('✅ Supabase initialized in login-signup');
   } else {
     console.error('❌ Supabase client is null');
   }
@@ -219,10 +218,14 @@ setupPositionsToggle('parentPositionsLabel', 'parentPositionsContainer', 'parent
 
 // Helper function to create a player account
 async function createPlayerAccount(playerData, redirect = true) {
-  const { email, password, phone, playerName, programType, teamName, birthDate, competitiveLevel, positions, referralSource } = playerData;
+  const { email, password, phone, firstName, lastName, programType, teamName, birthDate, competitiveLevel, positions, referralSource } = playerData;
+
+  // Use firstName and lastName (required fields)
+  const playerFirstName = firstName || '';
+  const playerLastName = lastName || '';
 
   // Validation
-  if (!email || !password || !playerName || !programType || !birthDate || !competitiveLevel) {
+  if (!email || !password || !playerFirstName || !playerLastName || !programType || !birthDate || !competitiveLevel) {
     throw new Error('Please complete all required fields.');
   }
 
@@ -245,7 +248,8 @@ async function createPlayerAccount(playerData, redirect = true) {
     options: {
       data: {
         role: 'player',
-        player_name: playerName,
+        first_name: playerFirstName,
+        last_name: playerLastName,
         program_type: programType,
         team_name: teamName || null,
         birth_year: parseInt(birthYear),
@@ -275,75 +279,60 @@ async function createPlayerAccount(playerData, redirect = true) {
   // 3. Wait for database trigger to create basic profile
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  // 4. Update profile with complete information
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({
-      player_name: playerName,
-      program_type: programType,
-      team_name: teamName || null,
-      birth_year: parseInt(birthYear),
-      competitive_level: competitiveLevel,
-      positions: positions.length > 0 ? positions : null,
-      referral_source: referralSource || null,
-      phone_number: phone || null,
-    })
-    .eq('id', authData.user.id);
+  // 4. Update profile with complete information using RPC function to bypass RLS recursion
+  // First try using the update_user_profile function if it exists
+  const { error: rpcError } = await supabase.rpc('update_user_profile', {
+    p_user_id: authData.user.id,
+    p_first_name: playerFirstName,
+    p_last_name: playerLastName,
+    p_program_type: programType,
+    p_competitive_level: competitiveLevel,
+    p_phone_number: phone || null,
+    p_team_name: teamName || null,
+    p_birth_year: parseInt(birthYear),
+    p_positions: positions.length > 0 ? positions : null,
+    p_referral_source: referralSource || null
+  });
 
-  if (profileError) {
-    if (profileError.code === 'PGRST116') {
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          role: 'player',
-          player_name: playerName,
-          program_type: programType,
-          team_name: teamName || null,
-          birth_year: parseInt(birthYear),
-          competitive_level: competitiveLevel,
-          positions: positions.length > 0 ? positions : null,
-          referral_source: referralSource || null,
-          phone_number: phone || null,
-        });
-      
-      if (insertError) {
-        throw new Error(`Profile creation failed: ${insertError.message}`);
-      }
-    } else {
-      throw new Error(`Profile update failed: ${profileError.message}`);
+  if (rpcError) {
+    console.error('❌ RPC function error:', rpcError);
+    console.error('❌ RPC error code:', rpcError.code);
+    console.error('❌ RPC error message:', rpcError.message);
+    console.error('❌ RPC error details:', rpcError.details);
+    console.error('❌ RPC error hint:', rpcError.hint);
+    
+    // If RPC function doesn't exist (code 42883), we need to create it
+    if (rpcError.code === '42883' || rpcError.code === 'P0001' || rpcError.message?.includes('does not exist') || rpcError.message?.includes('function') && rpcError.message?.includes('not found')) {
+      const errorMsg = 'RPC function update_user_profile does not exist in Supabase.\n\n' +
+        'Please run this SQL migration in your Supabase SQL Editor:\n' +
+        'sql/migrations/fix-profiles-rls-infinite-recursion.sql\n\n' +
+        'This will create the function needed to bypass RLS recursion.';
+      alert(errorMsg);
+      throw new Error(errorMsg);
     }
+    
+    // For other RPC errors, throw with details
+    throw new Error(`RPC function error: ${rpcError.message || 'Unknown error'}. Please ensure the update_user_profile function exists in Supabase.`);
+  } else {
   }
   
-  console.log('✅ Player profile created successfully for user:', authData.user.id);
 
   // 5. Send to Notion
   let notionError = null;
   try {
-    console.log('📤 Attempting to sync player to Notion...');
-    console.log('📦 Notion data:', {
-      playerName,
-      programType,
-      teamName,
-      birthDate,
-      competitiveLevel,
-      positions,
-      referralSource,
-      email,
+    const data = {
+      firstName: playerFirstName,
+      lastName: playerLastName,
+      programType: programType,
+      teamName: teamName,
+      birthDate: birthDate,
+      competitiveLevel: competitiveLevel,
+      positions: positions,
+      referralSource: referralSource,
+      email: email,
       phoneNumber: phone || null,
-    });
-    await sendToNotion({
-      playerName,
-      programType,
-      teamName,
-      birthDate: birthDate, // Already in YYYY-MM-DD format from date input
-      competitiveLevel,
-      positions,
-      referralSource,
-      email,
-      phoneNumber: phone || null,
-    });
-    console.log('✅ Notion sync successful');
+    };
+    await sendToNotion(data);
   } catch (error) {
     notionError = error;
     console.error('❌ Notion sync failed:', error);
@@ -389,7 +378,8 @@ playerSignupForm?.addEventListener('submit', async (e) => {
   const email = document.getElementById('suPlayerEmail').value.trim();
   const password = document.getElementById('suPlayerPass').value;
   const phone = document.getElementById('suPlayerPhone').value.trim();
-  const playerName = document.getElementById('suPlayerName').value.trim();
+  const firstName = document.getElementById('suPlayerFirstName').value.trim();
+  const lastName = document.getElementById('suPlayerLastName').value.trim();
   const programType = document.getElementById('suProgramType').value;
   const teamName = document.getElementById('suTeamName').value.trim();
   const birthDate = document.getElementById('suBirthDate').value;
@@ -409,7 +399,8 @@ playerSignupForm?.addEventListener('submit', async (e) => {
       email,
       password,
       phone,
-      playerName,
+      firstName,
+      lastName,
       programType,
       teamName,
       birthDate,
@@ -418,11 +409,7 @@ playerSignupForm?.addEventListener('submit', async (e) => {
       referralSource
     });
     
-    console.log('🔄 Redirecting to dashboard in 15 seconds (check console for any errors)...');
-    console.log('📋 You have 15 seconds to copy any console logs');
-    setTimeout(() => {
-      window.location.href = '../../index.html';
-    }, 15000); // 15 second delay
+    window.location.href = '../../index.html';
   } catch (error) {
     console.error('Signup error:', error);
     alert(`Signup failed: ${error.message || 'An error occurred. Please try again.'}`);
@@ -465,7 +452,8 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
   // Collect player form data
   const playerEmail = document.getElementById('suParentPlayerEmail').value.trim();
   const playerPassword = document.getElementById('suParentPlayerPass').value;
-  const playerName = document.getElementById('suParentPlayerName').value.trim();
+  const playerFirstName = document.getElementById('suParentPlayerFirstName').value.trim();
+  const playerLastName = document.getElementById('suParentPlayerLastName').value.trim();
   const programType = document.getElementById('suParentProgramType').value;
   const teamName = document.getElementById('suParentTeamName').value.trim();
   const birthDate = document.getElementById('suParentPlayerBirthDate').value;
@@ -482,7 +470,7 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
     return;
   }
 
-  if (!playerEmail || !playerPassword || !playerName || !programType || !birthDate || !competitiveLevel) {
+  if (!playerEmail || !playerPassword || !playerFirstName || !playerLastName || !programType || !birthDate || !competitiveLevel) {
     alert('Please complete all required player fields.');
     return;
   }
@@ -530,42 +518,33 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
 
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Update parent profile
-    const { error: parentProfileError } = await supabase
-      .from('profiles')
-      .update({
-        first_name: parentFirstName,
-        last_name: parentLastName,
-        birth_date: parentBirthDate,
-        phone_number: parentPhone || null,
-      })
-      .eq('id', parentAuthData.user.id);
+    // Update parent profile using RPC function to bypass RLS recursion
+    // First try using the update_user_profile function if it exists
+    const { data: rpcData, error: rpcError } = await supabase.rpc('update_user_profile', {
+      p_user_id: parentAuthData.user.id,
+      p_first_name: parentFirstName,
+      p_last_name: parentLastName,
+      p_birth_date: parentBirthDate || null,
+      p_phone_number: parentPhone || null
+    });
 
-    if (parentProfileError) {
-      if (parentProfileError.code === 'PGRST116') {
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: parentAuthData.user.id,
-            role: 'parent',
-            first_name: parentFirstName,
-            last_name: parentLastName,
-            birth_date: parentBirthDate || null,
-            phone_number: parentPhone || null,
-            player_name: null,  // NULL for parents (not used)
-            program_type: null,  // NULL for parents (not used)
-            competitive_level: null  // NULL for parents (not used)
-          });
-        if (insertError) {
-          console.error('Parent profile insert error:', insertError);
-          throw new Error(`Parent profile creation failed: ${insertError.message}`);
-        }
-      } else {
-        throw new Error(`Parent profile update failed: ${parentProfileError.message}`);
+    if (rpcError) {
+      console.error('RPC function error:', rpcError);
+      console.error('RPC error code:', rpcError.code);
+      console.error('RPC error message:', rpcError.message);
+      console.error('RPC error details:', rpcError.details);
+      console.error('RPC error hint:', rpcError.hint);
+      
+      // If RPC function doesn't exist (code 42883), we need to create it
+      if (rpcError.code === '42883' || rpcError.message?.includes('does not exist')) {
+        throw new Error('RPC function update_user_profile does not exist. Please run the SQL migration: fix-profiles-rls-infinite-recursion.sql');
       }
+      
+      // For other RPC errors, throw with details
+      throw new Error(`RPC function error: ${rpcError.message || 'Unknown error'}. Please ensure the update_user_profile function exists in Supabase.`);
+    } else {
     }
 
-    console.log('✅ Parent account created:', parentAuthData.user.id);
     
     // Store parent info and session BEFORE signing out
     const parentUserId = parentAuthData.user.id;
@@ -573,9 +552,6 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
     const parentAccessToken = parentSession?.access_token;
     const parentRefreshToken = parentSession?.refresh_token;
     
-    console.log('💾 Stored parent session token for relationship creation');
-    console.log('🔑 Parent session available:', !!parentSession);
-    console.log('🔑 Parent access token available:', !!parentAccessToken);
     
     if (!parentAccessToken) {
       console.warn('⚠️ WARNING: No parent access token available. Relationship creation may fail.');
@@ -584,16 +560,15 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
     
     // 2. Sign out parent and create player account
     await supabase.auth.signOut();
-    console.log('🔓 Signed out parent to create player account');
 
     // Create player account using helper function
     // This will also sync the player to Notion
-    console.log('🔄 Creating player account (this will sync to Notion)...');
     const playerId = await createPlayerAccount({
       email: playerEmail,
       password: playerPassword,
       phone: null, // Player phone not collected in parent form
-      playerName,
+      firstName: playerFirstName,
+      lastName: playerLastName,
       programType,
       teamName,
       birthDate,
@@ -602,11 +577,8 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
       referralSource
     }, false); // Don't redirect yet
 
-    console.log('✅ Player account created:', playerId);
-    console.log('✅ Player should have been synced to Notion (check console for any errors)');
 
     // 3. Create relationship using parent's stored session (bypasses email confirmation requirement)
-    console.log('🔗 Creating parent-player relationship using stored parent session...');
     let relationshipCreated = false;
     
     if (parentAccessToken && parentRefreshToken) {
@@ -615,7 +587,6 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
         const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
         const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('../config/supabase.js');
         
-        console.log('📤 Creating Supabase client with parent session...');
         const parentSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
           auth: {
             persistSession: false,
@@ -632,11 +603,8 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
         if (sessionError) {
           console.error('❌ Could not set parent session:', sessionError);
         } else {
-          console.log('✅ Parent session set successfully');
-          console.log('🔍 Current user ID from session:', sessionData.user?.id);
           
           // Now use this client to create the relationship
-          console.log('📤 Creating relationship with authenticated parent client...');
           const { error: relationshipError, data: relationshipData } = await parentSupabase
             .from('parent_player_relationships')
             .insert({
@@ -653,8 +621,6 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
             console.error('❌ Error details:', relationshipError.details);
             console.error('❌ Error hint:', relationshipError.hint);
           } else {
-            console.log('✅ Parent-player relationship created successfully using stored session!');
-            console.log('📊 Relationship data:', relationshipData);
             relationshipCreated = true;
           }
         }
@@ -668,7 +634,6 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
     
     // If stored token method didn't work, try signing in (may fail if email not confirmed)
     if (!relationshipCreated) {
-      console.log('🔑 Attempting to sign in as parent (may fail if email not confirmed)...');
       const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
         email: parentEmail,
         password: parentPassword
@@ -692,19 +657,12 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
         console.warn('💡 Run this SQL in Supabase to create the relationship:');
         console.warn(`   INSERT INTO parent_player_relationships (parent_id, player_id, relationship_type) VALUES ('${parentUserId}', '${playerId}', 'primary') ON CONFLICT (parent_id, player_id) DO NOTHING;`);
       } else {
-        console.log('✅ Successfully signed back in as parent');
-        console.log('📊 Sign-in data:', signInData);
-        console.log('📊 Sign-in user ID:', signInData?.user?.id);
         
         // Verify the current user ID matches parent_id
         const { data: { user: currentUser }, error: getUserError } = await supabase.auth.getUser();
         if (getUserError) {
           console.error('❌ Error getting current user:', getUserError);
         }
-        console.log('🔍 Current authenticated user ID (auth.uid()):', currentUser?.id);
-        console.log('🔍 Parent ID we want to insert:', parentUserId);
-        console.log('🔍 Sign-in user ID:', signInData?.user?.id);
-        console.log('🔍 Do they match?', currentUser?.id === parentUserId);
         
         // Use auth.uid() directly as parent_id to ensure RLS policy passes
         // The RLS policy checks: auth.uid() = parent_id
@@ -719,10 +677,6 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
         }
         
         // 4. Create parent-player relationship
-        console.log('🔗 Creating parent-player relationship...');
-        console.log('🔍 Using parent_id (must match auth.uid()):', actualParentId);
-        console.log('🔍 Current auth.uid():', currentUser?.id);
-        console.log('🔍 Player ID:', playerId);
         const { error: relationshipError, data: relationshipData } = await supabase
           .from('parent_player_relationships')
           .insert({
@@ -756,13 +710,12 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
               console.error('💡 You need to create the parent profile first. Run this SQL:');
               console.error(`   -- See fix-parent-profile-simple.sql for the full script`);
             } else {
-              console.log('✅ Parent profile exists:', parentProfile);
             }
             
             // Check if player profile exists
             const { data: playerProfile, error: playerCheckError } = await supabase
               .from('profiles')
-              .select('id, role, player_name')
+              .select('id, role, first_name, last_name')
               .eq('id', playerId)
               .single();
             
@@ -770,7 +723,6 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
               console.error('❌ Player profile does NOT exist in profiles table!');
               console.error('💡 The player profile should have been created. Check the createPlayerAccount function.');
             } else {
-              console.log('✅ Player profile exists:', playerProfile);
             }
           }
           
@@ -778,17 +730,11 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
           console.warn('💡 Run this SQL in Supabase:');
           console.warn(`   INSERT INTO parent_player_relationships (parent_id, player_id, relationship_type) VALUES ('${parentUserId}', '${playerId}', 'primary') ON CONFLICT (parent_id, player_id) DO NOTHING;`);
         } else {
-          console.log('✅ Parent-player relationship created successfully!');
-          console.log('📊 Relationship data:', relationshipData);
         }
       }
     }
 
-    console.log('🔄 Redirecting to dashboard in 15 seconds (check console for any errors)...');
-    console.log('📋 You have 15 seconds to copy any console logs');
-    setTimeout(() => {
-      window.location.href = '../../index.html';
-    }, 15000); // 15 second delay
+    window.location.href = '../../index.html';
     
   } catch (error) {
     console.error('Signup error:', error);
@@ -805,8 +751,6 @@ async function sendToNotion(data) {
   }
   
   try {
-    console.log('📤 Calling Supabase Edge Function: sync-to-notion');
-    console.log('📦 Data being sent:', data);
     
     // Try Supabase functions.invoke first
     const { data: result, error } = await supabase.functions.invoke('sync-to-notion', {
@@ -843,7 +787,6 @@ async function sendToNotion(data) {
       // If we don't have error details yet, try to fetch directly to get the actual response
       if (!notionErrorDetails) {
         try {
-          console.log('🔍 Attempting direct fetch to get error details...');
           const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('../config/supabase.js');
           const directResponse = await fetch(`${SUPABASE_URL}/functions/v1/sync-to-notion`, {
             method: 'POST',
@@ -883,7 +826,6 @@ async function sendToNotion(data) {
       throw new Error(`Edge Function error: ${errorMessage}${notionErrorDetails}`);
     }
     
-    console.log('✅ Edge Function response:', result);
     return result;
     
     // Option B: Direct Notion API (uncomment if you prefer direct API)
@@ -946,7 +888,6 @@ loginBtn?.addEventListener('click', async (e) => {
 
       // Redirect based on role (default to player for now)
       const role = profile?.role || 'player';
-      console.log(`✅ User logged in with role: ${role}`);
       
       // Set role in localStorage so the app knows which view to show
       if (window.setCurrentRole) {
@@ -955,11 +896,7 @@ loginBtn?.addEventListener('click', async (e) => {
         localStorage.setItem('hg-user-role', role);
       }
       
-      console.log('🔄 Redirecting to dashboard in 15 seconds (check console for any errors)...');
-      console.log('📋 You have 15 seconds to copy any console logs');
-      setTimeout(() => {
-        window.location.href = '../../index.html';
-      }, 15000); // 15 second delay
+      window.location.href = '../../index.html';
     }
   } catch (error) {
     console.error('Login error:', error);

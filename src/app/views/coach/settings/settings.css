@@ -49,11 +49,10 @@
   background: var(--hover);
   border-color: var(--accent);
   color: var(--accent);
-  transform: scale(1.05);
 }
 
 .theme-toggle:active {
-  transform: scale(0.95);
+  /* No transform on active */
 }
 
 .theme-toggle i {
@@ -82,11 +81,33 @@
 }
 
 .logout-btn:active {
-  transform: translateY(1px);
+  /* No transform on active */
 }
 
 .logout-btn i {
   font-size: 18px;
+}
+
+/* Disable all animations and transforms on bx icons */
+.bx,
+.bx *,
+.theme-toggle .bx,
+.logout-btn .bx {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+.theme-toggle:hover .bx,
+.logout-btn:hover .bx {
+  animation: none !important;
+  transform: none !important;
+}
+
+.theme-toggle:active .bx,
+.logout-btn:active .bx {
+  animation: none !important;
+  transform: none !important;
 }
 
 .profile-content {

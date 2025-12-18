@@ -1,5 +1,148 @@
-<div style="padding: 40px;">
+<div class="schedule-container">
   <h1>Schedule</h1>
-  <p>Parent schedule content goes here</p>
-</div>
+  
+  <div class="schedule-options">
+    <!-- On-Field Option -->
+    <div class="schedule-option" id="onFieldOption">
+      <div class="option-header" id="onFieldHeader">
+        <h2>On-Field</h2>
+        <i class="bx bx-chevron-down option-chevron" id="onFieldChevron"></i>
+      </div>
+      <div class="option-dropdown" id="onFieldDropdown">
+        <!-- Filter buttons for session types -->
+        <div class="session-type-filters" id="onFieldFilters" style="display: none;">
+          <button class="filter-btn" data-type="Tec Tac" type="button">Tec Tac</button>
+          <button class="filter-btn" data-type="Speed Training" type="button">Speed Training</button>
+          <button class="filter-btn" data-type="Strength & Conditioning" type="button">Strength & Conditioning</button>
+        </div>
+        
+        <!-- Calendar header will be inserted here -->
+        <div class="calendar-header-container" id="onFieldCalendarHeader" style="display: none;">
+          <div class="calendar-navigation">
+            <button class="calendar-nav-btn" id="onFieldPrevWeek" type="button">
+              <i class="bx bx-chevron-left"></i>
+            </button>
+            <div class="calendar-week-row">
+            <div class="calendar-day" data-day="0">
+              <div class="day-label">Sun</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="1">
+              <div class="day-label">Mon</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="2">
+              <div class="day-label">Tue</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="3">
+              <div class="day-label">Wed</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="4">
+              <div class="day-label">Thu</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="5">
+              <div class="day-label">Fri</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="6">
+              <div class="day-label">Sat</div>
+              <div class="day-number"></div>
+            </div>
+            </div>
+            <button class="calendar-nav-btn" id="onFieldNextWeek" type="button">
+              <i class="bx bx-chevron-right"></i>
+            </button>
+          </div>
+          <div class="selected-date-display" id="onFieldSelectedDate"></div>
+        </div>
+        
+        <!-- Sessions list will be inserted here -->
+        <div class="sessions-list" id="onFieldSessionsList" style="display: none;"></div>
+        
+        <!-- Upcoming sessions list (shown when filter is clicked) -->
+        <div class="upcoming-sessions-list" id="onFieldUpcomingSessions" style="display: none;"></div>
+      </div>
+    </div>
 
+    <!-- Virtual Option -->
+    <div class="schedule-option" id="virtualOption">
+      <div class="option-header" id="virtualHeader">
+        <h2>Virtual</h2>
+        <i class="bx bx-chevron-down option-chevron" id="virtualChevron"></i>
+      </div>
+      <div class="option-dropdown" id="virtualDropdown">
+        <!-- Filter buttons for virtual session types -->
+        <div class="session-type-filters" id="virtualFilters" style="display: none;">
+          <button class="filter-btn" data-type="Group Film-Analysis" type="button">Group Film-Analysis</button>
+          <button class="filter-btn" data-type="Champions Player Progress (CPP)" type="button">Champions Player Progress (CPP)</button>
+          <button class="filter-btn" data-type="Pro Player Stories (PPS)" type="button">Pro Player Stories (PPS)</button>
+          <button class="filter-btn" data-type="College Advising" type="button">College Advising</button>
+          <button class="filter-btn" data-type="Psychologist" type="button">Psychologist</button>
+          <button class="filter-btn" data-type="Free Nutrition Consultation" type="button">Free Nutrition Consultation</button>
+        </div>
+        
+        <!-- Calendar header will be inserted here -->
+        <div class="calendar-header-container" id="virtualCalendarHeader" style="display: none;">
+          <div class="calendar-navigation">
+            <button class="calendar-nav-btn" id="virtualPrevWeek" type="button">
+              <i class="bx bx-chevron-left"></i>
+            </button>
+            <div class="calendar-week-row">
+            <div class="calendar-day" data-day="0">
+              <div class="day-label">Sun</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="1">
+              <div class="day-label">Mon</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="2">
+              <div class="day-label">Tue</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="3">
+              <div class="day-label">Wed</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="4">
+              <div class="day-label">Thu</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="5">
+              <div class="day-label">Fri</div>
+              <div class="day-number"></div>
+            </div>
+            <div class="calendar-day" data-day="6">
+              <div class="day-label">Sat</div>
+              <div class="day-number"></div>
+            </div>
+            </div>
+            <button class="calendar-nav-btn" id="virtualNextWeek" type="button">
+              <i class="bx bx-chevron-right"></i>
+            </button>
+          </div>
+          <div class="selected-date-display" id="virtualSelectedDate"></div>
+        </div>
+        
+        <!-- Sessions list will be inserted here -->
+        <div class="sessions-list" id="virtualSessionsList" style="display: none;"></div>
+        
+        <!-- Upcoming sessions list (shown when filter is clicked) -->
+        <div class="upcoming-sessions-list" id="virtualUpcomingSessions" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Session Detail Modal -->
+  <div class="session-modal-overlay" id="sessionModalOverlay" style="display: none;">
+    <div class="session-modal-content">
+      <button class="session-modal-close" id="sessionModalClose" type="button">
+        <i class="bx bx-x"></i>
+      </button>
+      <div class="session-modal-body" id="sessionModalBody"></div>
+    </div>
+  </div>
+</div>

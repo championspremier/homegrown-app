@@ -3,7 +3,7 @@
     <h1>Profile</h1>
     <div class="profile-actions">
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">
-        <i class="bx bx-sun bx-spin-hover"></i>
+        <i class="bx bx-sun"></i>
       </button>
       <button class="logout-btn" id="logoutBtn" type="button" aria-label="Logout">
         <i class="bx bx-log-out"></i>
@@ -12,7 +12,152 @@
     </div>
   </div>
   <div class="profile-content">
-    <p>Parent profile content goes here</p>
+    <!-- Edit Parent Account Section -->
+    <div class="profile-section">
+      <h2>Edit Parent Account</h2>
+      <form id="editParentForm" class="profile-form">
+        <div class="form-row">
+          <label class="form-label">
+            <span>First Name</span>
+            <input type="text" id="parentFirstName" name="firstName" required />
+          </label>
+          <label class="form-label">
+            <span>Last Name</span>
+            <input type="text" id="parentLastName" name="lastName" required />
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>Email</span>
+            <input type="email" id="parentEmail" name="email" required readonly />
+            <small class="form-hint">Email cannot be changed</small>
+          </label>
+          <label class="form-label">
+            <span>Phone Number</span>
+            <input type="tel" id="parentPhone" name="phone" />
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>Birth Date</span>
+            <input type="date" id="parentBirthDate" name="birthDate" required />
+          </label>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="saveParentBtn">
+            <span>Save Changes</span>
+          </button>
+          <div id="parentFormMessage" class="form-message"></div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Add Player Account Section -->
+    <div class="profile-section">
+      <h2>Add Player Account</h2>
+      <p class="section-description">Sign up an additional player account that will be linked to your parent account.</p>
+      <form id="addPlayerForm" class="profile-form">
+        <div class="form-row">
+          <label class="form-label">
+            <span>Player Email <span class="required">*</span></span>
+            <input type="email" id="playerEmail" name="playerEmail" required />
+          </label>
+          <label class="form-label">
+            <span>Player Password <span class="required">*</span></span>
+            <input type="password" id="playerPassword" name="playerPassword" required minlength="6" />
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>First Name <span class="required">*</span></span>
+            <input type="text" id="playerFirstName" name="playerFirstName" required />
+          </label>
+          <label class="form-label">
+            <span>Last Name <span class="required">*</span></span>
+            <input type="text" id="playerLastName" name="playerLastName" required />
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>Program Type <span class="required">*</span></span>
+            <select id="playerProgramType" name="programType" required>
+              <option value="">Select Program</option>
+              <option value="On-field Program">On-field Program</option>
+              <option value="The Virtual Program">The Virtual Program</option>
+              <option value="Homegrown App">Homegrown App</option>
+            </select>
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>Team/Club Name</span>
+            <input type="text" id="playerTeamName" name="teamName" placeholder="e.g., NVA, DCU" />
+          </label>
+          <label class="form-label">
+            <span>Birth Date <span class="required">*</span></span>
+            <input type="date" id="playerBirthDate" name="birthDate" required />
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>Competitive Level <span class="required">*</span></span>
+            <select id="playerCompetitiveLevel" name="competitiveLevel" required>
+              <option value="">Select Level</option>
+              <option value="MLS Next Homegrown">MLS Next Homegrown</option>
+              <option value="MLS Next Academy">MLS Next Academy</option>
+              <option value="ECNL">ECNL</option>
+              <option value="ECNL RL">ECNL RL</option>
+              <option value="NCSL">NCSL</option>
+              <option value="NAL">NAL</option>
+              <option value="EDP">EDP</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label class="form-label">
+            <span>Referral Source</span>
+            <select id="playerReferralSource" name="referralSource">
+              <option value="">How'd you hear about us?</option>
+              <option value="Facebook">Facebook</option>
+              <option value="Instagram">Instagram</option>
+              <option value="Tik Tok">Tik Tok</option>
+              <option value="Coach">Coach</option>
+              <option value="Referral">Referral</option>
+              <option value="Google">Google</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label form-label-full">
+            <span>Positions</span>
+            <div class="positions-checkboxes">
+              <label class="position-checkbox"><input type="checkbox" name="positions" value="GK"> GK</label>
+              <label class="position-checkbox"><input type="checkbox" name="positions" value="Central Defender"> Central Defender</label>
+              <label class="position-checkbox"><input type="checkbox" name="positions" value="Mid-Defensive"> Mid-Defensive</label>
+              <label class="position-checkbox"><input type="checkbox" name="positions" value="Mid-Offensive"> Mid-Offensive</label>
+              <label class="position-checkbox"><input type="checkbox" name="positions" value="Winger"> Winger</label>
+              <label class="position-checkbox"><input type="checkbox" name="positions" value="Full-Back"> Full-Back</label>
+              <label class="position-checkbox"><input type="checkbox" name="positions" value="Forward"> Forward</label>
+            </div>
+          </label>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="addPlayerBtn">
+            <span>Add Player Account</span>
+          </button>
+          <div id="playerFormMessage" class="form-message"></div>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 

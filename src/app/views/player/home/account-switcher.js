@@ -37,23 +37,17 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
   // Fetch linked parent accounts
   async function loadLinkedAccounts() {
     try {
-      console.log('🔍 Loading linked parent accounts...');
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !session.user) {
-        console.log('No active session');
         switcherName.textContent = 'Not logged in';
         return;
       }
 
       const currentUserId = session.user.id;
-      console.log('🔍 Current user ID:', currentUserId);
-      console.log('💡 Note: In player view, user is still authenticated as parent');
-      console.log('💡 So we can fetch the parent profile directly using currentUserId');
 
       // When in player view, the user is still authenticated as the parent
       // So we can fetch the parent's profile directly
-      console.log('🔍 Fetching parent profile...');
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id, first_name, last_name, role')
@@ -61,7 +55,6 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
         .eq('role', 'parent')
         .single();
       
-      console.log('📊 Profile query result:', { profile, profileError });
       
       if (profileError) {
         console.error('❌ Error fetching parent profile:', profileError);
@@ -86,7 +79,6 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
         role: profile.role || 'parent'
       }];
 
-      console.log('✅ Extracted linked account:', linkedAccounts);
 
       // Update UI
       const firstParent = linkedAccounts[0];
@@ -119,7 +111,6 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
       return;
     }
 
-    console.log(`Switching to ${account.role} account: ${account.name}`);
     window.setCurrentRole(account.role);
     closeDropdown();
   }

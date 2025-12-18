@@ -8,7 +8,8 @@ const NOTION_API_KEY = Deno.env.get('NOTION_API_KEY')
 const NOTION_DATABASE_ID = Deno.env.get('NOTION_DATABASE_ID')
 
 interface SignupData {
-  playerName: string
+  firstName: string
+  lastName: string
   programType: string
   teamName?: string
   birthDate: string // ISO date string (YYYY-MM-DD) or birthYear as fallback
@@ -60,9 +61,14 @@ serve(async (req) => {
     }
 
     // Build properties object
+    // IMPORTANT: "Last Name" is the title property in your Notion database
     const properties: any = {
-      'Player Name': {
-        title: [{ text: { content: data.playerName } }]
+      // Title property - "Last Name" is set as the title in Notion
+      'Last Name': {
+        title: [{ text: { content: data.lastName || '' } }]
+      },
+      'First Name': {
+        rich_text: [{ text: { content: data.firstName || '' } }]
       },
       'I\'m here for the…': {
         select: { name: data.programType }
@@ -79,10 +85,6 @@ serve(async (req) => {
       'How\'d you hear about us?': {
         select: data.referralSource ? { name: data.referralSource } : { name: 'Other' }
       },
-      // Note: Email property removed - if you need it, add an "Email" property to your Notion database
-      // 'Email': {
-      //   email: data.email
-      // }
     };
 
     // Add Birth Date if available

@@ -3,12 +3,10 @@
 
 import { initSupabase } from '../../../../auth/config/supabase.js';
 
-console.log('📦 Parent account switcher module loaded');
 
 (async function() {
   'use strict';
   
-  console.log('🚀 Parent account switcher IIFE executing...');
 
   const switcherBtn = document.getElementById('accountSwitcherBtn');
   const switcherDropdown = document.getElementById('accountSwitcherDropdown');
@@ -25,7 +23,6 @@ console.log('📦 Parent account switcher module loaded');
   let linkedAccounts = [];
 
   // Initialize Supabase
-  console.log('🔍 Initializing Supabase for account switcher...');
   try {
     supabase = await initSupabase();
     if (!supabase) {
@@ -33,7 +30,6 @@ console.log('📦 Parent account switcher module loaded');
       switcherName.textContent = 'Not available';
       return;
     }
-    console.log('✅ Supabase initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing Supabase:', error);
     switcherName.textContent = 'Not available';
@@ -43,7 +39,6 @@ console.log('📦 Parent account switcher module loaded');
   // Fetch linked player accounts
   async function loadLinkedAccounts() {
     try {
-      console.log('🔍 Loading linked player accounts...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
@@ -53,22 +48,22 @@ console.log('📦 Parent account switcher module loaded');
       }
       
       if (!session || !session.user) {
-        console.log('⚠️ No active session');
         switcherName.textContent = 'Not logged in';
         return;
       }
 
       const currentUserId = session.user.id;
-      console.log('🔍 Current user ID:', currentUserId);
 
       // Query parent_player_relationships to find linked players
-      console.log('🔍 Querying parent_player_relationships table...');
       const { data: relationships, error } = await supabase
         .from('parent_player_relationships')
         .select('player_id, parent_id, relationship_type')
         .eq('parent_id', currentUserId);
 
-      console.log('📊 Relationships query result:', { relationships, error });
+      
+      // Log more details if no relationships found
+      if (!error && (!relationships || relationships.length === 0)) {
+      }
 
       if (error) {
         console.error('❌ Error fetching relationships:', error);
@@ -88,23 +83,14 @@ console.log('📦 Parent account switcher module loaded');
       }
 
       if (!relationships || relationships.length === 0) {
-        console.log('⚠️ No relationships found for parent:', currentUserId);
-        console.log('💡 This could mean:');
-        console.log('   1. The relationship was not created during signup');
-        console.log('   2. The relationship exists but with a different parent_id');
-        console.log('   3. RLS policies are blocking the query');
-        console.log('💡 To fix: Check the parent_player_relationships table in Supabase');
-        console.log('💡 You may need to manually create the relationship in Supabase');
         switcherName.textContent = 'No linked accounts';
         switcherLoading.textContent = 'No linked player accounts found. The relationship may not have been created during signup. Check Supabase.';
         return;
       }
       
-      console.log('✅ Found relationships:', relationships.length);
 
       // Now fetch player profiles separately
       const playerIds = relationships.map(rel => rel.player_id);
-      console.log('🔍 Fetching profiles for player IDs:', playerIds);
       
       if (playerIds.length === 0) {
         console.warn('⚠️ No player IDs found in relationships');
@@ -115,11 +101,10 @@ console.log('📦 Parent account switcher module loaded');
       
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, player_name, role')
+        .select('id, first_name, last_name, role')
         .in('id', playerIds)
         .eq('role', 'player');
       
-      console.log('📊 Profiles query result:', { profiles, profilesError });
       
       if (profilesError) {
         console.error('❌ Error fetching player profiles:', profilesError);
@@ -131,7 +116,6 @@ console.log('📦 Parent account switcher module loaded');
       }
 
       // Extract player profiles
-      console.log('🔍 Extracting player profiles...');
       if (!profiles || profiles.length === 0) {
         console.warn('⚠️ No player profiles found');
         switcherName.textContent = 'No linked accounts';
@@ -139,13 +123,15 @@ console.log('📦 Parent account switcher module loaded');
         return;
       }
       
-      linkedAccounts = profiles.map(profile => ({
-        id: profile.id,
-        name: profile.player_name || 'Player',
-        role: profile.role || 'player'
-      }));
+      linkedAccounts = profiles.map(profile => {
+        const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Player';
+        return {
+          id: profile.id,
+          name: fullName,
+          role: profile.role || 'player'
+        };
+      });
 
-      console.log('✅ Extracted linked accounts:', linkedAccounts);
 
       if (linkedAccounts.length === 0) {
         console.warn('⚠️ No valid player profiles found in relationships');
@@ -156,7 +142,6 @@ console.log('📦 Parent account switcher module loaded');
 
       // Update UI
       const firstPlayer = linkedAccounts[0];
-      console.log('✅ Setting switcher name to:', firstPlayer.name);
       switcherName.textContent = firstPlayer.name;
 
       // Build dropdown items
@@ -186,7 +171,6 @@ console.log('📦 Parent account switcher module loaded');
       return;
     }
 
-    console.log(`Switching to ${account.role} account: ${account.name}`);
     window.setCurrentRole(account.role);
     closeDropdown();
   }
@@ -236,5 +220,8 @@ console.log('📦 Parent account switcher module loaded');
 
   // Load accounts on page load
   await loadLinkedAccounts();
+  
+  // Expose loadLinkedAccounts globally so it can be called from profile page
+  window.loadLinkedAccounts = loadLinkedAccounts;
 })();
 

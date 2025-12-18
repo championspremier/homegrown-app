@@ -5,7 +5,7 @@
   --text: #ffffff;
   --border: #818181;
   --muted: #9ca3af;
-  --accent: rgb(94, 89, 58);
+  --accent: #D3AF37;
   --hover: rgba(188, 188, 188, 0.1);
 }
 
@@ -15,7 +15,7 @@ html[data-theme="light"] {
   --text: #111111;
   --border: #bebebe;
   --muted: #6b7280;
-  --accent: #325463;
+  --accent: #7BB8D4;
   --hover: rgba(111, 111, 111, 0.05);
 }
 
@@ -258,6 +258,21 @@ html[data-theme="light"] .img {
   color: var(--text);
 }
 
+/* Disable all animations and transforms on bx icons - keep it simple */
+.bx,
+.bx * {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+.bx:hover,
+.bx:active,
+.bx:focus {
+  animation: none !important;
+  transform: none !important;
+}
+
 /* ========== MAIN CONTENT ========== */
 .main-content {
   flex: 1;
@@ -306,7 +321,8 @@ body:has(.sidebar:not(.closed)) .main-content {
 .content-area {
   flex: 1;
   padding: 20px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   color: var(--text);
   background: var(--bg);
 }
@@ -513,6 +529,7 @@ body:has(.sidebar:not(.closed)) .main-content {
     flex-direction: row;
     z-index: 1000;
     transform: none !important;
+    margin: 0 0 5px 0;
   }
 
   /* Sidebar always open on mobile - ignore closed class */

@@ -11,7 +11,6 @@ initSupabase().then(client => {
   if (client) {
     supabase = client;
     supabaseReady = true;
-    console.log('✅ Supabase initialized in profile');
   } else {
     console.error('❌ Supabase client is null');
   }

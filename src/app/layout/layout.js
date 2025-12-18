@@ -15,7 +15,6 @@
  * Each role has its own view folder with role-specific pages.
  */
 
-console.log('📦 layout.js loaded');
 
 // --- Theme persistence and toggle ---
 const STORAGE_KEY = 'hg-theme';
@@ -26,7 +25,7 @@ function applyTheme(theme) {
   // Update icon if button exists
   const btn = document.getElementById('themeToggle');
   if (btn) {
-    btn.innerHTML = theme === 'light' ? '<i class="bx bx-moon bx-flashing-hover"></i>' : '<i class="bx bx-sun bx-spin-hover"></i>';
+    btn.innerHTML = theme === 'light' ? '<i class="bx bx-moon"></i>' : '<i class="bx bx-sun"></i>';
   }
   localStorage.setItem(STORAGE_KEY, theme);
 }
@@ -160,7 +159,6 @@ async function checkUserRoleFromSupabase() {
   try {
     const supabase = await initSupabaseForRole();
     if (!supabase) {
-      console.log('⚠️ Supabase not available, using localStorage role');
       return null;
     }
 
@@ -173,17 +171,14 @@ async function checkUserRoleFromSupabase() {
     }
 
     if (!session || !session.user) {
-      console.log('ℹ️ No active session, using localStorage role');
       return null;
     }
 
     // Get user role from profiles table
-    console.log(`🔍 Fetching profile for user: ${session.user.id}`);
     
     // Try using the user's metadata first (faster, no DB query needed)
     const userRole = session.user.user_metadata?.role;
     if (userRole && ['player', 'coach', 'admin', 'parent'].includes(userRole)) {
-      console.log(`✅ Found role in user metadata: ${userRole}`);
       return userRole;
     }
     
@@ -203,7 +198,6 @@ async function checkUserRoleFromSupabase() {
       
       // If it's a 406 or RLS error, try to get role from user metadata
       if (profileError.code === 'PGRST301' || profileError.code === '42501' || profileError.message?.includes('406')) {
-        console.log('⚠️ RLS or 406 error, trying user metadata...');
         if (userRole) {
           return userRole;
         }
@@ -212,13 +206,11 @@ async function checkUserRoleFromSupabase() {
     }
 
     if (profile && profile.role) {
-      console.log(`✅ Found user role from database: ${profile.role}`);
       return profile.role;
     }
 
     // If no profile found but we have user metadata, use that
     if (userRole) {
-      console.log(`✅ Using role from user metadata (fallback): ${userRole}`);
       return userRole;
     }
 
@@ -232,27 +224,33 @@ async function checkUserRoleFromSupabase() {
 
 // Get current role from storage, Supabase, or use default
 async function getCurrentRole() {
-  // Always check Supabase first if we haven't checked yet
+  // Check localStorage first - if a role is already set, respect it
+  // This allows account switcher to work properly even after hard refresh
+  const stored = localStorage.getItem(ROLE_STORAGE_KEY);
+  if (stored && ['player', 'coach', 'admin', 'parent'].includes(stored)) {
+    // Only check Supabase if we haven't checked yet AND there's no stored role
+    // OR if this is the first time ever (no roleCheckComplete flag)
+    if (!roleCheckComplete) {
+      roleCheckComplete = true;
+      // Verify the stored role matches Supabase (for security)
+      // But don't overwrite it - the account switcher may have set a different role
+      const supabaseRole = await checkUserRoleFromSupabase();
+      // If Supabase role exists and matches stored role, we're good
+      // If they differ, it means user switched accounts, so keep the stored role
+    }
+    return stored;
+  }
+  
+  // No role in localStorage - check Supabase for the first time
   if (!roleCheckComplete) {
     roleCheckComplete = true;
     const supabaseRole = await checkUserRoleFromSupabase();
     if (supabaseRole && ['player', 'coach', 'admin', 'parent'].includes(supabaseRole)) {
-      console.log(`✅ Using role from Supabase: ${supabaseRole}`);
       localStorage.setItem(ROLE_STORAGE_KEY, supabaseRole);
       return supabaseRole;
     }
   }
   
-  // Fallback to localStorage if Supabase check didn't work
-  const stored = localStorage.getItem(ROLE_STORAGE_KEY);
-  console.log(`🔍 getCurrentRole() - stored value: ${stored}`);
-  
-  if (stored && ['player', 'coach', 'admin', 'parent'].includes(stored)) {
-    console.log(`✅ Using stored role: ${stored}`);
-    return stored;
-  }
-  
-  console.log(`⚠️ Using default role: ${CURRENT_ROLE}`);
   return CURRENT_ROLE;
 }
 
@@ -304,7 +302,16 @@ async function loadPage(pageName) {
     // Save current page to localStorage
     localStorage.setItem(CURRENT_PAGE_STORAGE_KEY, pageName);
     
-    console.log(`✅ HTML loaded for: ${currentRole}/${pageName}`);
+    // Hide top-bar on profile and schedule pages
+    const topBar = document.querySelector('.top-bar');
+    if (topBar) {
+      if (pageName === 'profile' || pageName === 'schedule') {
+        topBar.style.display = 'none';
+      } else {
+        topBar.style.display = 'flex';
+      }
+    }
+    
     
     // If profile or settings page loaded, initialize theme toggle button
     if (pageName === 'profile' || pageName === 'settings') {
@@ -341,7 +348,6 @@ async function loadPage(pageName) {
           } else {
             document.head.appendChild(link);
           }
-          console.log(`✅ CSS loaded for: ${currentRole}/${pageName}`);
         } else {
           console.warn(`⚠️ CSS file not found for page: ${currentRole}/${pageName}`);
         }
@@ -383,24 +389,21 @@ async function loadPage(pageName) {
             // Use module type for ES6 imports - must use src, not textContent
             script.type = 'module';
             script.src = jsPath;
-            console.log(`📦 Loading as module: ${jsPath}`);
           } else {
             // Regular script execution for non-module code
             script.textContent = code;
           }
           
           document.body.appendChild(script);
-          console.log(`✅ JS loaded and executed for: ${currentRole}/${pageName}${hasImport ? ' (module)' : ''}`);
           
-          // If home page, also load account switcher
-          if (pageName === 'home') {
+          // If home page, also load account switcher (only for parent and player roles)
+          if (pageName === 'home' && (currentRole === 'parent' || currentRole === 'player')) {
             const switcherPath = `app/views/${currentRole}/${pageName}/account-switcher.js${jsCacheBuster}`;
             const switcherScript = document.createElement('script');
             switcherScript.type = 'module';
             switcherScript.src = switcherPath;
             switcherScript.setAttribute('data-page-js', `${pageName}-switcher`);
             document.body.appendChild(switcherScript);
-            console.log(`📦 Loading account switcher: ${switcherPath}`);
           }
         }
       })
@@ -470,7 +473,7 @@ function updateNavigationItems(role) {
     navList.innerHTML = coachNavigation.map((item, index) => `
       <li class="button ${index === 0 ? 'active' : ''}" title="${item.title}">
         <a href="#" data-page="${item.page}" class="nav-link" data-tooltip="${item.title}">
-          <i class="bx ${item.icon} bx-tada-hover"></i>
+          <i class="bx ${item.icon}"></i>
           <span class="label">${item.label}</span>
         </a>
       </li>
@@ -486,26 +489,21 @@ async function updateNavigationForRole() {
   const currentRole = await getCurrentRole();
   const soloButton = document.querySelector('.button[title="Solo"]');
   
-  console.log(`🔍 Updating navigation for role: ${currentRole}`);
-  console.log(`🔍 Solo button found: ${soloButton ? 'yes' : 'no'}`);
   
   // Set data-role attribute on body for CSS targeting
   document.body.setAttribute('data-role', currentRole);
   
   // Update navigation items for coaches
   if (currentRole === 'coach') {
-    console.log('✅ Updating navigation for coach');
     updateNavigationItems('coach');
     return; // Early return, navigation is replaced
   }
   
   // Hide Solo for parents (they only have Home, Schedule, Tracking, Profile)
   if (currentRole === 'parent' && soloButton) {
-    console.log('✅ Hiding Solo button for parent');
     soloButton.style.display = 'none';
     soloButton.style.visibility = 'hidden';
   } else if (soloButton) {
-    console.log('✅ Showing Solo button for non-parent role');
     soloButton.style.display = '';
     soloButton.style.visibility = '';
   }
@@ -520,7 +518,6 @@ async function initializeApp() {
   const savedPage = localStorage.getItem(CURRENT_PAGE_STORAGE_KEY);
   const pageToLoad = savedPage || 'home';
   
-  console.log(`🚀 Initializing app - loading ${pageToLoad} page...`);
   
   // Update navigation based on role (now that role is set)
   await updateNavigationForRole();
@@ -548,6 +545,5 @@ if (document.readyState === 'loading') {
 
 // Also update navigation when DOM is fully loaded (in case buttons weren't ready)
 window.addEventListener('load', async () => {
-  console.log('📄 Page fully loaded, updating navigation...');
   await updateNavigationForRole();
 });

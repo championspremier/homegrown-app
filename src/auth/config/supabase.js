@@ -26,13 +26,11 @@ async function initSupabase() {
       // Try esm.sh first
       try {
         supabaseModule = await import('https://esm.sh/@supabase/supabase-js@2');
-        console.log('📦 Loaded Supabase from esm.sh, module keys:', Object.keys(supabaseModule));
       } catch (e1) {
         console.warn('⚠️ esm.sh failed, trying unpkg:', e1);
         try {
           // Fallback to unpkg
           supabaseModule = await import('https://unpkg.com/@supabase/supabase-js@2/dist/esm/index.js');
-          console.log('📦 Loaded Supabase from unpkg, module keys:', Object.keys(supabaseModule));
         } catch (e2) {
           console.error('❌ Both CDN sources failed:', e1, e2);
           throw e2;
@@ -57,7 +55,6 @@ async function initSupabase() {
         return null;
       }
       
-      console.log('✅ createClient found and is a function');
       
       supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       
