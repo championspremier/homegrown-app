@@ -171,6 +171,11 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
       return;
     }
 
+    // Store the selected player ID in localStorage so we know which player to show
+    if (account.id) {
+      localStorage.setItem('selectedPlayerId', account.id);
+    }
+
     window.setCurrentRole(account.role);
     closeDropdown();
   }

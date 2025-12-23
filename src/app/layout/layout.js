@@ -302,10 +302,10 @@ async function loadPage(pageName) {
     // Save current page to localStorage
     localStorage.setItem(CURRENT_PAGE_STORAGE_KEY, pageName);
     
-    // Hide top-bar on profile and schedule pages
+    // Hide top-bar on profile, schedule, and coach home pages
     const topBar = document.querySelector('.top-bar');
     if (topBar) {
-      if (pageName === 'profile' || pageName === 'schedule') {
+      if (pageName === 'profile' || pageName === 'schedule' || (pageName === 'home' && currentRole === 'coach')) {
         topBar.style.display = 'none';
       } else {
         topBar.style.display = 'flex';
@@ -453,7 +453,7 @@ attachNavigationListeners();
 
 // Coach navigation items
 const coachNavigation = [
-  { title: 'Dashboard', page: 'home', icon: 'bx-home', label: 'Dashboard' },
+  { title: 'Dashboard', page: 'home', icon: 'bx-grid-alt', label: 'Dashboard' },
   { title: 'Communicate', page: 'communicate', icon: 'bx-message-rounded', label: 'Communicate' },
   { title: 'People', page: 'people', icon: 'bx-group', label: 'People' },
   { title: 'Schedule', page: 'schedule', icon: 'bx-calendar', label: 'Schedule' },
@@ -515,6 +515,9 @@ async function initializeApp() {
   // First, check user role from Supabase (this will update localStorage if needed)
   await getCurrentRole();
   
+  // Load leaderboard in top-bar
+  await loadLeaderboard();
+  
   const savedPage = localStorage.getItem(CURRENT_PAGE_STORAGE_KEY);
   const pageToLoad = savedPage || 'home';
   
@@ -547,3 +550,16 @@ if (document.readyState === 'loading') {
 window.addEventListener('load', async () => {
   await updateNavigationForRole();
 });
+
+// Load leaderboard in top-bar
+async function loadLeaderboard() {
+  const container = document.getElementById('leaderboardContainer');
+  if (!container) return;
+
+  try {
+    const { loadLeaderboard } = await import('../utils/leaderboard.js');
+    await loadLeaderboard(container);
+  } catch (error) {
+    console.error('Error loading leaderboard:', error);
+  }
+}

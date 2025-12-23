@@ -1,9 +1,292 @@
 /* 
- * This CSS file uses CSS variables and base styles from layout.css
- * Layout.css is loaded in index.html and provides:
- * - CSS variables (--bg, --surface, --text, --border, --muted, --accent, --hover)
- * - Base typography and layout styles
+ * Parent Tracking page styles
+ * Uses CSS variables from layout.css
  */
 
-/* Parent tracking page styles */
+.tracking-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
 
+.tracking-header {
+  margin-bottom: 32px;
+}
+
+.tracking-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+/* Player Selector */
+.player-selector-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.player-selector-section label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.player-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.player-select:hover {
+  border-color: var(--accent);
+}
+
+.player-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
+}
+
+/* Points Summary */
+.points-summary {
+  margin-bottom: 40px;
+}
+
+.current-quarter-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+}
+
+.current-quarter-card h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px 0;
+}
+
+.quarter-info {
+  margin-bottom: 24px;
+}
+
+#quarterLabel {
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.points-display {
+  margin-bottom: 24px;
+}
+
+.total-points {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.points-label {
+  font-size: 1rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.leaderboard-position {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 1rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.leaderboard-position i {
+  font-size: 1.25rem;
+  color: var(--accent);
+}
+
+/* Points History Section */
+.points-history-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.section-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.quarter-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.quarter-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quarter-btn:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.quarter-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.points-history-content {
+  min-height: 200px;
+}
+
+/* Points Day Group */
+.points-day-group {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.points-day-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.points-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.points-date {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.points-day-total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.points-transactions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.points-transaction {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.transaction-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.transaction-session {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.transaction-time {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.transaction-points {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Loading and Empty States */
+.loading-state,
+.error-state,
+.empty-state {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.error-state {
+  color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tracking-container {
+    padding: 16px;
+  }
+
+  .current-quarter-card {
+    padding: 24px;
+  }
+
+  .total-points {
+    font-size: 2.5rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .quarter-selector {
+    width: 100%;
+  }
+
+  .quarter-btn {
+    flex: 1;
+  }
+}

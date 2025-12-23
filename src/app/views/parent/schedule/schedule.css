@@ -289,6 +289,17 @@
   flex: 1;
 }
 
+/* Past sessions styling */
+.session-content.past-session {
+  opacity: 0.5;
+}
+
+.session-item .session-reserve-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .session-time {
   font-size: 1.1rem;
   font-weight: 700;

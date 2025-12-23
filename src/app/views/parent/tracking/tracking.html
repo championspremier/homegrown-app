@@ -1,5 +1,48 @@
-<div style="padding: 40px;">
-  <h1>Tracking</h1>
-  <p>Parent tracking content goes here</p>
-</div>
+<div class="tracking-container">
+  <div class="tracking-header">
+    <h1>Points & Tracking</h1>
+  </div>
 
+  <!-- Player Selector (if multiple linked players) -->
+  <div class="player-selector-section" id="playerSelectorSection" style="display: none;">
+    <label for="playerSelect">View points for:</label>
+    <select id="playerSelect" class="player-select">
+      <option value="">Select a player...</option>
+    </select>
+  </div>
+
+  <div class="points-summary" id="pointsSummary" style="display: none;">
+    <div class="current-quarter-card">
+      <h2>Current Quarter</h2>
+      <div class="quarter-info" id="currentQuarterInfo">
+        <span id="quarterLabel">Q1 2025</span>
+      </div>
+      <div class="points-display">
+        <div class="total-points" id="totalPoints">0</div>
+        <div class="points-label">Total Points</div>
+      </div>
+      <div class="leaderboard-position" id="leaderboardPosition">
+        <i class="bx bx-trophy"></i>
+        <span>Position: <span id="positionValue">—</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="points-history-section" id="pointsHistorySection" style="display: none;">
+    <div class="section-header">
+      <h2>Points History</h2>
+      <div class="quarter-selector">
+        <button class="quarter-btn active" data-quarter="current">Current Quarter</button>
+        <button class="quarter-btn" data-quarter="previous">Previous Quarters</button>
+      </div>
+    </div>
+
+    <div class="points-history-content" id="pointsHistoryContent">
+      <!-- Points transactions will be loaded here -->
+    </div>
+  </div>
+
+  <div class="empty-state" id="emptyState">
+    <p>Select a player to view their points and tracking information.</p>
+  </div>
+</div>

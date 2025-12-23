@@ -1,4 +1,18 @@
-/* 
+/* ============================================================================
+ * COACH SCHEDULE - MAIN STYLESHEET
+ * ============================================================================
+ * This file contains all schedule styling for coaches.
+ * For easier navigation, see README.md for a complete code map.
+ *
+ * Quick Navigation:
+ * - Lines 8-194:   Page Layout & Header
+ * - Lines 195-369: Calendar Grid & Sessions
+ * - Lines 371-650: Sidebar & Forms
+ * - Lines 670-1100: Modals
+ * - Lines 1100-1400: Individual Session Config
+ * - Lines 1400-1695: Actions & Utilities
+ * ============================================================================
+ * 
  * This CSS file uses CSS variables and base styles from layout.css
  * Layout.css is loaded in index.html and provides:
  * - CSS variables (--bg, --surface, --text, --border, --muted, --accent, --hover)
@@ -387,10 +401,11 @@
 
 .session-sidebar.open {
   right: 0;
-  z-index: 5000;
+  z-index: 10002;
 }
 
-.sidebar-header {
+/* Scoped to session-sidebar only to avoid affecting main app sidebar */
+.session-sidebar .sidebar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -398,21 +413,21 @@
   border-bottom: 1px solid var(--border);
 }
 
-.sidebar-header-actions {
+.session-sidebar .sidebar-header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.sidebar-header h2 {
+.session-sidebar .sidebar-header h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--text);
 }
 
-.sidebar-close,
-.sidebar-delete {
+.session-sidebar .sidebar-close,
+.session-sidebar .sidebar-delete {
   background: transparent;
   border: none;
   color: var(--text);
@@ -425,21 +440,22 @@
   transition: color 0.2s ease;
 }
 
-.sidebar-close:hover {
+.session-sidebar .sidebar-close:hover {
   color: var(--accent);
 }
 
-.sidebar-delete:hover {
+.session-sidebar .sidebar-delete:hover {
   color: #ef4444;
 }
 
-.sidebar-tabs {
+.session-sidebar .sidebar-tabs {
   display: flex;
   border-bottom: 1px solid var(--border);
   padding: 0 24px;
 }
 
-.tab-btn {
+/* Scoped to session-sidebar only to avoid affecting dashboard tabs */
+.session-sidebar .tab-btn {
   background: transparent;
   border: none;
   color: var(--muted);
@@ -452,11 +468,11 @@
   top: 1px;
 }
 
-.tab-btn:hover {
+.session-sidebar .tab-btn:hover {
   color: var(--text);
 }
 
-.tab-btn.active {
+.session-sidebar .tab-btn.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
@@ -689,12 +705,9 @@
 }
 
 .modal-content {
+  width: 100%;
   background: var(--surface);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  min-width: 400px;
-  max-width: 500px;
-  overflow: hidden;
 }
 
 .modal-header {
@@ -703,6 +716,7 @@
   align-items: center;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border);
+  width: 100%;
 }
 
 .modal-header h3 {
@@ -1020,6 +1034,23 @@
   margin-top: 4px;
 }
 
+#configZoomLink {
+  background-color: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  cursor: default;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+}
+
 .config-form-group {
   margin-bottom: 20px;
 }
@@ -1255,7 +1286,8 @@
   background: var(--surface);
 }
 
-.coach-name {
+/* Scoped to coach availability section only - not dashboard welcome */
+.coach-availability-section .coach-name {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text);
@@ -1691,5 +1723,404 @@
   .sessions-table td {
     padding: 12px 16px;
   }
+}
+
+/* ============================================
+   INDIVIDUAL SESSION MODAL (from home.css)
+   ============================================ */
+
+/* Session Modal */
+.session-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.session-modal-overlay.show {
+  display: flex;
+  opacity: 1;
+}
+
+.session-modal {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: var(--surface);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+}
+
+.session-modal-overlay.show .session-modal {
+  transform: scale(1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.modal-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.modal-edit-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.modal-edit-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.modal-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Session Card (inside modal) */
+.session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 12px;
+}
+
+.session-time {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.session-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.session-coach-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.session-coach-name i {
+  font-size: 16px;
+}
+
+.session-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.session-location i {
+  font-size: 16px;
+}
+
+.session-capacity {
+  background: var(--accent);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Session Staff */
+.session-staff {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.staff-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.staff-member:hover {
+  background: var(--hover);
+}
+
+.staff-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.staff-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.staff-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.staff-role {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.check-in-btn {
+  background: var(--accent);
+  color: var(--text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.check-in-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.check-in-btn.checked-in {
+  background: var(--muted);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Session Players */
+.session-players {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.players-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.players-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.player-item:hover {
+  background: var(--hover);
+}
+
+.player-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.player-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.player-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.player-positions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.position-badge {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.player-check-in-btn {
+  background: var(--accent);
+  color: var(--text);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.player-check-in-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.player-check-in-btn.checked-in {
+  background: var(--muted);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Edit Button Tooltip */
+.edit-btn-tooltip-container {
+  position: relative;
+}
+
+.edit-btn-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--surface);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10001;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.edit-btn-tooltip-container:hover .edit-btn-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.edit-btn-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--text);
 }
 

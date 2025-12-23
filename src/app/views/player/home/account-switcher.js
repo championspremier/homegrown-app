@@ -46,37 +46,74 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
 
       const currentUserId = session.user.id;
 
-      // When in player view, the user is still authenticated as the parent
-      // So we can fetch the parent's profile directly
-      const { data: profile, error: profileError } = await supabase
+      // First, check if the current user is a parent or a player
+      const { data: currentProfile, error: currentProfileError } = await supabase
         .from('profiles')
         .select('id, first_name, last_name, role')
         .eq('id', currentUserId)
-        .eq('role', 'parent')
         .single();
       
-      
-      if (profileError) {
-        console.error('❌ Error fetching parent profile:', profileError);
-        console.error('❌ Error code:', profileError.code);
-        console.error('❌ Error message:', profileError.message);
+      if (currentProfileError || !currentProfile) {
+        console.error('❌ Error fetching current profile:', currentProfileError);
         switcherName.textContent = 'Error loading';
-        switcherLoading.textContent = `Error: ${profileError.message || 'Failed to load profile'}`;
         return;
       }
 
-      if (!profile) {
+      let parentProfile = null;
+
+      // If current user is a parent, use their profile directly
+      if (currentProfile.role === 'parent') {
+        parentProfile = currentProfile;
+      } else if (currentProfile.role === 'player') {
+        // If current user is a player, find their parent through relationships
+        const { data: relationship, error: relationshipError } = await supabase
+          .from('parent_player_relationships')
+          .select('parent_id')
+          .eq('player_id', currentUserId)
+          .single();
+        
+        if (relationshipError || !relationship) {
+          console.warn('⚠️ No parent relationship found for player');
+          switcherName.textContent = currentProfile.first_name || 'Player';
+          switcherLoading.style.display = 'none';
+          return;
+        }
+
+        // Fetch the parent's profile
+        const { data: parent, error: parentError } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, role')
+          .eq('id', relationship.parent_id)
+          .eq('role', 'parent')
+          .single();
+        
+        if (parentError || !parent) {
+          console.error('❌ Error fetching parent profile:', parentError);
+          switcherName.textContent = currentProfile.first_name || 'Player';
+          switcherLoading.style.display = 'none';
+          return;
+        }
+
+        parentProfile = parent;
+      } else {
+        // Unknown role
+        switcherName.textContent = currentProfile.first_name || 'User';
+        switcherLoading.style.display = 'none';
+        return;
+      }
+
+      if (!parentProfile) {
         console.warn('⚠️ No parent profile found');
         switcherName.textContent = 'No linked accounts';
         switcherLoading.textContent = 'No linked parent account found.';
         return;
       }
       
-      // Create linked account from profile
+      // Create linked account from parent profile
       linkedAccounts = [{
-        id: profile.id,
-        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Parent',
-        role: profile.role || 'parent'
+        id: parentProfile.id,
+        name: `${parentProfile.first_name || ''} ${parentProfile.last_name || ''}`.trim() || 'Parent',
+        role: parentProfile.role || 'parent'
       }];
 
 

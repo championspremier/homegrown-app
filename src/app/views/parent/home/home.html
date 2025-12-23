@@ -11,8 +11,52 @@
   </div>
 </div>
 
-<div style="padding: 40px;">
-  <h1>Home</h1>
-  <p>Parent home content goes here</p>
+<!-- My Schedule -->
+<div class="sectionOne mySchedule">
+  <div class="top-section">
+    <h1>MY SCHEDULE</h1>
+    <button
+      id="scheduleToggle"
+      class="schedule-toggle"
+      aria-expanded="true"
+      aria-controls="hiddenSchedule"
+      type="button"
+    >
+      <i class="bx bx-chevron-down"></i>
+    </button>
+  </div>
+
+  <div class="hiddenSchedule is-open" id="hiddenSchedule">
+    <!-- Tabs for Sessions and Reservations -->
+    <div class="schedule-tabs">
+      <button class="schedule-tab active" data-tab="sessions" type="button">Sessions</button>
+      <button class="schedule-tab" data-tab="reservations" type="button">Reservations</button>
+    </div>
+
+    <!-- Calendar -->
+    <div class="calendar-header-container" id="parentHomeCalendar">
+      <button class="calendar-nav-btn" id="parentHomeCalendarPrev" type="button">
+        <i class="bx bx-chevron-left"></i>
+      </button>
+      <div class="calendar-week-row" id="parentHomeCalendarWeek"></div>
+      <button class="calendar-nav-btn" id="parentHomeCalendarNext" type="button">
+        <i class="bx bx-chevron-right"></i>
+      </button>
+    </div>
+
+    <!-- Sessions Tab Content -->
+    <div class="schedule-tab-content active" id="sessionsTabContent">
+      <div class="sessions-list-container" id="sessionsListContainer">
+        <!-- Reserved sessions will be loaded here -->
+      </div>
+    </div>
+
+    <!-- Reservations Tab Content -->
+    <div class="schedule-tab-content" id="reservationsTabContent">
+      <div class="reservations-list-container" id="reservationsListContainer">
+        <!-- Reservations will be loaded here -->
+      </div>
+    </div>
+  </div>
 </div>
 

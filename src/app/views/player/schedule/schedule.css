@@ -218,23 +218,21 @@
 }
 
 .day-number.past {
-  opacity: 0.5;
+  opacity: 0.6;
   color: var(--muted);
 }
 
 .day-number.today {
   background: var(--accent);
-  color: white;
-  border-color: var(--text);
+  color: var(--text);
+  border: 1px solid var(--text);
 }
 
 .day-number.selected {
   background: var(--hover);
-  border-color: var(--accent);
-  font-weight: 700;
-}
-  font-weight: 700;
   color: var(--text);
+  font-weight: 700;
+  border: 1px solid var(--accent);
 }
 
 .selected-date-display {
@@ -244,6 +242,7 @@
   color: var(--text);
   padding: 12px 0;
   margin-top: 8px;
+  clear: both;
   width: 100%;
   order: 2;
 }
@@ -272,6 +271,20 @@
   font-size: 1rem;
 }
 
+.virtualSessionsList {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.nonFieldSessionsList {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
 .session-item {
   position: relative;
   background: var(--bg);
@@ -290,6 +303,17 @@
 
 .session-content {
   flex: 1;
+}
+
+/* Past sessions styling */
+.session-content.past-session {
+  opacity: 0.5;
+}
+
+.session-item .session-reserve-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .session-time {

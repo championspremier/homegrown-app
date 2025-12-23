@@ -583,13 +583,23 @@ async function createSessionElement(session, selectedDate) {
     day: 'numeric' 
   });
   
+  // Check if session is in the past
+  const now = new Date();
+  const sessionDateTime = new Date(`${session.session_date}T${session.session_time}`);
+  const isPast = sessionDateTime < now;
+  
   sessionEl.innerHTML = `
-    <div class="session-content">
+    <div class="session-content ${isPast ? 'past-session' : ''}">
       <div class="session-time">${timeString} – ${endTimeString}</div>
       <div class="session-title">${session.session_type || 'Session'}</div>
       <div class="session-details">
         <i class="bx bx-map"></i>
-        <span>${locationText}</span>
+        ${session.zoom_link && session.location_type === 'virtual'
+          ? `<a href="${session.zoom_link}" target="_blank" rel="noopener noreferrer" class="zoom-link" style="color: var(--accent); text-decoration: underline; cursor: pointer;" onclick="event.stopPropagation();">${locationText}</a>`
+          : INDIVIDUAL_SESSIONS.includes(session.session_type) 
+            ? `<a href="#" class="individual-session-link" data-session-type="${session.session_type}" style="color: var(--accent); text-decoration: underline; cursor: pointer;">${locationText}</a>`
+            : `<span>${locationText}</span>`
+        }
       </div>
       <div class="session-coach">
         <i class="bx bx-user"></i>
@@ -600,17 +610,45 @@ async function createSessionElement(session, selectedDate) {
         <span>${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} left</span>
       </div>
     </div>
-    <div class="session-badge ${isAvailable ? 'available' : 'full'}">
-      ${isAvailable ? 'AVAILABLE' : 'FULL'}
+    <div class="session-badge ${isAvailable && !isPast ? 'available' : 'full'}">
+      ${isPast ? 'PAST' : (isAvailable ? 'AVAILABLE' : 'FULL')}
     </div>
-    <button class="session-reserve-btn" type="button">Reserve</button>
+    <button class="session-reserve-btn" type="button" ${isPast ? 'disabled' : ''}>Reserve</button>
   `;
   
   // Add click handler to show session details
   sessionEl.addEventListener('click', (e) => {
+    // Handle individual session link click
+    if (e.target.closest('.individual-session-link')) {
+      e.stopPropagation();
+      const sessionType = e.target.closest('.individual-session-link').dataset.sessionType;
+      if (sessionType) {
+        // Navigate to individual session booking
+        const virtualOption = document.querySelector('.schedule-option[data-location="virtual"]');
+        if (virtualOption) {
+          virtualOption.click();
+          // Wait a bit for the filters to load, then select the session type
+          setTimeout(() => {
+            const sessionTypeBtn = Array.from(document.querySelectorAll('.filter-btn')).find(btn => 
+              btn.textContent.trim() === sessionType
+            );
+            if (sessionTypeBtn) {
+              sessionTypeBtn.click();
+            }
+          }, 300);
+        }
+      }
+      return;
+    }
+    
     // Don't trigger if clicking the reserve button
     if (e.target.closest('.session-reserve-btn')) {
       e.stopPropagation();
+      const sessionDateTime = new Date(`${session.session_date}T${session.session_time}`);
+      if (sessionDateTime < new Date()) {
+        alert('This session has already passed and cannot be reserved.');
+        return;
+      }
       handleReserveClick(session);
       return;
     }
@@ -837,7 +875,12 @@ async function showSessionDetails(session) {
         </div>
         <div class="detail-item">
           <i class="bx bx-map"></i>
-          <span>${locationText}</span>
+          ${session.zoom_link && session.location_type === 'virtual'
+            ? `<a href="${session.zoom_link}" target="_blank" rel="noopener noreferrer" class="zoom-link" style="color: var(--accent); text-decoration: underline; cursor: pointer;" onclick="event.stopPropagation();">${locationText}</a>`
+            : INDIVIDUAL_SESSIONS.includes(session.session_type)
+              ? `<a href="#" class="individual-session-link" data-session-type="${session.session_type}" style="color: var(--accent); text-decoration: underline; cursor: pointer;">${locationText}</a>`
+              : `<span>${locationText}</span>`
+          }
         </div>
       </div>
     </div>
@@ -900,6 +943,34 @@ async function showSessionDetails(session) {
       overlay.style.display = 'none';
     }
   };
+  
+  // Handle individual session link clicks in modal
+  const individualLinks = body.querySelectorAll('.individual-session-link');
+  individualLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const sessionType = link.dataset.sessionType;
+      if (sessionType) {
+        // Close modal first
+        overlay.style.display = 'none';
+        // Navigate to individual session booking
+        const virtualOption = document.querySelector('.schedule-option[data-location="virtual"]');
+        if (virtualOption) {
+          virtualOption.click();
+          // Wait a bit for the filters to load, then select the session type
+          setTimeout(() => {
+            const sessionTypeBtn = Array.from(document.querySelectorAll('.filter-btn')).find(btn => 
+              btn.textContent.trim() === sessionType
+            );
+            if (sessionTypeBtn) {
+              sessionTypeBtn.click();
+            }
+          }, 300);
+        }
+      }
+    });
+  });
 }
 
 // Fetch coach name by ID (fallback when relationship doesn't load)
@@ -938,10 +1009,309 @@ async function fetchCoachName(coachId) {
 }
 
 // Handle reserve button click
-function handleReserveClick(session) {
-  // TODO: Implement reservation logic
-  console.log('Reserve clicked for session:', session.id);
-  alert('Reservation functionality will be implemented soon!');
+async function handleReserveClick(session) {
+  if (!supabaseReady || !supabase) {
+    alert('System not ready. Please try again.');
+    return;
+  }
+
+  try {
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    if (!authSession || !authSession.user) {
+      alert('Please log in to reserve a session.');
+      return;
+    }
+
+    // Get parent profile to verify role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', authSession.user.id)
+      .single();
+
+    if (!profile || profile.role !== 'parent') {
+      alert('Only parents can reserve sessions for players.');
+      return;
+    }
+
+    // Get linked players
+    const { data: relationships, error: relError } = await supabase
+      .from('parent_player_relationships')
+      .select(`
+        player_id,
+        player:profiles!parent_player_relationships_player_id_fkey(
+          id,
+          first_name,
+          last_name
+        )
+      `)
+      .eq('parent_id', authSession.user.id);
+
+    if (relError) {
+      console.error('Error loading linked players:', relError);
+      alert('Error loading linked players.');
+      return;
+    }
+
+    if (!relationships || relationships.length === 0) {
+      alert('No linked players found. Please link a player account first.');
+      return;
+    }
+
+    // If only one player, reserve directly
+    if (relationships.length === 1) {
+      const playerId = relationships[0].player_id;
+      await createReservation(session, playerId, authSession.user.id);
+      return;
+    }
+
+    // Multiple players - show selection modal
+    showPlayerSelectionModal(session, relationships, authSession.user.id);
+  } catch (error) {
+    console.error('Error reserving session:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
+
+// Show player selection modal for individual sessions (one at a time)
+function showIndividualSessionPlayerSelection(relationships, sessionType, sessionTypeData, coachId, selectedDate, selectedTime, selectedSlot) {
+  const overlay = document.createElement('div');
+  overlay.className = 'player-selection-modal-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  `;
+
+  modal.innerHTML = `
+    <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: var(--text);">
+      Select Player
+    </h3>
+    <p style="margin: 0 0 20px 0; font-size: 14px; color: var(--muted);">
+      Choose which player should be booked for this individual session.
+    </p>
+    <div class="player-selection-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+      ${relationships.map(rel => `
+        <label style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+          <input type="radio" name="player-select" value="${rel.player_id}" style="width: 18px; height: 18px; cursor: pointer;">
+          <span style="font-size: 14px; color: var(--text);">
+            ${rel.player?.first_name || ''} ${rel.player?.last_name || ''}
+          </span>
+        </label>
+      `).join('')}
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="cancel-btn" style="padding: 10px 20px; background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer;">
+        Cancel
+      </button>
+      <button class="confirm-btn" style="padding: 10px 20px; background: var(--accent); border: none; border-radius: 6px; color: var(--text); cursor: pointer; font-weight: 500;">
+        Book Session
+      </button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Handle cancel
+  modal.querySelector('.cancel-btn').addEventListener('click', () => {
+    document.body.removeChild(overlay);
+  });
+
+  // Handle confirm
+  modal.querySelector('.confirm-btn').addEventListener('click', async () => {
+    const selected = modal.querySelector('input[name="player-select"]:checked');
+    
+    if (!selected) {
+      alert('Please select a player.');
+      return;
+    }
+
+    const playerId = selected.value;
+    document.body.removeChild(overlay);
+
+    // Create booking with selected player
+    await createIndividualBooking(sessionType, sessionTypeData, coachId, playerId, selectedDate, selectedTime);
+  });
+
+  // Close on overlay click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      document.body.removeChild(overlay);
+    }
+  });
+}
+
+// Show player selection modal for parents with multiple players (for group sessions)
+function showPlayerSelectionModal(session, relationships, parentId) {
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'player-selection-modal-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  `;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  `;
+
+  modal.innerHTML = `
+    <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: var(--text);">
+      Select Player(s) to Reserve
+    </h3>
+    <p style="margin: 0 0 20px 0; font-size: 14px; color: var(--muted);">
+      Choose which player(s) should be reserved for this session.
+    </p>
+    <div class="player-selection-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+      ${relationships.map(rel => `
+        <label style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+          <input type="checkbox" value="${rel.player_id}" style="width: 18px; height: 18px; cursor: pointer;">
+          <span style="font-size: 14px; color: var(--text);">
+            ${rel.player.first_name} ${rel.player.last_name}
+          </span>
+        </label>
+      `).join('')}
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="cancel-btn" style="padding: 10px 20px; background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer;">
+        Cancel
+      </button>
+      <button class="confirm-btn" style="padding: 10px 20px; background: var(--accent); border: none; border-radius: 6px; color: var(--text); cursor: pointer; font-weight: 500;">
+        Reserve
+      </button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Handle cancel
+  modal.querySelector('.cancel-btn').addEventListener('click', () => {
+    document.body.removeChild(overlay);
+  });
+
+  // Handle confirm
+  modal.querySelector('.confirm-btn').addEventListener('click', async () => {
+    const selected = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(cb => cb.value);
+
+    if (selected.length === 0) {
+      alert('Please select at least one player.');
+      return;
+    }
+
+    document.body.removeChild(overlay);
+
+    // Create reservations for selected players
+    for (const playerId of selected) {
+      await createReservation(session, playerId, parentId);
+    }
+  });
+
+  // Close on overlay click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      document.body.removeChild(overlay);
+    }
+  });
+}
+
+// Create reservation
+async function createReservation(session, playerId, parentId) {
+  try {
+    // Check if player already has a reservation
+    const { data: existingReservations, error: checkError } = await supabase
+      .from('session_reservations')
+      .select('id')
+      .eq('session_id', session.id)
+      .eq('player_id', playerId)
+      .limit(1);
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 is "not found" which is fine, but other errors are not
+      console.error('Error checking existing reservation:', checkError);
+      alert(`Error: ${checkError.message}`);
+      return;
+    }
+
+    if (existingReservations && existingReservations.length > 0) {
+      alert('This player already has a reservation for this session.');
+      return;
+    }
+
+    // Check if session has available spots
+    if (session.current_reservations >= session.attendance_limit) {
+      alert('This session is full.');
+      return;
+    }
+
+    // Create reservation
+    const { data: reservation, error } = await supabase
+      .from('session_reservations')
+      .insert({
+        session_id: session.id,
+        player_id: playerId,
+        parent_id: parentId,
+        reservation_status: 'reserved'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating reservation:', error);
+      alert(`Error: ${error.message}`);
+      return;
+    }
+
+    // Update session reservation count
+    await supabase
+      .from('sessions')
+      .update({ current_reservations: session.current_reservations + 1 })
+      .eq('id', session.id);
+
+    alert('Session reserved successfully!');
+    
+    // Reload sessions to update UI
+    const selectedDate = document.querySelector('.calendar-day.selected')?.dataset.date;
+    if (selectedDate) {
+      await loadUpcomingSessions(null, null);
+    }
+  } catch (error) {
+    console.error('Error creating reservation:', error);
+    alert(`Error: ${error.message}`);
+  }
 }
 
 // Update selected date display
@@ -1056,6 +1426,10 @@ async function showIndividualSessionBooking(sessionType, filtersContainer) {
   contentContainer.appendChild(bookingContainer);
   
   await renderIndividualSessionBooking(sessionType, bookingContainer);
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:1428',message:'showIndividualSessionBooking completed',data:{sessionType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
 }
 
 // Render individual session booking interface (row layout)
@@ -1142,6 +1516,7 @@ async function loadIndividualSessionAvailability(sessionType) {
     }
     
     // Load coaches who have availability for this session type
+    // Only show coaches who have actual availability data set (not just is_available=true)
     const { data: coachAvailability, error: coachError } = await supabase
       .from('coach_individual_availability')
       .select(`
@@ -1156,7 +1531,19 @@ async function loadIndividualSessionAvailability(sessionType) {
         )
       `)
       .eq('session_type_id', sessionTypeData.id)
-      .eq('is_available', true);
+      .eq('is_available', true)
+      .not('availability', 'is', null);
+    
+    // Filter to only include coaches with actual availability data (at least one day with available: true)
+    const coachesWithAvailability = (coachAvailability || []).filter(coach => {
+      const avail = coach.availability || {};
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      return days.some(day => {
+        const dayAvail = avail[day];
+        return dayAvail && dayAvail.available === true && 
+               ((dayAvail.start && dayAvail.end) || (dayAvail.timeRanges && Array.isArray(dayAvail.timeRanges) && dayAvail.timeRanges.length > 0));
+      });
+    });
     
     if (coachError) {
       console.error('Error loading coach availability:', coachError);
@@ -1173,10 +1560,10 @@ async function loadIndividualSessionAvailability(sessionType) {
     
     // Store session type data and coach availability globally
     currentSessionTypeData = sessionTypeData;
-    currentCoachAvailability = coachAvailability || [];
+    currentCoachAvailability = coachesWithAvailability;
     
     // Render date picker and time slots
-    await renderDatePickerAndTimeSlots(sessionTypeData, sessionType, coachAvailability || []);
+    await renderDatePickerAndTimeSlots(sessionTypeData, sessionType, coachesWithAvailability);
     
   } catch (error) {
     console.error('Error loading individual session availability:', error);
@@ -1600,10 +1987,21 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
                     duration
                   );
                   
-                  // Merge slots (avoid duplicates)
+                  // Merge slots (avoid duplicates) and track which coach each slot belongs to
                   coachSlots.forEach(slot => {
-                    if (!availableSlots.find(s => s.time === slot.time)) {
-                      availableSlots.push(slot);
+                    const existingSlot = availableSlots.find(s => s.time === slot.time);
+                    if (!existingSlot) {
+                      // Add coach_id to slot for tracking
+                      availableSlots.push({ ...slot, coach_id: coach.coach_id });
+                    } else {
+                      // If slot already exists, add this coach to the list of coaches available for this slot
+                      if (!existingSlot.coach_ids) {
+                        existingSlot.coach_ids = [existingSlot.coach_id || coach.coach_id];
+                        delete existingSlot.coach_id;
+                      }
+                      if (!existingSlot.coach_ids.includes(coach.coach_id)) {
+                        existingSlot.coach_ids.push(coach.coach_id);
+                      }
                     }
                   });
                 }
@@ -1620,10 +2018,21 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
                   duration
                 );
                 
-                // Merge slots (avoid duplicates)
+                // Merge slots (avoid duplicates) and track which coach each slot belongs to
                 coachSlots.forEach(slot => {
-                  if (!availableSlots.find(s => s.time === slot.time)) {
-                    availableSlots.push(slot);
+                  const existingSlot = availableSlots.find(s => s.time === slot.time);
+                  if (!existingSlot) {
+                    // Add coach_id to slot for tracking
+                    availableSlots.push({ ...slot, coach_id: coach.coach_id });
+                  } else {
+                    // If slot already exists, add this coach to the list of coaches available for this slot
+                    if (!existingSlot.coach_ids) {
+                      existingSlot.coach_ids = [existingSlot.coach_id || coach.coach_id];
+                      delete existingSlot.coach_id;
+                    }
+                    if (!existingSlot.coach_ids.includes(coach.coach_id)) {
+                      existingSlot.coach_ids.push(coach.coach_id);
+                    }
                   }
                 });
               }
@@ -1631,23 +2040,25 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
           }
         }
       });
-    } else {
-      // Fallback to general availability if no coach availability
-      if (dayAvailability.available && dayAvailability.start && dayAvailability.end) {
-        availableSlots.push(...generateSlotsForTimeRange(
+      
+      // Fallback to general availability if no coach availability was found
+      if (availableSlots.length === 0 && dayAvailability.available && dayAvailability.start && dayAvailability.end) {
+        const generalSlots = generateSlotsForTimeRange(
           dayAvailability.start,
           dayAvailability.end,
           granularity,
           duration
-        ));
+        );
+        // For general availability, we don't know which coaches, so don't add coach tracking
+        availableSlots.push(...generalSlots);
       }
     }
-  } else {
-    // Use specific coach's availability
-    const selectedCoach = coachAvailability?.find(c => c.coach_id === selectedCoachId);
-    if (selectedCoach) {
-      const coachAvail = selectedCoach.availability || {};
-      const coachDayAvail = coachAvail[dayName] || dayAvailability;
+    } else {
+      // Use specific coach's availability
+      const selectedCoach = coachAvailability?.find(c => c.coach_id === selectedCoachId);
+      if (selectedCoach) {
+        const coachAvail = selectedCoach.availability || {};
+        const coachDayAvail = coachAvail[dayName] || dayAvailability;
       
       if (coachDayAvail.available) {
         // Get coach's time ranges
@@ -1659,45 +2070,49 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
           coachRanges = [{ start: coachDayAvail.start, end: coachDayAvail.end }];
         }
         
-        // Intersect coach ranges with general availability
-        if (coachRanges.length > 0 && dayAvailability.available && dayAvailability.start && dayAvailability.end) {
-          const generalStart = parseTime(dayAvailability.start);
-          const generalEnd = parseTime(dayAvailability.end);
-          
-          coachRanges.forEach(range => {
-            const coachStart = parseTime(range.start);
-            const coachEnd = parseTime(range.end);
+        // Intersect coach ranges with general availability (if general availability exists)
+        // If no general availability, use coach ranges directly
+        if (coachRanges.length > 0) {
+          if (dayAvailability.available && dayAvailability.start && dayAvailability.end) {
+            // General availability exists - intersect with coach ranges
+            const generalStart = parseTime(dayAvailability.start);
+            const generalEnd = parseTime(dayAvailability.end);
             
-            if (coachStart && coachEnd && generalStart && generalEnd) {
-              // Find intersection
-              const intersectionStart = coachStart > generalStart ? coachStart : generalStart;
-              const intersectionEnd = coachEnd < generalEnd ? coachEnd : generalEnd;
+            coachRanges.forEach(range => {
+              const coachStart = parseTime(range.start);
+              const coachEnd = parseTime(range.end);
               
-              // Only use if there's a valid intersection
-              if (intersectionStart < intersectionEnd) {
-                const startStr = formatTimeFromDate(intersectionStart);
-                const endStr = formatTimeFromDate(intersectionEnd);
+              if (coachStart && coachEnd && generalStart && generalEnd) {
+                // Find intersection
+                const intersectionStart = coachStart > generalStart ? coachStart : generalStart;
+                const intersectionEnd = coachEnd < generalEnd ? coachEnd : generalEnd;
+                
+                // Only use if there's a valid intersection
+                if (intersectionStart < intersectionEnd) {
+                  const startStr = formatTimeFromDate(intersectionStart);
+                  const endStr = formatTimeFromDate(intersectionEnd);
+                  availableSlots.push(...generateSlotsForTimeRange(
+                    startStr,
+                    endStr,
+                    granularity,
+                    duration
+                  ));
+                }
+              }
+            });
+          } else {
+            // No general availability restriction, use coach ranges directly
+            coachRanges.forEach(range => {
+              if (range.start && range.end) {
                 availableSlots.push(...generateSlotsForTimeRange(
-                  startStr,
-                  endStr,
+                  range.start,
+                  range.end,
                   granularity,
                   duration
                 ));
               }
-            }
-          });
-        } else if (coachRanges.length > 0) {
-          // No general availability restriction, use coach ranges directly
-          coachRanges.forEach(range => {
-            if (range.start && range.end) {
-              availableSlots.push(...generateSlotsForTimeRange(
-                range.start,
-                range.end,
-                granularity,
-                duration
-              ));
-            }
-          });
+            });
+          }
         }
       }
     }
@@ -1709,56 +2124,171 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   console.log('Available slots before booking check:', availableSlots.length);
   
   // Check for existing bookings to mark slots as unavailable
-  const bookedSlots = await getBookedSlots(selectedDate, sessionTypeData.id);
+  // When "Any available" is selected, we need to check bookings per coach
+  let bookedSlotsByCoach = {};
+  if (!selectedCoachId) {
+    // For "Any available", get bookings for each coach separately
+    for (const coach of coachAvailability || []) {
+      const coachBookings = await getBookedSlots(selectedDate, sessionTypeData.id, coach.coach_id);
+      if (coachBookings.length > 0) {
+        bookedSlotsByCoach[coach.coach_id] = coachBookings;
+      }
+    }
+  } else {
+    // For specific coach, get bookings for that coach only
+    const bookings = await getBookedSlots(selectedDate, sessionTypeData.id, selectedCoachId);
+    if (bookings.length > 0) {
+      bookedSlotsByCoach[selectedCoachId] = bookings;
+    }
+  }
   
   // Get buffer times from session type
   const bufferBefore = sessionTypeData.buffer_before_minutes || 0;
   const bufferAfter = sessionTypeData.buffer_after_minutes || 0;
   
-  console.log('Buffer settings:', { bufferBefore, bufferAfter, bookedSlotsCount: bookedSlots.length });
+  console.log('Buffer settings:', { bufferBefore, bufferAfter, bookedSlotsByCoach });
   
   // Apply buffers to booked slots - mark slots as unavailable if they conflict
+  // For "Any available", only mark a slot unavailable if ALL coaches for that slot are booked
   const unavailableSlots = new Set();
-  bookedSlots.forEach(bookedTime => {
-    const [bookedHours, bookedMinutes] = bookedTime.split(':').map(Number);
-    const bookedStart = new Date(selectedDate);
-    bookedStart.setHours(bookedHours, bookedMinutes, 0, 0);
+  
+  // Process bookings per coach
+  if (!selectedCoachId) {
+    // For "Any available", mark slots unavailable only if ALL coaches for that slot are booked
+    // For buffers, we'll apply them per coach - if a coach has a booking, mark buffer slots
+    // as unavailable only if ALL coaches for those buffer slots are also booked
+    availableSlots.forEach(slot => {
+      const slotCoachIds = slot.coach_ids || (slot.coach_id ? [slot.coach_id] : []);
+      if (slotCoachIds.length === 0) return;
+      
+      // Check if all coaches for this slot have this time booked
+      const allCoachesBooked = slotCoachIds.every(cid => {
+        const coachBookings = bookedSlotsByCoach[cid] || [];
+        return coachBookings.includes(slot.time);
+      });
+      
+      if (allCoachesBooked) {
+        unavailableSlots.add(slot.time);
+      }
+    });
     
-    // Mark buffer before (slots that end during buffer before)
-    if (bufferBefore > 0) {
-      const bufferStart = new Date(bookedStart.getTime() - bufferBefore * 60000);
-      availableSlots.forEach(slot => {
-        const [slotHours, slotMinutes] = slot.time.split(':').map(Number);
-        const slotStart = new Date(selectedDate);
-        slotStart.setHours(slotHours, slotMinutes, 0, 0);
-        const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+    // Apply buffers for "Any available" - simplified: only mark buffer slots unavailable
+    // if they conflict with a booking AND the slot belongs to the coach with the booking
+    // OR if all coaches for that buffer slot are booked
+    Object.entries(bookedSlotsByCoach).forEach(([coachId, bookedTimes]) => {
+      bookedTimes.forEach(bookedTime => {
+        const [bookedHours, bookedMinutes] = bookedTime.split(':').map(Number);
+        const bookedStart = new Date(selectedDate);
+        bookedStart.setHours(bookedHours, bookedMinutes, 0, 0);
+        const bookedEnd = new Date(bookedStart.getTime() + duration * 60000);
         
-        // If slot ends during buffer before, mark as unavailable
-        if (slotEnd > bufferStart && slotEnd <= bookedStart) {
-          unavailableSlots.add(slot.time);
+        // Mark buffer before - any slot that overlaps with the buffer period before the booking
+        if (bufferBefore > 0) {
+          const bufferStart = new Date(bookedStart.getTime() - bufferBefore * 60000);
+          availableSlots.forEach(slot => {
+            const [slotHours, slotMinutes] = slot.time.split(':').map(Number);
+            const slotStart = new Date(selectedDate);
+            slotStart.setHours(slotHours, slotMinutes, 0, 0);
+            const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+            
+            // Slot overlaps with buffer if: slotStart < bookedStart && slotEnd > bufferStart
+            if (slotStart < bookedStart && slotEnd > bufferStart) {
+              const slotCoachIds = slot.coach_ids || (slot.coach_id ? [slot.coach_id] : []);
+              // Mark unavailable if this slot belongs to the coach with the booking
+              // OR if all coaches for this slot are booked
+              if (slotCoachIds.includes(coachId)) {
+                // This slot belongs to the coach with the booking, so mark it unavailable
+                unavailableSlots.add(slot.time);
+              } else if (slotCoachIds.length > 0) {
+                // Check if all coaches for this slot are booked
+                const allSlotCoachesBooked = slotCoachIds.every(cid => {
+                  const coachBookings = bookedSlotsByCoach[cid] || [];
+                  return coachBookings.includes(slot.time);
+                });
+                if (allSlotCoachesBooked) {
+                  unavailableSlots.add(slot.time);
+                }
+              }
+            }
+          });
+        }
+        
+        // Mark buffer after - any slot that overlaps with the buffer period after the booking
+        if (bufferAfter > 0) {
+          const bufferEnd = new Date(bookedEnd.getTime() + bufferAfter * 60000);
+          availableSlots.forEach(slot => {
+            const [slotHours, slotMinutes] = slot.time.split(':').map(Number);
+            const slotStart = new Date(selectedDate);
+            slotStart.setHours(slotHours, slotMinutes, 0, 0);
+            const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+            
+            // Slot overlaps with buffer if: slotStart < bufferEnd && slotEnd > bookedEnd
+            if (slotStart < bufferEnd && slotEnd > bookedEnd) {
+              const slotCoachIds = slot.coach_ids || (slot.coach_id ? [slot.coach_id] : []);
+              // Mark unavailable if this slot belongs to the coach with the booking
+              // OR if all coaches for this slot are booked
+              if (slotCoachIds.includes(coachId)) {
+                // This slot belongs to the coach with the booking, so mark it unavailable
+                unavailableSlots.add(slot.time);
+              } else if (slotCoachIds.length > 0) {
+                // Check if all coaches for this slot are booked
+                const allSlotCoachesBooked = slotCoachIds.every(cid => {
+                  const coachBookings = bookedSlotsByCoach[cid] || [];
+                  return coachBookings.includes(slot.time);
+                });
+                if (allSlotCoachesBooked) {
+                  unavailableSlots.add(slot.time);
+                }
+              }
+            }
+          });
         }
       });
-    }
-    
-    // Mark buffer after (slots that start during buffer after)
-    if (bufferAfter > 0) {
-      const bookedEnd = new Date(bookedStart.getTime() + duration * 60000);
-      const bufferEnd = new Date(bookedEnd.getTime() + bufferAfter * 60000);
-      availableSlots.forEach(slot => {
-        const [slotHours, slotMinutes] = slot.time.split(':').map(Number);
-        const slotStart = new Date(selectedDate);
-        slotStart.setHours(slotHours, slotMinutes, 0, 0);
+    });
+  } else {
+    // For specific coach, use original logic
+    Object.entries(bookedSlotsByCoach).forEach(([coachId, bookedTimes]) => {
+      bookedTimes.forEach(bookedTime => {
+        const [bookedHours, bookedMinutes] = bookedTime.split(':').map(Number);
+        const bookedStart = new Date(selectedDate);
+        bookedStart.setHours(bookedHours, bookedMinutes, 0, 0);
         
-        // If slot starts during buffer after, mark as unavailable
-        if (slotStart >= bookedEnd && slotStart < bufferEnd) {
-          unavailableSlots.add(slot.time);
+        // Mark buffer before - any slot that overlaps with the buffer period before the booking
+        if (bufferBefore > 0) {
+          const bufferStart = new Date(bookedStart.getTime() - bufferBefore * 60000);
+          availableSlots.forEach(slot => {
+            const [slotHours, slotMinutes] = slot.time.split(':').map(Number);
+            const slotStart = new Date(selectedDate);
+            slotStart.setHours(slotHours, slotMinutes, 0, 0);
+            const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+            // Slot overlaps with buffer if: slotStart < bookedStart && slotEnd > bufferStart
+            if (slotStart < bookedStart && slotEnd > bufferStart) {
+              unavailableSlots.add(slot.time);
+            }
+          });
         }
+        
+        // Mark buffer after - any slot that overlaps with the buffer period after the booking
+        if (bufferAfter > 0) {
+          const bookedEnd = new Date(bookedStart.getTime() + duration * 60000);
+          const bufferEnd = new Date(bookedEnd.getTime() + bufferAfter * 60000);
+          availableSlots.forEach(slot => {
+            const [slotHours, slotMinutes] = slot.time.split(':').map(Number);
+            const slotStart = new Date(selectedDate);
+            slotStart.setHours(slotHours, slotMinutes, 0, 0);
+            const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+            // Slot overlaps with buffer if: slotStart < bufferEnd && slotEnd > bookedEnd
+            if (slotStart < bufferEnd && slotEnd > bookedEnd) {
+              unavailableSlots.add(slot.time);
+            }
+          });
+        }
+        
+        // Mark the booked slot itself
+        unavailableSlots.add(bookedTime);
       });
-    }
-    
-    // Mark the booked slot itself
-    unavailableSlots.add(bookedTime);
-  });
+    });
+  }
   
   // Apply minimum booking notice (e.g., 8 hours before)
   const minBookingNoticeHours = sessionTypeData.minimum_booking_notice_hours || 8;
@@ -1778,10 +2308,19 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
     }
   });
   
-  // Render time slots
-  console.log('Final available slots after buffer and minimum notice check:', availableSlots.length - unavailableSlots.size);
+  // Calculate available slots after filtering
+  const finalAvailableSlots = availableSlots.filter(slot => !unavailableSlots.has(slot.time));
   
-  if (availableSlots.length === 0) {
+  // Render time slots
+  console.log('Final available slots after buffer and minimum notice check:', finalAvailableSlots.length);
+  
+  // #region agent log
+  const totalBookedSlots = Object.values(bookedSlotsByCoach).reduce((sum, bookings) => sum + bookings.length, 0);
+  fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2169',message:'Time slots generated',data:{availableSlotsCount:availableSlots.length,unavailableSlotsCount:unavailableSlots.size,finalAvailableSlotsCount:finalAvailableSlots.length,bookedSlotsCount:totalBookedSlots,bufferBefore,bufferAfter},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
+  // Check if there are any available slots after filtering
+  if (finalAvailableSlots.length === 0) {
     container.innerHTML = '<div class="no-slots">No available time slots for this day. Please check coach availability settings.</div>';
     return;
   }
@@ -1790,12 +2329,10 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
     console.log('Unavailable slots (booked, in buffer, or too soon):', Array.from(unavailableSlots));
   }
   
-  container.innerHTML = availableSlots.map(slot => {
-    const isBooked = unavailableSlots.has(slot.time);
+  container.innerHTML = finalAvailableSlots.map(slot => {
     return `
-      <button class="time-slot-btn ${isBooked ? 'booked' : ''}" 
+      <button class="time-slot-btn" 
               data-time="${slot.time}" 
-              ${isBooked ? 'disabled' : ''}
               type="button">
         ${slot.displayTime}
       </button>
@@ -1890,7 +2427,7 @@ function formatTimeFromDate(date) {
 }
 
 // Get booked slots for a date
-async function getBookedSlots(date, sessionTypeId) {
+async function getBookedSlots(date, sessionTypeId, coachId = null) {
   if (!supabaseReady || !supabase || !sessionTypeId) return [];
   
   try {
@@ -1900,19 +2437,43 @@ async function getBookedSlots(date, sessionTypeId) {
     const day = String(date.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
     
-    const { data: bookings, error } = await supabase
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2286',message:'getBookedSlots called',data:{dateString,sessionTypeId,coachId,selectedCoachId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    let query = supabase
       .from('individual_session_bookings')
       .select('booking_time')
       .eq('session_type_id', sessionTypeId)
       .eq('booking_date', dateString)
       .eq('status', 'confirmed');
     
+    // If a specific coach is selected, only check bookings for that coach
+    const coachToCheck = coachId || selectedCoachId;
+    if (coachToCheck) {
+      query = query.eq('coach_id', coachToCheck);
+    }
+    
+    const { data: bookings, error } = await query;
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2300',message:'getBookedSlots result',data:{bookingsCount:bookings?.length,bookings:bookings?.map(b=>b.booking_time),coachId:coachToCheck,error:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     if (error) {
       console.error('Error loading booked slots:', error);
       return [];
     }
     
-    return (bookings || []).map(b => b.booking_time);
+    // Normalize booking_time to HH:MM format (remove seconds if present)
+    return (bookings || []).map(b => {
+      const time = b.booking_time || '';
+      // If time includes seconds (HH:MM:SS), remove them
+      if (time.length === 8 && time.includes(':')) {
+        return time.substring(0, 5); // Return HH:MM
+      }
+      return time;
+    });
   } catch (error) {
     console.error('Error getting booked slots:', error);
     return [];
@@ -1921,21 +2482,40 @@ async function getBookedSlots(date, sessionTypeId) {
 
 // Setup time slot click handlers
 function setupTimeSlotHandlers() {
+  // Remove existing listeners to prevent duplicates
   const timeSlotBtns = document.querySelectorAll('.time-slot-btn:not(.booked)');
   timeSlotBtns.forEach(btn => {
-    btn.addEventListener('click', async () => {
+    // Clone and replace to remove all event listeners
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener('click', async () => {
+      // Remove previous selection
+      document.querySelectorAll('.time-slot-btn').forEach(b => b.classList.remove('selected'));
+      
+      // Select this slot first (so it's selected when coach is chosen)
+      newBtn.classList.add('selected');
+      
+      // Ensure a date is selected - if not, select today's date
+      const selectedDateNumber = document.querySelector('.day-number.selected');
+      if (!selectedDateNumber) {
+        // Find today's date in the calendar
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const todayElement = document.querySelector(`.calendar-day[data-date="${todayStr}"] .day-number`);
+        if (todayElement) {
+          document.querySelectorAll('.day-number').forEach(d => d.classList.remove('selected'));
+          todayElement.classList.add('selected');
+        }
+      }
+      
       // Check if a coach is selected
       if (!selectedCoachId) {
         // Show modal to choose a coach
+        // The time slot is already selected, so after coach selection, updateBookingSummary will be called
         await showCoachSelectionModal(currentIndividualSessionType);
         return;
       }
-      
-      // Remove previous selection
-      timeSlotBtns.forEach(b => b.classList.remove('selected'));
-      
-      // Select this slot
-      btn.classList.add('selected');
       
       // Update booking summary and show footer
       updateBookingSummary();
@@ -2023,12 +2603,14 @@ async function showCoachSelectionModal(sessionType) {
       return;
     }
     
-    // Load available coaches
+    // Load available coaches with actual availability data
     const { data: coachAvailability, error: coachError } = await supabase
       .from('coach_individual_availability')
       .select(`
         id,
         coach_id,
+        availability,
+        is_available,
         coach:profiles!coach_individual_availability_coach_id_fkey(
           id,
           first_name,
@@ -2036,7 +2618,19 @@ async function showCoachSelectionModal(sessionType) {
         )
       `)
       .eq('session_type_id', sessionTypeData.id)
-      .eq('is_available', true);
+      .eq('is_available', true)
+      .not('availability', 'is', null);
+    
+    // Filter to only include coaches with actual availability data
+    const coachesWithAvailability = (coachAvailability || []).filter(coach => {
+      const avail = coach.availability || {};
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      return days.some(day => {
+        const dayAvail = avail[day];
+        return dayAvail && dayAvail.available === true && 
+               ((dayAvail.start && dayAvail.end) || (dayAvail.timeRanges && Array.isArray(dayAvail.timeRanges) && dayAvail.timeRanges.length > 0));
+      });
+    });
     
     if (coachError) {
       console.error('Error loading coaches:', coachError);
@@ -2063,7 +2657,7 @@ async function showCoachSelectionModal(sessionType) {
     }
     
     // Render modal content
-    const coaches = coachAvailability || [];
+    const coaches = coachesWithAvailability || [];
     modal.innerHTML = `
       <div class="coach-modal-overlay"></div>
       <div class="coach-modal-content">
@@ -2304,9 +2898,41 @@ async function handleIndividualBookingConfirmation(sessionType) {
       playerId = session.user.id;
     } else if (profile.role === 'parent') {
       parentId = session.user.id;
-      // For parents, we need to get the linked player
-      // For now, we'll use the parent as the player (this should be updated)
-      playerId = session.user.id;
+      // For parents, get the linked player(s)
+      const { data: relationships, error: relError } = await supabase
+        .from('parent_player_relationships')
+        .select(`
+          player_id,
+          player:profiles!parent_player_relationships_player_id_fkey(
+            id,
+            first_name,
+            last_name
+          )
+        `)
+        .eq('parent_id', session.user.id);
+      
+      if (relError || !relationships || relationships.length === 0) {
+        alert('No linked players found. Please link a player account first.');
+        return;
+      }
+      
+      // For individual sessions, only allow one player at a time
+      if (relationships.length === 1) {
+        playerId = relationships[0].player_id;
+      } else {
+        // Show player selection modal for multiple players (radio buttons - one at a time)
+        const selectedTime = selectedSlot.dataset.time;
+        const calendarDay = selectedDateNumber.closest('.calendar-day');
+        const dateStr = calendarDay?.dataset.date;
+        if (!dateStr) {
+          alert('Error: Could not determine selected date');
+          return;
+        }
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const selectedDate = new Date(year, month - 1, day);
+        showIndividualSessionPlayerSelection(relationships, sessionType, sessionTypeData, coachId, selectedDate, selectedTime, selectedSlot);
+        return;
+      }
     }
     
     // Parse as local date to avoid timezone issues
@@ -2338,6 +2964,119 @@ async function handleIndividualBookingConfirmation(sessionType) {
     // Use the dateStr directly since it's already in YYYY-MM-DD format
     const dateString = dateStr;
     
+    // Check for existing bookings that would conflict (same coach, date, time, or within buffer)
+    const bufferBefore = sessionTypeData.buffer_before_minutes || 0;
+    const bufferAfter = sessionTypeData.buffer_after_minutes || 0;
+    const duration = sessionTypeData.duration_minutes || 20;
+    
+    const [selectedHours, selectedMinutes] = selectedTime.split(':').map(Number);
+    const selectedStart = new Date(selectedDate);
+    selectedStart.setHours(selectedHours, selectedMinutes, 0, 0);
+    const selectedEnd = new Date(selectedStart.getTime() + duration * 60000);
+    const conflictStart = new Date(selectedStart.getTime() - bufferBefore * 60000);
+    const conflictEnd = new Date(selectedEnd.getTime() + bufferAfter * 60000);
+    
+    // Check for conflicting bookings
+    const { data: existingBookings, error: conflictError } = await supabase
+      .from('individual_session_bookings')
+      .select('booking_time, duration_minutes')
+      .eq('coach_id', coachId)
+      .eq('booking_date', dateString)
+      .eq('status', 'confirmed');
+    
+    if (conflictError) {
+      console.error('Error checking for conflicts:', conflictError);
+      alert('Error checking for existing bookings. Please try again.');
+      return;
+    }
+    
+    // Check if any existing booking conflicts with the selected time (including buffers)
+    if (existingBookings && existingBookings.length > 0) {
+      for (const existing of existingBookings) {
+        const [existingHours, existingMinutes] = existing.booking_time.split(':').map(Number);
+        const existingStart = new Date(selectedDate);
+        existingStart.setHours(existingHours, existingMinutes, 0, 0);
+        const existingDuration = existing.duration_minutes || duration;
+        const existingEnd = new Date(existingStart.getTime() + existingDuration * 60000);
+        const existingConflictStart = new Date(existingStart.getTime() - bufferBefore * 60000);
+        const existingConflictEnd = new Date(existingEnd.getTime() + bufferAfter * 60000);
+        
+        // Check if times overlap (including buffers)
+        if ((selectedStart < existingConflictEnd && selectedEnd > existingConflictStart) ||
+            (existingStart < conflictEnd && existingEnd > conflictStart)) {
+          alert('This time slot is already booked or conflicts with an existing booking (including buffer time). Please select a different time.');
+          return;
+        }
+      }
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2768',message:'Before booking insert',data:{sessionTypeId:sessionTypeData.id,coachId,playerId,parentId,dateString,selectedTime,duration:sessionTypeData.duration_minutes,bufferBefore:sessionTypeData.buffer_before_minutes,bufferAfter:sessionTypeData.buffer_after_minutes,existingBookingsCount:existingBookings?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    // Create booking
+    const { data: booking, error: bookingError } = await supabase
+      .from('individual_session_bookings')
+      .insert({
+        session_type_id: sessionTypeData.id,
+        coach_id: coachId,
+        player_id: playerId,
+        parent_id: parentId,
+        booking_date: dateString,
+        booking_time: selectedTime,
+        duration_minutes: sessionTypeData.duration_minutes,
+        status: 'confirmed'
+      })
+      .select()
+      .single();
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2807',message:'After booking insert',data:{booking:booking?.id,bookingCoachId:booking?.coach_id,error:bookingError?.message,errorCode:bookingError?.code,errorDetails:bookingError?.details},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    if (bookingError) {
+      console.error('Error creating booking:', bookingError);
+      alert(`Error creating booking: ${bookingError.message}`);
+      return;
+    }
+    
+    // Show confirmation screen
+    await showBookingConfirmation(booking, sessionTypeData, selectedDate, selectedTime, coachId);
+    
+  } catch (error) {
+    console.error('Error confirming booking:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
+
+// Helper function to create individual booking (extracted for reuse)
+async function createIndividualBooking(sessionType, sessionTypeData, coachId, playerId, selectedDate, selectedTime) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !session.user) {
+      alert('Not logged in');
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    
+    const parentId = profile?.role === 'parent' ? session.user.id : null;
+    
+    // Format date - handle both Date object and string
+    let dateString;
+    if (selectedDate instanceof Date) {
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      dateString = `${year}-${month}-${day}`;
+    } else {
+      dateString = selectedDate; // Assume it's already in YYYY-MM-DD format
+    }
+    
     // Create booking
     const { data: booking, error: bookingError } = await supabase
       .from('individual_session_bookings')
@@ -2362,9 +3101,8 @@ async function handleIndividualBookingConfirmation(sessionType) {
     
     // Show confirmation screen
     await showBookingConfirmation(booking, sessionTypeData, selectedDate, selectedTime, coachId);
-    
   } catch (error) {
-    console.error('Error confirming booking:', error);
+    console.error('Error creating booking:', error);
     alert(`Error: ${error.message}`);
   }
 }
@@ -2449,18 +3187,24 @@ async function showBookingConfirmation(booking, sessionTypeData, selectedDate, s
     </div>
   `;
   
+  // Regenerate time slots after booking to reflect the new booking
+  await regenerateTimeSlotsAfterBooking(selectedDate, sessionTypeData, coachId);
+  
   // Setup action buttons
   const bookAnotherBtn = document.getElementById('bookAnotherBtn');
   const backToReservations = document.getElementById('backToReservations');
   
   if (bookAnotherBtn) {
-    bookAnotherBtn.addEventListener('click', () => {
-      // Reload the booking interface
+    bookAnotherBtn.addEventListener('click', async () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2956',message:'Book another clicked',data:{bookingId:booking?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      // Reload the booking interface - this will regenerate time slots with updated bookings
       const filters = document.getElementById('virtualFilters');
       if (filters) {
         const activeBtn = filters.querySelector('.filter-btn.active');
         if (activeBtn) {
-          showIndividualSessionBooking(activeBtn.dataset.type, filters);
+          await showIndividualSessionBooking(activeBtn.dataset.type, filters);
         }
       }
     });
@@ -2493,6 +3237,29 @@ window.addEventListener('resize', () => {
     }
   }, 250);
 });
+
+// Regenerate time slots after a booking is made
+async function regenerateTimeSlotsAfterBooking(selectedDate, sessionTypeData, coachId) {
+  // Get the time slots container
+  const timeSlots = document.getElementById('individualTimeSlots');
+  if (!timeSlots || !currentSessionTypeData || !currentCoachAvailability) return;
+  
+  // Get the currently selected date
+  const selectedDateNumber = document.querySelector('.day-number.selected');
+  let dateToUse = selectedDate;
+  
+  if (selectedDateNumber) {
+    const calendarDay = selectedDateNumber.closest('.calendar-day');
+    if (calendarDay && calendarDay.dataset.date) {
+      const dateStr = calendarDay.dataset.date;
+      const [year, month, day] = dateStr.split('-').map(Number);
+      dateToUse = new Date(year, month - 1, day);
+    }
+  }
+  
+  // Regenerate time slots with updated bookings
+  await generateTimeSlots(dateToUse, currentSessionTypeData, currentCoachAvailability, timeSlots);
+}
 
 // Initialize on page load
 if (document.readyState === 'loading') {

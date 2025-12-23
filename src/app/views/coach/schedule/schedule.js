@@ -1,4 +1,22 @@
-// Coach Schedule page scripts
+// ============================================================================
+// COACH SCHEDULE - MAIN SCRIPT
+// ============================================================================
+// This file contains all schedule functionality for coaches.
+// For easier navigation, see README.md for a complete code map.
+//
+// Quick Navigation:
+// - Lines 1-40:   Initialization & State
+// - Lines 42-312: Calendar Rendering
+// - Lines 314-352: Session Loading
+// - Lines 354-556: Event Listeners Setup
+// - Lines 572-640: Sidebar Management
+// - Lines 772-1062: Form Submission
+// - Lines 1064-1551: Modals (Repeats Forever, Edit Session)
+// - Lines 1553-1611: Drag & Drop
+// - Lines 1958-2933: Individual Session Configuration
+// - Lines 3384-3713: Individual Session Types Management
+// ============================================================================
+
 import { initSupabase } from '../../../../auth/config/supabase.js';
 
 // Initialize Supabase
@@ -259,49 +277,81 @@ function renderSessionsOnCalendar() {
         ? `${session.coach.first_name || ''} ${session.coach.last_name || ''}`.trim() || 'Coach'
         : 'Coach';
 
+      // Use abbreviated name for individual sessions, full name for group sessions
+      const displayType = session.is_individual && session.session_type_abbrev 
+        ? session.session_type_abbrev 
+        : session.session_type;
+
+      // Get color for individual sessions
+      const sessionColor = session.is_individual && session.color ? session.color : null;
+
       const sessionBlock = document.createElement('div');
       sessionBlock.className = 'session-block';
       sessionBlock.style.top = `${topOffset}px`;
       sessionBlock.style.height = `${height}px`;
-      sessionBlock.draggable = true;
+      sessionBlock.draggable = !session.is_individual; // Individual sessions are not draggable
       sessionBlock.dataset.sessionId = session.id;
       sessionBlock.dataset.sessionDate = session.session_date;
       sessionBlock.dataset.sessionTime = session.session_time;
+      sessionBlock.dataset.isIndividual = session.is_individual ? 'true' : 'false';
+      
+      // Apply color for individual sessions
+      if (sessionColor) {
+        sessionBlock.style.backgroundColor = sessionColor;
+        sessionBlock.style.borderLeftColor = sessionColor;
+        // Ensure text is readable (use white text on dark colors, dark on light)
+        const rgb = hexToRgb(sessionColor);
+        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+        sessionBlock.style.color = brightness > 128 ? '#000' : '#fff';
+      }
+      
       sessionBlock.innerHTML = `
-        <div class="session-block-type">${session.session_type}</div>
+        <div class="session-block-type">${displayType}</div>
         <div class="session-block-time">${timeString}</div>
         <div class="session-block-coach">${coachName}</div>
       `;
       
-      // Click handler for editing
-      sessionBlock.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        editSession(session);
-      });
-
-      // Drag and drop handlers
-      sessionBlock.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', session.id);
-        sessionBlock.classList.add('dragging');
-        // Store the original session data for reference (important for day name display)
-        draggedSession = {
-          ...session,
-          originalDate: session.session_date, // Keep original date
-          originalTime: session.session_time  // Keep original time
-        };
-        console.log('Drag started - original date:', session.session_date, 'day:', new Date(session.session_date).getDay());
-      });
-
-      sessionBlock.addEventListener('dragend', (e) => {
-        sessionBlock.classList.remove('dragging');
-        // Remove drop indicators
-        document.querySelectorAll('.day-time-slot').forEach(slot => {
-          slot.classList.remove('drop-target');
+      // Click handler for editing (group sessions) or viewing details (individual sessions)
+      if (!session.is_individual) {
+        sessionBlock.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          editSession(session);
         });
-        draggedSession = null;
-      });
+      } else {
+        // Individual sessions open detail modal
+        sessionBlock.style.cursor = 'pointer';
+        sessionBlock.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          showIndividualSessionDetails(session);
+        });
+      }
+
+      // Drag and drop handlers (only for group sessions)
+      if (!session.is_individual) {
+        sessionBlock.addEventListener('dragstart', (e) => {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', session.id);
+          sessionBlock.classList.add('dragging');
+          // Store the original session data for reference (important for day name display)
+          draggedSession = {
+            ...session,
+            originalDate: session.session_date, // Keep original date
+            originalTime: session.session_time  // Keep original time
+          };
+          console.log('Drag started - original date:', session.session_date, 'day:', new Date(session.session_date).getDay());
+        });
+
+        sessionBlock.addEventListener('dragend', (e) => {
+          sessionBlock.classList.remove('dragging');
+          // Remove drop indicators
+          document.querySelectorAll('.day-time-slot').forEach(slot => {
+            slot.classList.remove('drop-target');
+          });
+          draggedSession = null;
+        });
+      }
       
       slot.style.position = 'relative';
       slot.appendChild(sessionBlock);
@@ -319,8 +369,8 @@ async function loadSessions() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) return;
 
-    // Load all sessions with coach profile info (all coaches can view all sessions)
-    const { data, error } = await supabase
+    // Load all group sessions with coach profile info (all coaches can view all sessions)
+    const { data: groupSessions, error: groupError } = await supabase
       .from('sessions')
       .select(`
         *,
@@ -332,19 +382,71 @@ async function loadSessions() {
       .order('session_date', { ascending: true })
       .order('session_time', { ascending: true });
 
-    if (error) {
-      console.error('Error loading sessions:', error);
+    if (groupError) {
+      console.error('Error loading group sessions:', groupError);
       return;
     }
 
-    sessions = data || [];
-    console.log('Loaded sessions:', sessions.length, sessions);
-    // Log coach_id for each session to verify updates
-    sessions.forEach(s => {
-      if (s.session_type === 'Tec Tac' || s.session_type === 'Speed Training') {
-        console.log(`Session ${s.id} (${s.session_type}): coach_id = ${s.coach_id}`);
-      }
+    // Load individual session bookings
+    const { data: individualBookings, error: individualError } = await supabase
+      .from('individual_session_bookings')
+      .select(`
+        *,
+        session_type:individual_session_types(
+          id,
+          name,
+          display_name,
+          duration_minutes,
+          color
+        ),
+        coach:profiles!individual_session_bookings_coach_id_fkey(
+          first_name,
+          last_name
+        ),
+        player:profiles!individual_session_bookings_player_id_fkey(
+          id,
+          first_name,
+          last_name,
+          birth_year,
+          birth_date,
+          positions
+        )
+      `)
+      .in('status', ['confirmed', 'completed'])
+      .is('cancelled_at', null)
+      .order('booking_date', { ascending: true })
+      .order('booking_time', { ascending: true });
+
+    if (individualError) {
+      console.error('Error loading individual session bookings:', individualError);
+    }
+
+    // Convert individual bookings to session format
+    const individualSessions = (individualBookings || []).map(booking => ({
+      id: booking.id,
+      session_type: booking.session_type?.display_name || booking.session_type?.name || 'Individual Session',
+      session_type_abbrev: abbreviateSessionType(booking.session_type?.display_name || booking.session_type?.name || 'Individual Session'),
+      session_date: booking.booking_date,
+      session_time: booking.booking_time,
+      duration_minutes: booking.duration_minutes || booking.session_type?.duration_minutes || 20,
+      location_type: 'virtual',
+      coach_id: booking.coach_id,
+      coach: booking.coach,
+      color: booking.session_type?.color || '#7ed321', // Default color if not set
+      is_individual: true,
+      booking_data: booking,
+      player: booking.player
+    }));
+
+    // Combine group sessions and individual sessions
+    sessions = [...(groupSessions || []), ...individualSessions];
+    
+    console.log('Loaded sessions:', {
+      group: groupSessions?.length || 0,
+      individual: individualSessions.length,
+      total: sessions.length
     });
+    
     renderSessionsOnCalendar();
   } catch (error) {
     console.error('Error loading sessions:', error);
@@ -2035,7 +2137,6 @@ async function renderIndividualSessionConfig(sessionType, sessionId, container, 
         
         <div class="config-tabs">
           <button class="config-tab-btn active" data-tab="details">Details</button>
-          <button class="config-tab-btn" data-tab="people">People</button>
           <button class="config-tab-btn" data-tab="settings">Settings</button>
           <button class="config-tab-btn" data-tab="notifications">Notifications</button>
         </div>
@@ -2080,10 +2181,40 @@ async function renderIndividualSessionConfig(sessionType, sessionId, container, 
                 <!-- Availability will be rendered here -->
               </div>
             </div>
+            
+            <div class="config-form-group">
+              <label>Booking Link</label>
+              <p class="config-hint">Players and parents can book this session type from the Schedule page</p>
+              <div class="booking-link-info">
+                <a href="#" class="booking-link-preview" onclick="return false;" style="color: var(--accent); text-decoration: underline; cursor: default;">
+                  Schedule → Virtual → ${sessionTypeData?.display_name || sessionType}
+                </a>
+              </div>
+            </div>
           </div>
           
           <!-- Settings Tab -->
           <div class="config-tab-content" data-tab="settings">
+            <div class="config-section">
+              <h3>Player/Parent Info</h3>
+              
+              <div class="config-form-group">
+                <label for="configZoomLink">Zoom Link</label>
+                <input type="url" id="configZoomLink" name="zoomLink" placeholder="Zoom Link (https://zoom.us/j/...)" value="${sessionTypeData?.zoom_link || ''}">
+                <p class="config-hint" style="margin-top: 4px; font-size: 0.85rem; color: var(--muted);">
+                  Add the Zoom meeting link. Players and parents will be able to click this link to join the session.
+                </p>
+              </div>
+              
+              <div class="config-form-group">
+                <label for="configDescription">Description / Session Plan</label>
+                <textarea id="configDescription" name="description" rows="6" placeholder="Enter session description and plan...">${sessionTypeData?.description || ''}</textarea>
+                <p class="config-hint" style="margin-top: 4px; font-size: 0.85rem; color: var(--muted);">
+                  Include Meeting ID and Passcode here if needed for the Zoom session.
+                </p>
+              </div>
+            </div>
+
             <div class="config-section">
               <h3>Adjusted availability</h3>
               <p class="config-hint">Limit the time slots clients can select when they are self-booking</p>
@@ -2153,6 +2284,7 @@ async function renderIndividualSessionConfig(sessionType, sessionId, container, 
                 </select>
               </div>
             </div>
+            
           </div>
           
           <!-- Notifications Tab -->
@@ -2636,7 +2768,7 @@ async function loadConfigStaff(sessionType, sessionTypeId) {
         staffTags.innerHTML = coaches.map(coach => {
           const coachName = `${coach.first_name || ''} ${coach.last_name || ''}`.trim();
           return `
-            <div class="staff-tag" data-coach-id="${coach.id}">
+            <div class="staff-tag" data-coach-id="${coach.id}" data-original="true">
               <span>${coachName}</span>
               <button type="button" class="remove-staff-btn" data-coach-id="${coach.id}">
                 <i class="bx bx-x"></i>
@@ -2999,6 +3131,12 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
     const reminderTimingHours = reminderTiming && reminderUnit === 'hours' ? reminderTiming : 
                                  reminderTiming && reminderUnit === 'days' ? reminderTiming * 24 : 24;
     
+    // Collect zoom link and description
+    const zoomLinkInput = document.getElementById('configZoomLink');
+    const descriptionInput = document.getElementById('configDescription');
+    const zoomLink = zoomLinkInput ? zoomLinkInput.value.trim() || null : null;
+    const description = descriptionInput ? descriptionInput.value.trim() || null : null;
+    
     // Collect staff
     const staffTags = document.querySelectorAll('.staff-tag');
     const staffIds = Array.from(staffTags).map(tag => tag.dataset.coachId).filter(Boolean);
@@ -3016,24 +3154,32 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
     if (existingData && existingData.id) {
       // Update existing
       console.log('Updating existing session type:', existingData.id);
+      const updateData = {
+        display_name: name,
+        color: color,
+        duration_minutes: duration,
+        minimum_booking_notice_hours: minBookingNotice,
+        buffer_before_minutes: bufferBefore,
+        buffer_after_minutes: bufferAfter,
+        time_slot_granularity_minutes: timeSlotGranularity,
+        general_availability: availability,
+        booking_confirmation_email_subject: emailSubject,
+        booking_confirmation_email_body: emailBody,
+        reminder_timing_hours: reminderTimingHours,
+        reminder_email_subject: reminderSubject,
+        reminder_email_body: reminderBody,
+        description: description,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Only include zoom_link if the column exists (we'll add it via migration if needed)
+      if (zoomLink !== null) {
+        updateData.zoom_link = zoomLink;
+      }
+      
       const { data: updatedData, error } = await supabase
         .from('individual_session_types')
-        .update({
-          display_name: name,
-          color: color,
-          duration_minutes: duration,
-          minimum_booking_notice_hours: minBookingNotice,
-          buffer_before_minutes: bufferBefore,
-          buffer_after_minutes: bufferAfter,
-          time_slot_granularity_minutes: timeSlotGranularity,
-          general_availability: availability,
-          booking_confirmation_email_subject: emailSubject,
-          booking_confirmation_email_body: emailBody,
-          reminder_timing_hours: reminderTimingHours,
-          reminder_email_subject: reminderSubject,
-          reminder_email_body: reminderBody,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', existingData.id)
         .select()
         .single();
@@ -3045,114 +3191,149 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
       
       console.log('Successfully updated session type:', updatedData);
       
-      // First, remove availability for coaches that are no longer selected
-      // Get all current availability entries for this session type
-      const { data: currentAvailability, error: currentError } = await supabase
-        .from('coach_individual_availability')
-        .select('coach_id')
-        .eq('session_type_id', existingData.id);
+      // Only update coach availability if staff has actually changed
+      // Get the original staff list from when the config was opened
+      const originalStaffTags = document.querySelectorAll('.staff-tag[data-original="true"]');
+      const originalStaffIds = Array.from(originalStaffTags)
+        .map(tag => tag.dataset.coachId)
+        .filter(Boolean);
+      const originalStaffSet = new Set(originalStaffIds);
+      const currentStaffSet = new Set(staffIds);
       
-      if (!currentError && currentAvailability) {
-        const currentCoachIds = new Set(currentAvailability.map(a => a.coach_id));
-        const selectedCoachIds = new Set(staffIds);
+      // Check if staff has changed
+      // If we had original staff loaded, compare sets
+      // If no original staff but we have staff now, that means staff was added
+      // If we had original staff but none now, that means staff was removed
+      let staffChanged = false;
+      if (originalStaffTags.length > 0) {
+        // Had original staff - check if it changed
+        staffChanged = originalStaffIds.length !== staffIds.length ||
+          !originalStaffIds.every(id => currentStaffSet.has(id)) ||
+          !staffIds.every(id => originalStaffSet.has(id));
+      } else if (staffIds.length > 0) {
+        // No original staff but we have staff now - staff was added
+        staffChanged = true;
+      }
+      // If no original staff and no current staff, staffChanged stays false
+      
+      // Only update coach availability if staff has explicitly changed
+      // This prevents accidentally deleting availability when just editing times/settings
+      const shouldUpdateAvailability = staffChanged;
+      
+      if (shouldUpdateAvailability) {
+        console.log('Staff or availability changed, updating coach availability:', { staffChanged, availabilityModified });
         
-        // Find coaches to remove (in current but not in selected)
-        const coachesToRemove = Array.from(currentCoachIds).filter(id => !selectedCoachIds.has(id));
+        // First, remove availability for coaches that are no longer selected
+        // Get all current availability entries for this session type
+        const { data: currentAvailability, error: currentError } = await supabase
+          .from('coach_individual_availability')
+          .select('coach_id')
+          .eq('session_type_id', existingData.id);
         
-        if (coachesToRemove.length > 0) {
-          console.log('Attempting to delete availability for coaches:', coachesToRemove);
-          const { data: deletedData, error: deleteError } = await supabase
-            .from('coach_individual_availability')
-            .delete()
-            .eq('session_type_id', existingData.id)
-            .in('coach_id', coachesToRemove)
-            .select();
+        if (!currentError && currentAvailability) {
+          const currentCoachIds = new Set(currentAvailability.map(a => a.coach_id));
+          const selectedCoachIds = new Set(staffIds);
           
-          if (deleteError) {
-            console.error('Error removing coach availability:', deleteError);
-            console.error('Delete error details:', {
-              code: deleteError.code,
-              message: deleteError.message,
-              details: deleteError.details,
-              hint: deleteError.hint
-            });
-            // Don't throw - continue with upsert even if delete fails
-            // The upsert will handle updating the selected coaches
-          } else {
-            console.log('Successfully removed availability for coaches:', deletedData);
-            console.log('Deleted count:', deletedData?.length || 0);
-            if (!deletedData || deletedData.length === 0) {
-              console.warn('Delete returned no rows - this might indicate an RLS policy issue. Please ensure the DELETE policy exists for coach_individual_availability.');
+          // Find coaches to remove (in current but not in selected)
+          const coachesToRemove = Array.from(currentCoachIds).filter(id => !selectedCoachIds.has(id));
+          
+          if (coachesToRemove.length > 0) {
+            console.log('Attempting to delete availability for coaches:', coachesToRemove);
+            const { data: deletedData, error: deleteError } = await supabase
+              .from('coach_individual_availability')
+              .delete()
+              .eq('session_type_id', existingData.id)
+              .in('coach_id', coachesToRemove)
+              .select();
+            
+            if (deleteError) {
+              console.error('Error removing coach availability:', deleteError);
+              console.error('Delete error details:', {
+                code: deleteError.code,
+                message: deleteError.message,
+                details: deleteError.details,
+                hint: deleteError.hint
+              });
+              // Don't throw - continue with upsert even if delete fails
+              // The upsert will handle updating the selected coaches
+            } else {
+              console.log('Successfully removed availability for coaches:', deletedData);
+              console.log('Deleted count:', deletedData?.length || 0);
+              if (!deletedData || deletedData.length === 0) {
+                console.warn('Delete returned no rows - this might indicate an RLS policy issue. Please ensure the DELETE policy exists for coach_individual_availability.');
+              }
             }
           }
         }
-      }
-      
-      // Create/update coach availability entries for selected staff
-      if (staffIds.length > 0) {
-        console.log('Creating/updating coach availability for staff:', staffIds);
         
-        // Collect coach-specific availability from People tab
-        const coachAvailabilityEntries = staffIds.map(coachId => {
-          const coachSection = document.querySelector(`.coach-availability-section[data-coach-id="${coachId}"]`);
-          const coachAvailability = {};
+        // Create/update coach availability entries for selected staff
+        if (staffIds.length > 0) {
+          console.log('Creating/updating coach availability for staff:', staffIds);
           
-          if (coachSection) {
-            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            days.forEach(day => {
-              const toggle = coachSection.querySelector(`.day-available-toggle[data-day="${day}"]`);
-              if (toggle && toggle.checked) {
-                const startInput = coachSection.querySelector(`.availability-start[data-day="${day}"]`);
-                const endInput = coachSection.querySelector(`.availability-end[data-day="${day}"]`);
-                coachAvailability[day] = {
-                  available: true,
-                  start: startInput ? convertTo12Hour(startInput.value) : '9:00 AM',
-                  end: endInput ? convertTo12Hour(endInput.value) : '5:00 PM'
-                };
-              } else {
-                coachAvailability[day] = { available: false };
-              }
+          // Load existing availability to preserve it if not modified
+          const { data: existingAvailability, error: availLoadError } = await supabase
+            .from('coach_individual_availability')
+            .select('coach_id, availability')
+            .eq('session_type_id', existingData.id)
+            .in('coach_id', staffIds);
+          
+          const existingAvailabilityMap = new Map();
+          if (!availLoadError && existingAvailability) {
+            existingAvailability.forEach(a => {
+              existingAvailabilityMap.set(a.coach_id, a.availability);
             });
           }
           
-          return {
-            coach_id: coachId,
-            session_type_id: existingData.id,
-            is_available: true,
-            availability: coachAvailability
-          };
-        });
-        
-        const { data: availData, error: availError } = await supabase
-          .from('coach_individual_availability')
-          .upsert(coachAvailabilityEntries, { onConflict: 'coach_id,session_type_id' })
-          .select();
-        
-        if (availError) {
-          console.error('Error creating/updating coach availability:', availError);
-        } else {
-          console.log('Successfully created/updated coach availability:', availData);
-        }
-      } else {
-        // If no staff selected, create default availability for current coach
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session && session.user) {
-          console.log('No staff selected, creating default availability for current coach:', session.user.id);
+          // Collect coach-specific availability from People tab
+          const coachAvailabilityEntries = staffIds.map(coachId => {
+            const coachSection = document.querySelector(`.coach-availability-section[data-coach-id="${coachId}"]`);
+            let coachAvailability = {};
+            
+            if (coachSection) {
+              const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+              days.forEach(day => {
+                const toggle = coachSection.querySelector(`.day-available-toggle[data-day="${day}"]`);
+                if (toggle && toggle.checked) {
+                  const startInput = coachSection.querySelector(`.availability-start[data-day="${day}"]`);
+                  const endInput = coachSection.querySelector(`.availability-end[data-day="${day}"]`);
+                  coachAvailability[day] = {
+                    available: true,
+                    start: startInput ? convertTo12Hour(startInput.value) : '9:00 AM',
+                    end: endInput ? convertTo12Hour(endInput.value) : '5:00 PM'
+                  };
+                } else {
+                  coachAvailability[day] = { available: false };
+                }
+              });
+            } else {
+              // If no section found, preserve existing availability
+              coachAvailability = existingAvailabilityMap.get(coachId) || {};
+            }
+            
+            return {
+              coach_id: coachId,
+              session_type_id: existingData.id,
+              is_available: true,
+              availability: coachAvailability
+            };
+          });
+          
           const { data: availData, error: availError } = await supabase
             .from('coach_individual_availability')
-            .upsert({
-              coach_id: session.user.id,
-              session_type_id: existingData.id,
-              is_available: true
-            }, { onConflict: 'coach_id,session_type_id' })
+            .upsert(coachAvailabilityEntries, { onConflict: 'coach_id,session_type_id' })
             .select();
           
           if (availError) {
-            console.error('Error creating default coach availability:', availError);
+            console.error('Error creating/updating coach availability:', availError);
           } else {
-            console.log('Successfully created default coach availability:', availData);
+            console.log('Successfully created/updated coach availability:', availData);
           }
+        } else {
+          // If no staff selected, don't delete existing availability - just leave it as is
+          console.log('No staff selected, preserving existing coach availability');
         }
+      } else {
+        console.log('Staff and availability unchanged, skipping coach availability update');
       }
     } else {
       // Check if a session type with this name already exists
@@ -3174,24 +3355,32 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
           duration_minutes: duration
         });
         
+        const updateDataForExisting = {
+          display_name: name,
+          color: color,
+          duration_minutes: duration,
+          minimum_booking_notice_hours: minBookingNotice,
+          buffer_before_minutes: bufferBefore,
+          buffer_after_minutes: bufferAfter,
+          time_slot_granularity_minutes: timeSlotGranularity,
+          general_availability: availability,
+          booking_confirmation_email_subject: emailSubject,
+          booking_confirmation_email_body: emailBody,
+          reminder_timing_hours: reminderTimingHours,
+          reminder_email_subject: reminderSubject,
+          reminder_email_body: reminderBody,
+          description: description,
+          is_active: true
+        };
+        
+        // Only include zoom_link if the column exists
+        if (zoomLink !== null) {
+          updateDataForExisting.zoom_link = zoomLink;
+        }
+        
         const { data: updateData, error: updateError } = await supabase
           .from('individual_session_types')
-          .update({
-            display_name: name,
-            color: color,
-            duration_minutes: duration,
-            minimum_booking_notice_hours: minBookingNotice,
-            buffer_before_minutes: bufferBefore,
-            buffer_after_minutes: bufferAfter,
-            time_slot_granularity_minutes: timeSlotGranularity,
-            general_availability: availability,
-            booking_confirmation_email_subject: emailSubject,
-            booking_confirmation_email_body: emailBody,
-            reminder_timing_hours: reminderTimingHours,
-            reminder_email_subject: reminderSubject,
-            reminder_email_body: reminderBody,
-            is_active: true
-          })
+          .update(updateDataForExisting)
           .eq('id', existingType.id)
           .select()
           .single();
@@ -3212,24 +3401,32 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
           duration_minutes: duration
         });
         
+        const insertDataObj = {
+          name: finalSessionType,
+          display_name: name,
+          color: color,
+          duration_minutes: duration,
+          minimum_booking_notice_hours: minBookingNotice,
+          buffer_before_minutes: bufferBefore,
+          buffer_after_minutes: bufferAfter,
+          time_slot_granularity_minutes: timeSlotGranularity,
+          general_availability: availability,
+          booking_confirmation_email_subject: emailSubject,
+          booking_confirmation_email_body: emailBody,
+          reminder_timing_hours: reminderTimingHours,
+          reminder_email_subject: reminderSubject,
+          reminder_email_body: reminderBody,
+          description: description
+        };
+        
+        // Only include zoom_link if the column exists
+        if (zoomLink !== null) {
+          insertDataObj.zoom_link = zoomLink;
+        }
+        
         const { data: insertData, error: insertError } = await supabase
           .from('individual_session_types')
-          .insert({
-            name: finalSessionType,
-            display_name: name,
-            color: color,
-            duration_minutes: duration,
-            minimum_booking_notice_hours: minBookingNotice,
-            buffer_before_minutes: bufferBefore,
-            buffer_after_minutes: bufferAfter,
-            time_slot_granularity_minutes: timeSlotGranularity,
-            general_availability: availability,
-            booking_confirmation_email_subject: emailSubject,
-            booking_confirmation_email_body: emailBody,
-            reminder_timing_hours: reminderTimingHours,
-            reminder_email_subject: reminderSubject,
-            reminder_email_body: reminderBody
-          })
+          .insert(insertDataObj)
           .select()
           .single();
         
@@ -3710,5 +3907,283 @@ async function deleteSessionType(sessionType) {
     console.error('Error deleting session type:', error);
     alert(`Error: ${error.message}`);
   }
+}
+
+// ============================================
+// HELPER FUNCTIONS FOR INDIVIDUAL SESSIONS
+// ============================================
+
+// Abbreviate session type name (e.g., "Champions Player Progress (CPP)" -> "CPP")
+function abbreviateSessionType(typeName) {
+  if (!typeName) return typeName;
+  
+  // Check if there's an abbreviation in parentheses
+  const match = typeName.match(/\(([^)]+)\)/);
+  if (match) {
+    return match[1]; // Return the abbreviation
+  }
+  
+  // If no abbreviation, return first letters of each word
+  return typeName
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase())
+    .join('')
+    .substring(0, 5); // Limit to 5 characters
+}
+
+// Convert hex color to RGB
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 };
+}
+
+// Show individual session details modal
+async function showIndividualSessionDetails(session) {
+  if (!session || !session.is_individual) return;
+  
+  // Get or create modal
+  let modal = document.getElementById('individualSessionModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'individualSessionModal';
+    modal.className = 'session-modal-overlay';
+    modal.innerHTML = `
+      <div class="session-modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="individualSessionModalTitle">Session Details</h3>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="edit-btn-tooltip-container" style="position: relative;">
+              <button class="modal-edit-btn" id="individualSessionEditBtn" type="button" style="display: flex;">
+                <i class="bx bx-edit"></i>
+              </button>
+              <span class="edit-btn-tooltip" id="individualSessionEditTooltip">Edit in dashboard</span>
+            </div>
+            <button class="modal-close" id="individualSessionCloseBtn">
+              <i class="bx bx-x"></i>
+            </button>
+          </div>
+        </div>
+        <div class="modal-content" id="individualSessionModalContent">
+          <!-- Session card will be inserted here -->
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Setup close handlers
+    const closeBtn = document.getElementById('individualSessionCloseBtn');
+    if (closeBtn) {
+      closeBtn.onclick = () => closeIndividualSessionModal();
+    }
+    
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        closeIndividualSessionModal();
+      }
+    };
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('show')) {
+        closeIndividualSessionModal();
+      }
+    });
+  }
+  
+  // Load player data and create reservations array
+  const reservations = [];
+  if (session.player) {
+    reservations.push({
+      id: session.id,
+      player: session.player,
+      reservation_status: 'reserved',
+      checked_in_at: session.booking_data?.checked_in_at || null
+    });
+  }
+  
+  // Create staff profiles object
+  const staffProfiles = {};
+  if (session.coach) {
+    staffProfiles[session.coach_id] = session.coach;
+  }
+  
+  // Update modal title
+  const modalTitle = document.getElementById('individualSessionModalTitle');
+  if (modalTitle) {
+    modalTitle.textContent = session.session_type || 'Session Details';
+  }
+  
+  // Update tooltip with session type abbreviation
+  const tooltip = document.getElementById('individualSessionEditTooltip');
+  if (tooltip) {
+    const sessionTypeAbbrev = session.session_type_abbrev || abbreviateSessionType(session.session_type) || 'session';
+    tooltip.textContent = `Edit ${sessionTypeAbbrev} in dashboard`;
+  }
+  
+  // Create session card (reuse logic from home.js)
+  const sessionCard = createIndividualSessionCard(session, reservations, staffProfiles);
+  const modalContent = document.getElementById('individualSessionModalContent');
+  if (modalContent) {
+    modalContent.innerHTML = sessionCard;
+  }
+  
+  // Show modal
+  modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+// Close individual session modal
+function closeIndividualSessionModal() {
+  const modal = document.getElementById('individualSessionModal');
+  if (modal) {
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+}
+
+// Create session card for individual sessions (similar to home.js)
+function createIndividualSessionCard(session, reservations, staffProfiles = {}) {
+  const timeStr = formatTimeForModal(session.session_time);
+  const endTime = calculateEndTimeForModal(session.session_time, session.duration_minutes);
+  const endTimeStr = formatTimeForModal(endTime);
+  
+  const location = 'Virtual Session';
+  const locationIcon = 'bx-video';
+
+  // Get staff members (coach)
+  let staff = [];
+  if (session.coach_id) {
+    const coach = staffProfiles[session.coach_id] || session.coach;
+    if (coach) {
+      staff.push({
+        ...coach,
+        role: 'Coach',
+        checkedIn: false
+      });
+    }
+  }
+  
+  // Get players
+  const players = reservations.map(res => ({
+    ...res.player,
+    reservation_status: res.reservation_status,
+    reservation_id: res.id,
+    checked_in_at: res.checked_in_at
+  }));
+
+  // Get coach name
+  const coachName = session.coach
+    ? `${session.coach.first_name || ''} ${session.coach.last_name || ''}`.trim() || 'Coach'
+    : null;
+
+  return `
+    <div class="session-card" data-session-id="${session.id}">
+      <div class="session-header">
+        <div>
+          <div class="session-time">${timeStr} - ${endTimeStr}</div>
+          <div class="session-location">
+            <i class="bx ${locationIcon}"></i>
+            <span>${location}</span>
+          </div>
+        </div>
+        <div class="session-capacity">${reservations.length} / ${session.attendance_limit || 1}</div>
+      </div>
+
+      ${staff.length > 0 ? `
+        <div class="session-staff">
+          ${staff.map(member => `
+            <div class="staff-member" data-staff-id="${member.id}" data-staff-role="${member.role}">
+              <div class="staff-avatar">
+                ${getInitialsForModal(member.first_name, member.last_name)}
+              </div>
+              <div class="staff-info">
+                <div class="staff-name">${member.first_name} ${member.last_name}</div>
+                <div class="staff-role">${member.role}</div>
+              </div>
+              <button class="check-in-btn ${member.checkedIn ? 'checked-in' : ''}" 
+                      data-staff-check-in="${member.id}"
+                      ${member.checkedIn ? 'disabled' : ''}>
+                ${member.checkedIn ? 'Checked In' : 'Check-in'}
+              </button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <div class="session-players">
+        <div class="players-header">
+          <div class="players-title">Players</div>
+        </div>
+        <div class="players-list" data-session-players="${session.id}">
+          ${players.length > 0 ? players.map(player => createPlayerItemForModal(player)).join('') : '<div class="empty-state">No players reserved</div>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Helper functions for modal
+function formatTimeForModal(timeStr) {
+  if (!timeStr) return '';
+  const [hours, minutes] = timeStr.split(':');
+  const hour = parseInt(hours);
+  const min = minutes || '00';
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${min} ${period}`;
+}
+
+function calculateEndTimeForModal(startTime, durationMinutes) {
+  if (!startTime || !durationMinutes) return startTime;
+  const [hours, minutes] = startTime.split(':').map(Number);
+  const startDate = new Date();
+  startDate.setHours(hours, minutes, 0, 0);
+  startDate.setMinutes(startDate.getMinutes() + durationMinutes);
+  const endHours = String(startDate.getHours()).padStart(2, '0');
+  const endMinutes = String(startDate.getMinutes()).padStart(2, '0');
+  return `${endHours}:${endMinutes}`;
+}
+
+function getInitialsForModal(firstName, lastName) {
+  const first = firstName ? firstName.charAt(0).toUpperCase() : '';
+  const last = lastName ? lastName.charAt(0).toUpperCase() : '';
+  return first + last || '?';
+}
+
+function createPlayerItemForModal(player) {
+  if (!player) return '';
+  
+  const initials = getInitialsForModal(player.first_name, player.last_name);
+  const positions = player.positions || [];
+  const isCheckedIn = player.reservation_status === 'checked-in';
+  
+  return `
+    <div class="player-item" 
+         data-player-id="${player.id}"
+         data-reservation-status="${player.reservation_status}"
+         data-reservation-id="${player.reservation_id}">
+      <div class="player-avatar">
+        ${initials}
+      </div>
+      <div class="player-info">
+        <span class="player-name">${player.first_name} ${player.last_name}</span>
+        ${positions.length > 0 ? `
+          <div class="player-positions">
+            ${positions.map(pos => `<span class="position-badge">${pos}</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+      <button class="player-check-in-btn ${isCheckedIn ? 'checked-in' : ''}"
+              data-player-check-in="${player.id}"
+              data-reservation-id="${player.reservation_id}"
+              ${isCheckedIn ? 'disabled' : ''}>
+        ${isCheckedIn ? 'Checked In' : 'Check-in'}
+      </button>
+    </div>
+  `;
 }
 

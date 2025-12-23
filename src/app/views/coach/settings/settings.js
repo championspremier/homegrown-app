@@ -89,7 +89,7 @@ logoutBtn?.addEventListener('click', async () => {
   // Always clear local storage and redirect, regardless of Supabase status
   localStorage.clear();
   
-  // Redirect to unlock page (absolute path from server root)
-  window.location.href = '/src/auth/unlock/unlock.html';
+  // Redirect to unlock page (server runs from src directory, serve strips .html extension)
+  window.location.href = '/auth/unlock/unlock';
 });
 
