@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="app/layout/layout.css" />
+    <link rel="stylesheet" href="/app/layout/layout.css" />
     <link
       href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
       rel="stylesheet"
@@ -21,7 +21,7 @@
       <div class="sidebar-header">
         <img
           class="img hgFooty desktop-logo"
-          src="public/icons/hd.png"
+          src="/icons/hd.png"
           alt="Homegrown logo"
         />
         <i class="bx bx-football bx-tada-hover mobile-logo"></i>
@@ -46,32 +46,32 @@
         <ul class="nav-list">
           <li class="button active" title="Home">
             <a href="#" data-page="home" class="nav-link" data-tooltip="Home">
-              <i class="bx bx-home bx-tada-hover"></i>
+              <i class="bx bx-home"></i>
               <span class="label">Home</span>
             </a>
           </li>
           <li class="button" title="Schedule">
             <a href="#" data-page="schedule" class="nav-link" data-tooltip="Schedule">
-              <i class="bx bx-calendar bx-tada-hover"></i>
+              <i class="bx bx-calendar"></i>
               <span class="label">Schedule</span>
             </a>
           </li>
           <li class="button" title="Solo">
             <a href="#" data-page="solo" class="nav-link" data-tooltip="Solo Trainings">
-              <i class="bx bx-football bx-tada-hover solo-icon-desktop"></i>
-              <img class="img solo-icon-mobile" src="../public/icons/hd.png" alt="Homegrown logo" style="display: none;" />
+              <i class="bx bx-football solo-icon-desktop"></i>
+              <img class="img solo-icon-mobile" src="/icons/hd.png" alt="Homegrown logo" style="display: none;" />
               <span class="label">Solo</span>
             </a>
           </li>
           <li class="button" title="Tracking">
             <a href="#" data-page="tracking" class="nav-link" data-tooltip="Tracking">
-              <i class="bx bx-chart bx-tada-hover"></i>
+              <i class="bx bx-chart"></i>
               <span class="label">Tracking</span>
             </a>
           </li>
           <li class="button" title="Profile">
             <a href="#" data-page="profile" class="nav-link" data-tooltip="Profile">
-              <i class="bx bx-user bx-tada-hover"></i>
+              <i class="bx bx-user"></i>
               <span class="label">Profile</span>
             </a>
           </li>
@@ -89,7 +89,19 @@
       <div class="content-area" id="contentArea"></div>
     </main>
 
-    <script src="app/layout/layout.js" defer></script>
+    <!-- Suppress harmless ResizeObserver errors -->
+    <script>
+      // Suppress the harmless "ResizeObserver loop completed with undelivered notifications" error
+      // This is a known browser quirk and doesn't indicate an actual problem
+      const originalError = window.onerror;
+      window.addEventListener('error', (e) => {
+        if (e.message && e.message.includes('ResizeObserver loop completed with undelivered notifications')) {
+          e.stopImmediatePropagation();
+          return true;
+        }
+      }, true);
+    </script>
+    <script src="/app/layout/layout.js" type="module" defer></script>
   </body>
 </html>
 

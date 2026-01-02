@@ -35,6 +35,7 @@ async function initializeDashboard() {
   await loadTodaySessions();
   await loadImportantSection();
   await loadStatsSection();
+  setupRealtimeSubscriptions();
 }
 
 // Load coach name
@@ -139,9 +140,7 @@ async function loadTodaySessions(myDayOnly = false) {
     const todayStr = today.toISOString().split('T')[0];
     const coachId = session.user.id;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coach/home.js:137',message:'loadTodaySessions called',data:{myDayOnly,todayStr,coachId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
+    // Debug telemetry removed - was causing ERR_CONNECTION_REFUSED errors
 
     // Build query
     let query = supabase
@@ -182,6 +181,22 @@ async function loadTodaySessions(myDayOnly = false) {
     let reservations = [];
     
     if (sessionIds.length > 0) {
+      console.log('🔍 Loading reservations for session IDs:', sessionIds);
+      
+      // First try without the player join to see if RLS is blocking
+      const { data: simpleResData, error: simpleError } = await supabase
+        .from('session_reservations')
+        .select('*')
+        .in('session_id', sessionIds)
+        .in('reservation_status', ['reserved', 'checked-in']);
+      
+      console.log('🔍 Simple query (no join) result:', {
+        count: simpleResData?.length || 0,
+        data: simpleResData,
+        error: simpleError
+      });
+      
+      // Now try with the player join
       const { data: resData, error: resError } = await supabase
         .from('session_reservations')
         .select(`
@@ -197,12 +212,26 @@ async function loadTodaySessions(myDayOnly = false) {
         `)
         .in('session_id', sessionIds)
         .in('reservation_status', ['reserved', 'checked-in']);
+      
+      console.log('🔍 Query with player join result:', {
+        count: resData?.length || 0,
+        data: resData,
+        error: resError
+      });
 
       if (resError) {
-        console.error('Error loading reservations:', resError);
+        console.error('❌ Error loading reservations:', resError);
       } else {
         reservations = resData || [];
+        console.log('✅ Loaded reservations:', reservations.length, 'reservations found');
+        console.log('📋 Reservations by session:', reservations.map(r => ({
+          session_id: r.session_id,
+          player: r.player ? `${r.player.first_name} ${r.player.last_name}` : 'No player',
+          status: r.reservation_status
+        })));
       }
+    } else {
+      console.log('⚠️ No session IDs to load reservations for');
     }
 
     // Group reservations by session_id
@@ -213,6 +242,12 @@ async function loadTodaySessions(myDayOnly = false) {
       }
       reservationsBySession[res.session_id].push(res);
     });
+    
+    console.log('📊 Reservations grouped by session:', Object.keys(reservationsBySession).map(sessionId => ({
+      session_id: sessionId,
+      count: reservationsBySession[sessionId].length,
+      players: reservationsBySession[sessionId].map(r => r.player ? `${r.player.first_name} ${r.player.last_name}` : 'No player')
+    })));
 
     // Load staff for all sessions (assistant and goalkeeper coaches)
     const allStaffIds = new Set();
@@ -273,9 +308,7 @@ async function loadTodaySessions(myDayOnly = false) {
         .is('cancelled_at', null)  // Also check that cancelled_at is null as additional safety
         .order('booking_time', { ascending: true });
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coach/home.js:278',message:'My day bookings query result',data:{bookingsCount:bookings?.length,bookings:bookings?.map(b=>({id:b.id,coach_id:b.coach_id,booking_date:b.booking_date})),error:bookingsError?.message,errorCode:bookingsError?.code,errorDetails:bookingsError?.details,todayStr,coachId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+      // Debug telemetry removed - was causing ERR_CONNECTION_REFUSED errors
 
       if (bookingsError) {
         console.error('Error loading My day bookings:', bookingsError);
@@ -471,6 +504,8 @@ function attachListEventListeners(sessions, reservationsBySession, staffProfiles
       const session = sessions.find(s => s.id === sessionId);
       if (session) {
         const reservations = reservationsBySession[session.id] || [];
+        console.log('🔍 Opening modal for session:', sessionId);
+        console.log('📋 Reservations for this session:', reservations.length, reservations);
         openSessionModal(session, reservations, staffProfiles);
       }
     });
@@ -663,6 +698,10 @@ function createSessionCard(session, reservations, staffProfiles = {}) {
               <button class="filter-tab" data-filter="checked-in">Checked-in</button>
               <button class="filter-tab" data-filter="reserved">Reserved</button>
             </div>
+            <button class="check-in-all-btn" data-session-id="${session.id}" type="button" title="Check in all reserved players">
+              <i class="bx bx-check-double"></i>
+              Check in All
+            </button>
             <div class="age-group-selector">
               <button class="age-group-btn" data-session-id="${session.id}">
                 <i class="bx bx-group"></i>
@@ -777,8 +816,9 @@ function createPlayerItem(player) {
       <button class="player-check-in-btn ${isCheckedIn ? 'checked-in' : ''}"
               data-player-check-in="${player.id}"
               data-reservation-id="${player.reservation_id}"
-              ${isCheckedIn ? 'disabled' : ''}>
-        ${isCheckedIn ? 'Checked In' : 'Check-in'}
+              data-action="${isCheckedIn ? 'remove' : 'checkin'}"
+              type="button">
+        ${isCheckedIn ? 'Remove Check-in' : 'Check-in'}
       </button>
     </div>
   `;
@@ -941,7 +981,25 @@ function attachSessionEventListeners(sessions, reservationsBySession) {
       e.stopPropagation();
       const playerId = e.target.dataset.playerCheckIn;
       const reservationId = e.target.dataset.reservationId;
-      await checkInPlayer(reservationId, playerId);
+      const action = e.target.dataset.action; // 'checkin' or 'remove'
+      
+      if (action === 'remove') {
+        await removeCheckIn(reservationId, playerId);
+      } else {
+        await checkInPlayer(reservationId, playerId);
+      }
+    });
+  });
+
+  // Check in all button (group sessions only)
+  document.querySelectorAll('.check-in-all-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const button = e.target.closest('.check-in-all-btn') || e.target;
+      const sessionId = button.dataset.sessionId;
+      if (sessionId) {
+        await checkInAllPlayers(sessionId);
+      }
     });
   });
 
@@ -1237,8 +1295,8 @@ async function checkInPlayer(reservationId, playerId) {
     const btn = document.querySelector(`.player-check-in-btn[data-reservation-id="${reservationId}"]`);
     if (btn) {
       btn.classList.add('checked-in');
-      btn.disabled = true;
-      btn.textContent = 'Checked In';
+      btn.dataset.action = 'remove';
+      btn.textContent = 'Remove Check-in';
     }
 
     const playerItem = document.querySelector(`.player-item[data-reservation-id="${reservationId}"]`);
@@ -1251,6 +1309,209 @@ async function checkInPlayer(reservationId, playerId) {
     await loadTodaySessions(activeTab === 'my-day');
   } catch (error) {
     console.error('Error checking in player:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
+
+// Check in all reserved players for a group session
+async function checkInAllPlayers(sessionId) {
+  if (!supabaseReady || !supabase) {
+    alert('Supabase not ready');
+    return;
+  }
+
+  try {
+    // Get all reserved players for this session
+    const playersList = document.querySelector(`.players-list[data-session-players="${sessionId}"]`);
+    if (!playersList) {
+      alert('Could not find players list');
+      return;
+    }
+
+    const reservedPlayers = Array.from(playersList.querySelectorAll('.player-item[data-reservation-status="reserved"]'));
+    
+    if (reservedPlayers.length === 0) {
+      alert('No reserved players to check in');
+      return;
+    }
+
+    // Confirm action
+    const confirmed = confirm(`Check in all ${reservedPlayers.length} reserved player(s)?`);
+    if (!confirmed) return;
+
+    // Check in each player
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const playerItem of reservedPlayers) {
+      const reservationId = playerItem.dataset.reservationId;
+      const playerId = playerItem.dataset.playerId;
+      
+      if (reservationId && playerId) {
+        try {
+          await checkInPlayer(reservationId, playerId);
+          successCount++;
+        } catch (error) {
+          console.error(`Error checking in player ${playerId}:`, error);
+          errorCount++;
+        }
+      }
+    }
+
+    if (errorCount > 0) {
+      alert(`Checked in ${successCount} player(s). ${errorCount} error(s) occurred.`);
+    } else {
+      alert(`Successfully checked in ${successCount} player(s).`);
+    }
+  } catch (error) {
+    console.error('Error checking in all players:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
+
+// Remove check-in for a player
+async function removeCheckIn(reservationId, playerId) {
+  if (!supabaseReady || !supabase) {
+    alert('Supabase not ready');
+    return;
+  }
+
+  try {
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    if (!authSession || !authSession.user) {
+      alert('Not logged in');
+      return;
+    }
+
+    // Verify user is coach or admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', authSession.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      alert('Error: Could not verify user role');
+      return;
+    }
+
+    if (profile.role !== 'coach' && profile.role !== 'admin') {
+      alert('Error: Only coaches and admins can remove check-ins');
+      return;
+    }
+
+    // Check if this is an individual session booking or group session reservation
+    // Use maybeSingle() to avoid errors if not found
+    const { data: groupReservation, error: groupResError } = await supabase
+      .from('session_reservations')
+      .select('id, session_id')
+      .eq('id', reservationId)
+      .maybeSingle();
+
+    if (groupReservation && !groupResError) {
+      // Group session reservation - update back to reserved
+      const { error } = await supabase
+        .from('session_reservations')
+        .update({
+          reservation_status: 'reserved',
+          checked_in_at: null,
+          checked_in_by: null
+        })
+        .eq('id', reservationId);
+      
+      if (error) {
+        console.error('Error removing check-in:', error);
+        alert(`Error: ${error.message}`);
+        return;
+      }
+    } else {
+      // Individual session booking - clear checked_in_at
+      const { data: individualBooking, error: bookingCheckError } = await supabase
+        .from('individual_session_bookings')
+        .select('id')
+        .eq('id', reservationId)
+        .maybeSingle();
+      
+      if (bookingCheckError || !individualBooking) {
+        console.error('Error: Could not find reservation or booking:', bookingCheckError);
+        alert('Error: Could not find the reservation or booking to remove check-in from');
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('individual_session_bookings')
+        .update({
+          checked_in_at: null
+        })
+        .eq('id', reservationId);
+      
+      if (error) {
+        console.error('Error removing check-in:', error);
+        alert(`Error: ${error.message}`);
+        return;
+      }
+    }
+
+    // Try to remove points transaction
+    // First, find the points transaction for this check-in
+    const { data: pointsTransaction, error: pointsFindError } = await supabase
+      .from('points_transactions')
+      .select('id, status, checked_in_by')
+      .eq('reservation_id', reservationId)
+      .eq('player_id', playerId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pointsTransaction && !pointsFindError) {
+      // Try to delete the points transaction
+      // This will work if the coach created it (checked_in_by = auth.uid())
+      const { error: deleteError } = await supabase
+        .from('points_transactions')
+        .delete()
+        .eq('id', pointsTransaction.id);
+
+      if (deleteError) {
+        console.error('Error deleting points transaction:', deleteError);
+        // If delete fails (e.g., coach didn't create it), try to update status
+        // Note: This will only work if RLS allows coaches to update
+        const { error: updateError } = await supabase
+          .from('points_transactions')
+          .update({ status: 'archived' })
+          .eq('id', pointsTransaction.id);
+
+        if (updateError) {
+          console.warn('Could not remove points transaction. Points may need to be manually adjusted:', updateError);
+          alert('Check-in removed, but points could not be reversed. Please contact an admin to adjust points manually.');
+        } else {
+          console.log('Points transaction archived (not deleted)');
+        }
+      } else {
+        console.log('Points transaction deleted successfully');
+      }
+    } else if (pointsFindError) {
+      console.warn('Error finding points transaction:', pointsFindError);
+    }
+
+    // Update UI in modal
+    const btn = document.querySelector(`.player-check-in-btn[data-reservation-id="${reservationId}"]`);
+    if (btn) {
+      btn.classList.remove('checked-in');
+      btn.dataset.action = 'checkin';
+      btn.textContent = 'Check-in';
+    }
+
+    const playerItem = document.querySelector(`.player-item[data-reservation-id="${reservationId}"]`);
+    if (playerItem) {
+      playerItem.dataset.reservationStatus = 'reserved';
+    }
+
+    // Reload to update list counts
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+    await loadTodaySessions(activeTab === 'my-day');
+  } catch (error) {
+    console.error('Error removing check-in:', error);
     alert(`Error: ${error.message}`);
   }
 }
@@ -1874,4 +2135,73 @@ async function handleCancelSession() {
     cancelledSessionIds.delete(bookingId);
     isCancelling = false; // Reset flag on error
   }
+}
+
+// Setup real-time subscriptions to update coach home when sessions change
+function setupRealtimeSubscriptions() {
+  if (!supabase || !supabaseReady) return;
+
+  // Subscribe to group session reservations changes
+  const groupReservationsChannel = supabase
+    .channel('coach-home-group-reservations')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'session_reservations'
+      },
+      (payload) => {
+        console.log('New group reservation created, reloading coach home:', payload);
+        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
+        loadTodaySessions(activeTab === 'my-day');
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'session_reservations',
+        filter: 'reservation_status=eq.cancelled'
+      },
+      (payload) => {
+        console.log('Group reservation cancelled, reloading coach home:', payload);
+        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
+        loadTodaySessions(activeTab === 'my-day');
+      }
+    )
+    .subscribe();
+
+  // Subscribe to individual session bookings changes
+  const individualBookingsChannel = supabase
+    .channel('coach-home-individual-bookings')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'individual_session_bookings'
+      },
+      (payload) => {
+        console.log('New individual booking created, reloading coach home:', payload);
+        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
+        loadTodaySessions(activeTab === 'my-day');
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'individual_session_bookings',
+        filter: 'status=eq.cancelled'
+      },
+      (payload) => {
+        console.log('Individual booking cancelled, reloading coach home:', payload);
+        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
+        loadTodaySessions(activeTab === 'my-day');
+      }
+    )
+    .subscribe();
 }

@@ -55,6 +55,7 @@ function initializeSchedule() {
   renderCalendar();
   loadSessions();
   loadIndividualSessionTypes();
+  setupRealtimeSubscriptions();
 }
 
 // Set current week to start on Sunday
@@ -313,11 +314,11 @@ function renderSessionsOnCalendar() {
       
       // Click handler for editing (group sessions) or viewing details (individual sessions)
       if (!session.is_individual) {
-        sessionBlock.addEventListener('click', (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          editSession(session);
-        });
+      sessionBlock.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        editSession(session);
+      });
       } else {
         // Individual sessions open detail modal
         sessionBlock.style.cursor = 'pointer';
@@ -330,27 +331,27 @@ function renderSessionsOnCalendar() {
 
       // Drag and drop handlers (only for group sessions)
       if (!session.is_individual) {
-        sessionBlock.addEventListener('dragstart', (e) => {
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', session.id);
-          sessionBlock.classList.add('dragging');
-          // Store the original session data for reference (important for day name display)
-          draggedSession = {
-            ...session,
-            originalDate: session.session_date, // Keep original date
-            originalTime: session.session_time  // Keep original time
-          };
-          console.log('Drag started - original date:', session.session_date, 'day:', new Date(session.session_date).getDay());
-        });
+      sessionBlock.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', session.id);
+        sessionBlock.classList.add('dragging');
+        // Store the original session data for reference (important for day name display)
+        draggedSession = {
+          ...session,
+          originalDate: session.session_date, // Keep original date
+          originalTime: session.session_time  // Keep original time
+        };
+        console.log('Drag started - original date:', session.session_date, 'day:', new Date(session.session_date).getDay());
+      });
 
-        sessionBlock.addEventListener('dragend', (e) => {
-          sessionBlock.classList.remove('dragging');
-          // Remove drop indicators
-          document.querySelectorAll('.day-time-slot').forEach(slot => {
-            slot.classList.remove('drop-target');
-          });
-          draggedSession = null;
+      sessionBlock.addEventListener('dragend', (e) => {
+        sessionBlock.classList.remove('dragging');
+        // Remove drop indicators
+        document.querySelectorAll('.day-time-slot').forEach(slot => {
+          slot.classList.remove('drop-target');
         });
+        draggedSession = null;
+      });
       }
       
       slot.style.position = 'relative';
@@ -451,6 +452,119 @@ async function loadSessions() {
   } catch (error) {
     console.error('Error loading sessions:', error);
   }
+}
+
+// Setup real-time subscriptions to listen for cancellations
+function setupRealtimeSubscriptions() {
+  if (!supabaseReady || !supabase) return;
+
+  // Subscribe to individual session bookings changes (cancellations)
+  const individualBookingsChannel = supabase
+    .channel('individual-bookings-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'individual_session_bookings',
+        filter: 'status=eq.cancelled'
+      },
+      (payload) => {
+        console.log('Individual booking cancelled, reloading sessions:', payload);
+        loadSessions();
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'individual_session_bookings'
+      },
+      (payload) => {
+        console.log('Individual booking deleted, reloading sessions:', payload);
+        loadSessions();
+      }
+    )
+    .subscribe();
+
+  // Subscribe to group session reservations changes (cancellations and new reservations)
+  const groupReservationsChannel = supabase
+    .channel('group-reservations-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'session_reservations',
+        filter: 'reservation_status=eq.cancelled'
+      },
+      (payload) => {
+        console.log('Group reservation cancelled, reloading sessions:', payload);
+        loadSessions();
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'session_reservations'
+      },
+      (payload) => {
+        console.log('Group reservation deleted, reloading sessions:', payload);
+        loadSessions();
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'session_reservations'
+      },
+      (payload) => {
+        console.log('New group reservation created, reloading sessions:', payload);
+        loadSessions();
+      }
+    )
+    .subscribe();
+
+  // Also listen for new bookings/reservations
+  const newBookingsChannel = supabase
+    .channel('new-bookings')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'individual_session_bookings'
+      },
+      (payload) => {
+        console.log('New individual booking created, reloading sessions:', payload);
+        loadSessions();
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'session_reservations'
+      },
+      (payload) => {
+        console.log('New group reservation created, reloading sessions:', payload);
+        loadSessions();
+      }
+    )
+    .subscribe();
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    supabase.removeChannel(individualBookingsChannel);
+    supabase.removeChannel(groupReservationsChannel);
+    supabase.removeChannel(newBookingsChannel);
+  });
 }
 
 // Setup event listeners
@@ -3155,21 +3269,21 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
       // Update existing
       console.log('Updating existing session type:', existingData.id);
       const updateData = {
-        display_name: name,
-        color: color,
-        duration_minutes: duration,
-        minimum_booking_notice_hours: minBookingNotice,
-        buffer_before_minutes: bufferBefore,
-        buffer_after_minutes: bufferAfter,
-        time_slot_granularity_minutes: timeSlotGranularity,
-        general_availability: availability,
-        booking_confirmation_email_subject: emailSubject,
-        booking_confirmation_email_body: emailBody,
-        reminder_timing_hours: reminderTimingHours,
-        reminder_email_subject: reminderSubject,
-        reminder_email_body: reminderBody,
+          display_name: name,
+          color: color,
+          duration_minutes: duration,
+          minimum_booking_notice_hours: minBookingNotice,
+          buffer_before_minutes: bufferBefore,
+          buffer_after_minutes: bufferAfter,
+          time_slot_granularity_minutes: timeSlotGranularity,
+          general_availability: availability,
+          booking_confirmation_email_subject: emailSubject,
+          booking_confirmation_email_body: emailBody,
+          reminder_timing_hours: reminderTimingHours,
+          reminder_email_subject: reminderSubject,
+          reminder_email_body: reminderBody,
         description: description,
-        updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString()
       };
       
       // Only include zoom_link if the column exists (we'll add it via migration if needed)
@@ -3221,54 +3335,54 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
       const shouldUpdateAvailability = staffChanged;
       
       if (shouldUpdateAvailability) {
-        console.log('Staff or availability changed, updating coach availability:', { staffChanged, availabilityModified });
+        console.log('Staff changed, updating coach availability:', { staffChanged });
+      
+      // First, remove availability for coaches that are no longer selected
+      // Get all current availability entries for this session type
+      const { data: currentAvailability, error: currentError } = await supabase
+        .from('coach_individual_availability')
+        .select('coach_id')
+        .eq('session_type_id', existingData.id);
+      
+      if (!currentError && currentAvailability) {
+        const currentCoachIds = new Set(currentAvailability.map(a => a.coach_id));
+        const selectedCoachIds = new Set(staffIds);
         
-        // First, remove availability for coaches that are no longer selected
-        // Get all current availability entries for this session type
-        const { data: currentAvailability, error: currentError } = await supabase
-          .from('coach_individual_availability')
-          .select('coach_id')
-          .eq('session_type_id', existingData.id);
+        // Find coaches to remove (in current but not in selected)
+        const coachesToRemove = Array.from(currentCoachIds).filter(id => !selectedCoachIds.has(id));
         
-        if (!currentError && currentAvailability) {
-          const currentCoachIds = new Set(currentAvailability.map(a => a.coach_id));
-          const selectedCoachIds = new Set(staffIds);
+        if (coachesToRemove.length > 0) {
+          console.log('Attempting to delete availability for coaches:', coachesToRemove);
+          const { data: deletedData, error: deleteError } = await supabase
+            .from('coach_individual_availability')
+            .delete()
+            .eq('session_type_id', existingData.id)
+            .in('coach_id', coachesToRemove)
+            .select();
           
-          // Find coaches to remove (in current but not in selected)
-          const coachesToRemove = Array.from(currentCoachIds).filter(id => !selectedCoachIds.has(id));
-          
-          if (coachesToRemove.length > 0) {
-            console.log('Attempting to delete availability for coaches:', coachesToRemove);
-            const { data: deletedData, error: deleteError } = await supabase
-              .from('coach_individual_availability')
-              .delete()
-              .eq('session_type_id', existingData.id)
-              .in('coach_id', coachesToRemove)
-              .select();
-            
-            if (deleteError) {
-              console.error('Error removing coach availability:', deleteError);
-              console.error('Delete error details:', {
-                code: deleteError.code,
-                message: deleteError.message,
-                details: deleteError.details,
-                hint: deleteError.hint
-              });
-              // Don't throw - continue with upsert even if delete fails
-              // The upsert will handle updating the selected coaches
-            } else {
-              console.log('Successfully removed availability for coaches:', deletedData);
-              console.log('Deleted count:', deletedData?.length || 0);
-              if (!deletedData || deletedData.length === 0) {
-                console.warn('Delete returned no rows - this might indicate an RLS policy issue. Please ensure the DELETE policy exists for coach_individual_availability.');
-              }
+          if (deleteError) {
+            console.error('Error removing coach availability:', deleteError);
+            console.error('Delete error details:', {
+              code: deleteError.code,
+              message: deleteError.message,
+              details: deleteError.details,
+              hint: deleteError.hint
+            });
+            // Don't throw - continue with upsert even if delete fails
+            // The upsert will handle updating the selected coaches
+          } else {
+            console.log('Successfully removed availability for coaches:', deletedData);
+            console.log('Deleted count:', deletedData?.length || 0);
+            if (!deletedData || deletedData.length === 0) {
+              console.warn('Delete returned no rows - this might indicate an RLS policy issue. Please ensure the DELETE policy exists for coach_individual_availability.');
             }
           }
         }
-        
-        // Create/update coach availability entries for selected staff
-        if (staffIds.length > 0) {
-          console.log('Creating/updating coach availability for staff:', staffIds);
+      }
+      
+      // Create/update coach availability entries for selected staff
+      if (staffIds.length > 0) {
+        console.log('Creating/updating coach availability for staff:', staffIds);
           
           // Load existing availability to preserve it if not modified
           const { data: existingAvailability, error: availLoadError } = await supabase
@@ -3283,56 +3397,56 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
               existingAvailabilityMap.set(a.coach_id, a.availability);
             });
           }
-          
-          // Collect coach-specific availability from People tab
-          const coachAvailabilityEntries = staffIds.map(coachId => {
-            const coachSection = document.querySelector(`.coach-availability-section[data-coach-id="${coachId}"]`);
+        
+        // Collect coach-specific availability from People tab
+        const coachAvailabilityEntries = staffIds.map(coachId => {
+          const coachSection = document.querySelector(`.coach-availability-section[data-coach-id="${coachId}"]`);
             let coachAvailability = {};
-            
-            if (coachSection) {
-              const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-              days.forEach(day => {
-                const toggle = coachSection.querySelector(`.day-available-toggle[data-day="${day}"]`);
-                if (toggle && toggle.checked) {
-                  const startInput = coachSection.querySelector(`.availability-start[data-day="${day}"]`);
-                  const endInput = coachSection.querySelector(`.availability-end[data-day="${day}"]`);
-                  coachAvailability[day] = {
-                    available: true,
-                    start: startInput ? convertTo12Hour(startInput.value) : '9:00 AM',
-                    end: endInput ? convertTo12Hour(endInput.value) : '5:00 PM'
-                  };
-                } else {
-                  coachAvailability[day] = { available: false };
-                }
-              });
+          
+          if (coachSection) {
+            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            days.forEach(day => {
+              const toggle = coachSection.querySelector(`.day-available-toggle[data-day="${day}"]`);
+              if (toggle && toggle.checked) {
+                const startInput = coachSection.querySelector(`.availability-start[data-day="${day}"]`);
+                const endInput = coachSection.querySelector(`.availability-end[data-day="${day}"]`);
+                coachAvailability[day] = {
+                  available: true,
+                  start: startInput ? convertTo12Hour(startInput.value) : '9:00 AM',
+                  end: endInput ? convertTo12Hour(endInput.value) : '5:00 PM'
+                };
+              } else {
+                coachAvailability[day] = { available: false };
+              }
+            });
             } else {
               // If no section found, preserve existing availability
               coachAvailability = existingAvailabilityMap.get(coachId) || {};
-            }
-            
-            return {
-              coach_id: coachId,
-              session_type_id: existingData.id,
-              is_available: true,
-              availability: coachAvailability
-            };
-          });
-          
-          const { data: availData, error: availError } = await supabase
-            .from('coach_individual_availability')
-            .upsert(coachAvailabilityEntries, { onConflict: 'coach_id,session_type_id' })
-            .select();
-          
-          if (availError) {
-            console.error('Error creating/updating coach availability:', availError);
-          } else {
-            console.log('Successfully created/updated coach availability:', availData);
           }
+          
+          return {
+            coach_id: coachId,
+            session_type_id: existingData.id,
+            is_available: true,
+            availability: coachAvailability
+          };
+        });
+        
+        const { data: availData, error: availError } = await supabase
+          .from('coach_individual_availability')
+          .upsert(coachAvailabilityEntries, { onConflict: 'coach_id,session_type_id' })
+          .select();
+        
+        if (availError) {
+          console.error('Error creating/updating coach availability:', availError);
         } else {
+          console.log('Successfully created/updated coach availability:', availData);
+        }
+      } else {
           // If no staff selected, don't delete existing availability - just leave it as is
           console.log('No staff selected, preserving existing coach availability');
         }
-      } else {
+          } else {
         console.log('Staff and availability unchanged, skipping coach availability update');
       }
     } else {
@@ -3356,21 +3470,21 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
         });
         
         const updateDataForExisting = {
-          display_name: name,
-          color: color,
-          duration_minutes: duration,
-          minimum_booking_notice_hours: minBookingNotice,
-          buffer_before_minutes: bufferBefore,
-          buffer_after_minutes: bufferAfter,
-          time_slot_granularity_minutes: timeSlotGranularity,
-          general_availability: availability,
-          booking_confirmation_email_subject: emailSubject,
-          booking_confirmation_email_body: emailBody,
-          reminder_timing_hours: reminderTimingHours,
-          reminder_email_subject: reminderSubject,
-          reminder_email_body: reminderBody,
+            display_name: name,
+            color: color,
+            duration_minutes: duration,
+            minimum_booking_notice_hours: minBookingNotice,
+            buffer_before_minutes: bufferBefore,
+            buffer_after_minutes: bufferAfter,
+            time_slot_granularity_minutes: timeSlotGranularity,
+            general_availability: availability,
+            booking_confirmation_email_subject: emailSubject,
+            booking_confirmation_email_body: emailBody,
+            reminder_timing_hours: reminderTimingHours,
+            reminder_email_subject: reminderSubject,
+            reminder_email_body: reminderBody,
           description: description,
-          is_active: true
+            is_active: true
         };
         
         // Only include zoom_link if the column exists
@@ -3402,19 +3516,19 @@ async function saveIndividualSessionConfig(sessionType, sessionId, existingData)
         });
         
         const insertDataObj = {
-          name: finalSessionType,
-          display_name: name,
-          color: color,
-          duration_minutes: duration,
-          minimum_booking_notice_hours: minBookingNotice,
-          buffer_before_minutes: bufferBefore,
-          buffer_after_minutes: bufferAfter,
-          time_slot_granularity_minutes: timeSlotGranularity,
-          general_availability: availability,
-          booking_confirmation_email_subject: emailSubject,
-          booking_confirmation_email_body: emailBody,
-          reminder_timing_hours: reminderTimingHours,
-          reminder_email_subject: reminderSubject,
+            name: finalSessionType,
+            display_name: name,
+            color: color,
+            duration_minutes: duration,
+            minimum_booking_notice_hours: minBookingNotice,
+            buffer_before_minutes: bufferBefore,
+            buffer_after_minutes: bufferAfter,
+            time_slot_granularity_minutes: timeSlotGranularity,
+            general_availability: availability,
+            booking_confirmation_email_subject: emailSubject,
+            booking_confirmation_email_body: emailBody,
+            reminder_timing_hours: reminderTimingHours,
+            reminder_email_subject: reminderSubject,
           reminder_email_body: reminderBody,
           description: description
         };

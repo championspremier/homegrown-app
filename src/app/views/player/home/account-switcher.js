@@ -54,7 +54,6 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
         .single();
       
       if (currentProfileError || !currentProfile) {
-        console.error('❌ Error fetching current profile:', currentProfileError);
         switcherName.textContent = 'Error loading';
         return;
       }
@@ -73,7 +72,6 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
           .single();
         
         if (relationshipError || !relationship) {
-          console.warn('⚠️ No parent relationship found for player');
           switcherName.textContent = currentProfile.first_name || 'Player';
           switcherLoading.style.display = 'none';
           return;
@@ -88,7 +86,6 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
           .single();
         
         if (parentError || !parent) {
-          console.error('❌ Error fetching parent profile:', parentError);
           switcherName.textContent = currentProfile.first_name || 'Player';
           switcherLoading.style.display = 'none';
           return;
@@ -103,7 +100,6 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
       }
 
       if (!parentProfile) {
-        console.warn('⚠️ No parent profile found');
         switcherName.textContent = 'No linked accounts';
         switcherLoading.textContent = 'No linked parent account found.';
         return;
@@ -136,19 +132,24 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
       switcherItems.style.display = 'block';
 
     } catch (error) {
-      console.error('Error loading linked accounts:', error);
       switcherName.textContent = 'Error loading';
+      switcherLoading.textContent = 'An error occurred. Please try again.';
     }
   }
 
   // Switch to parent account
   function switchToAccount(account) {
     if (!window.setCurrentRole) {
-      console.error('setCurrentRole function not available');
       return;
     }
 
     window.setCurrentRole(account.role);
+    
+    // Dispatch custom event for other components to listen to
+    window.dispatchEvent(new CustomEvent('accountSwitched', {
+      detail: { role: account.role, accountId: account.id }
+    }));
+    
     closeDropdown();
   }
 

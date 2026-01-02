@@ -3,19 +3,20 @@
   
   <div class="schedule-options">
     <!-- On-Field Option -->
-    <div class="schedule-option" id="onFieldOption">
-      <div class="option-header" id="onFieldHeader">
-        <h2>On-Field</h2>
-        <i class="bx bx-chevron-down option-chevron" id="onFieldChevron"></i>
-      </div>
-      <div class="option-dropdown" id="onFieldDropdown">
-        <!-- Filter buttons for session types -->
-        <div class="session-type-filters" id="onFieldFilters" style="display: none;">
-          <button class="filter-btn" data-type="Tec Tac" type="button">Tec Tac</button>
-          <button class="filter-btn" data-type="Speed Training" type="button">Speed Training</button>
-          <button class="filter-btn" data-type="Strength & Conditioning" type="button">Strength & Conditioning</button>
-        </div>
-        
+    <div class="top-section">
+      <h2>On-Field</h2>
+      <button
+        id="onFieldToggle"
+        class="schedule-toggle"
+        aria-expanded="false"
+        aria-controls="onFieldHiddenSchedule"
+        type="button"
+      >
+        <i class="bx bx-chevron-down"></i>
+      </button>
+    </div>
+    <div class="hiddenSchedule" id="onFieldHiddenSchedule">
+       
         <!-- Calendar header will be inserted here -->
         <div class="calendar-header-container" id="onFieldCalendarHeader" style="display: none;">
           <div class="calendar-navigation">
@@ -58,22 +59,35 @@
           </div>
           <div class="selected-date-display" id="onFieldSelectedDate"></div>
         </div>
-        
+
         <!-- Sessions list will be inserted here -->
         <div class="sessions-list" id="onFieldSessionsList" style="display: none;"></div>
+
+          <!-- Filter buttons for session types -->
+        <div class="session-type-filters" id="onFieldFilters" style="display: none;">
+          <button class="filter-btn" data-type="Tec Tac" type="button">Tec Tac</button>
+          <button class="filter-btn" data-type="Speed Training" type="button">Speed Training</button>
+          <button class="filter-btn" data-type="Strength & Conditioning" type="button">Strength & Conditioning</button>
+        </div>
         
         <!-- Upcoming sessions list (shown when filter is clicked) -->
         <div class="upcoming-sessions-list" id="onFieldUpcomingSessions" style="display: none;"></div>
-      </div>
     </div>
 
     <!-- Virtual Option -->
-    <div class="schedule-option" id="virtualOption">
-      <div class="option-header" id="virtualHeader">
-        <h2>Virtual</h2>
-        <i class="bx bx-chevron-down option-chevron" id="virtualChevron"></i>
-      </div>
-      <div class="option-dropdown" id="virtualDropdown">
+    <div class="top-section">
+      <h2>Virtual</h2>
+      <button
+        id="virtualToggle"
+        class="schedule-toggle"
+        aria-expanded="false"
+        aria-controls="virtualHiddenSchedule"
+        type="button"
+      >
+        <i class="bx bx-chevron-down"></i>
+      </button>
+    </div>
+    <div class="hiddenSchedule" id="virtualHiddenSchedule">
         <!-- Filter buttons for virtual session types -->
         <div class="session-type-filters" id="virtualFilters" style="display: none;">
           <button class="filter-btn" data-type="Group Film-Analysis" type="button">Group Film-Analysis</button>
@@ -132,7 +146,6 @@
         
         <!-- Upcoming sessions list (shown when filter is clicked) -->
         <div class="upcoming-sessions-list" id="virtualUpcomingSessions" style="display: none;"></div>
-      </div>
     </div>
   </div>
   

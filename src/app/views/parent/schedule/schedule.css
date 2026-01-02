@@ -37,63 +37,107 @@
   border-color: var(--accent);
 }
 
-.option-header {
+.top-section {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.2s ease;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
 }
 
-.option-header:hover {
-  background: var(--hover);
-}
-
-.option-header h2 {
+.top-section h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--text);
 }
 
-.option-chevron {
-  font-size: 24px;
+/* Toggle button */
+.schedule-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  width: 40px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
   color: var(--text);
-  transition: transform 0.3s ease, color 0.2s ease;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, transform .12s ease;
 }
 
-.schedule-option.is-open .option-chevron {
+.schedule-toggle:hover {
+  background: var(--hover);
+}
+
+.schedule-toggle:active {
+  transform: translateY(1px);
+}
+
+.schedule-toggle i {
+  transition: transform 0.2s ease;
+}
+
+.schedule-toggle[aria-expanded="true"] i.bx-chevron-down {
   transform: rotate(180deg);
-  color: var(--accent);
 }
 
-.option-dropdown {
-  max-height: 0;
+/* Collapsible panel */
+.hiddenSchedule {
   overflow: hidden;
+  max-height: 0;
   opacity: 0;
-  transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
-  padding: 0 24px;
+  transition: max-height 240ms ease, opacity 180ms ease, margin-top 180ms ease;
+  margin-top: 0;
+  padding: 0 20px;
 }
 
-.schedule-option.is-open .option-dropdown {
-  max-height: 5000px;
+.hiddenSchedule.is-open {
+  max-height: calc(100vh - 200px);
   opacity: 1;
-  padding: 0 24px 24px 24px;
+  margin-top: 0;
+  padding: 0 20px 20px 20px;
 }
 
 /* Session Type Filters */
 .session-type-filters {
   display: flex;
+  justify-content: center;
   gap: 12px;
   margin-bottom: 20px;
   padding-top: 16px;
   flex-wrap: wrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  padding-bottom: 8px;
+  padding-left: 20px;
+  padding-right: 20px;
+  scroll-padding-left: 20px;
+  scroll-padding-right: 20px;
+}
+
+.session-type-filters::-webkit-scrollbar {
+  height: 6px;
+}
+
+.session-type-filters::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.session-type-filters::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.session-type-filters::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
 
 .filter-btn {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 120px;
   padding: 12px 16px;
   background: var(--bg);
@@ -104,6 +148,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .filter-btn:hover {
@@ -752,20 +797,11 @@
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-  .schedule-container {
-    padding: 20px;
-  }
-
-  .schedule-container h1 {
-    font-size: 1.5rem;
-    margin-bottom: 24px;
-  }
-
-  .option-header {
+  .top-section {
     padding: 16px 20px;
   }
 
-  .option-header h2 {
+  .top-section h2 {
     font-size: 1.25rem;
   }
 
@@ -803,6 +839,14 @@
 
 /* iPhone and small mobile devices */
 @media (max-width: 430px) {
+  .schedule-container {
+    padding: 10px;
+  }
+
+  .schedule-container h1 {
+    font-size: 1.25rem;
+    margin-bottom: 20px;
+  }
 
   .content-area {
     padding: 0;
@@ -817,24 +861,29 @@
     margin-bottom: 20px;
   }
 
-  .option-header {
+  .top-section {
     padding: 12px 16px;
   }
 
-  .option-header h2 {
+  .top-section h2 {
     font-size: 1.1rem;
   }
 
-  .option-dropdown {
+  .hiddenSchedule {
     padding: 0 16px !important;
   }
 
-  .schedule-option.is-open .option-dropdown {
+  .hiddenSchedule.is-open {
     padding: 0 16px 16px 16px !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Filter buttons - make scrollable on touch */
   .session-type-filters {
+    justify-content: flex-start;
     gap: 8px;
     margin-bottom: 16px;
     padding-top: 12px;
@@ -843,6 +892,13 @@
     scrollbar-width: thin;
     flex-wrap: nowrap;
     padding-bottom: 8px;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 20px;
+    padding-right: 20px;
+    scroll-padding-left: 20px;
+    scroll-padding-right: 20px;
+    width: calc(100% + 32px);
   }
 
   .filter-btn {
@@ -858,6 +914,15 @@
   }
 
   /* Calendar navigation - ensure chevrons are visible */
+  .date-selection {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+  }
+}
+
   .calendar-navigation {
     gap: 8px;
     margin-bottom: 10px;
@@ -910,6 +975,10 @@
   }
 
   /* Session items */
+  .sessions-list {
+    width: 100%;
+  }
+
   .session-item {
     padding: 12px;
     margin-bottom: 12px;
@@ -941,8 +1010,20 @@
     width: 100%;
   }
   
+  .date-selection {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
   .individual-booking-content {
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
   
   /* Individual date picker uses calendar classes - styles handled by calendar styles */
@@ -1024,7 +1105,7 @@
   .upcoming-session-item {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     min-width: 240px;
     max-width: 240px;
@@ -1091,6 +1172,10 @@
 .virtual-content-container {
   margin-top: 20px;
   padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .individual-session-booking {

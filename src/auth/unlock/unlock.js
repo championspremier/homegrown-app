@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (value >= 100) {
       setTimeout(() => {
-        window.location.href = '../login-signup/login-signup.html';
+        window.location.href = '/auth/login-signup/login-signup.html';
       }, 300);
     }
   }

@@ -18,44 +18,107 @@ initSupabase().then(client => {
   console.error('❌ Failed to initialize Supabase:', err);
 });
 
-// Logout functionality
-const logoutBtn = document.getElementById('logoutBtn');
-
-logoutBtn?.addEventListener('click', async () => {
-  // Try to sign out if Supabase is available, but always clear storage and redirect
-  if (supabaseReady && supabase) {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.warn('Sign out error (continuing anyway):', error);
-      }
-    } catch (error) {
-      console.warn('Sign out failed (continuing anyway):', error);
-    }
-  } else {
-    // Try to initialize one more time
-    try {
-      const client = await initSupabase();
-      if (client) {
-        supabase = client;
-        supabaseReady = true;
-        try {
-          await supabase.auth.signOut();
-        } catch (e) {
-          // Ignore sign out errors if not logged in
-        }
-      }
-    } catch (error) {
-      console.warn('Supabase not available, proceeding with logout anyway:', error);
-    }
+// Logout functionality - attach after DOM is ready
+function setupLogoutButton() {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (!logoutBtn) {
+    // Button not found, try again after a short delay
+    setTimeout(setupLogoutButton, 100);
+    return;
   }
 
-  // Always clear local storage and redirect, regardless of Supabase status
-  localStorage.clear();
+  // Remove existing listeners by cloning
+  const newLogoutBtn = logoutBtn.cloneNode(true);
+  logoutBtn.parentNode.replaceChild(newLogoutBtn, logoutBtn);
+
+  newLogoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Try to sign out if Supabase is available, but always clear storage and redirect
+    if (supabaseReady && supabase) {
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.warn('Sign out error (continuing anyway):', error);
+        }
+      } catch (error) {
+        console.warn('Sign out failed (continuing anyway):', error);
+      }
+    } else {
+      // Try to initialize one more time
+      try {
+        const client = await initSupabase();
+        if (client) {
+          supabase = client;
+          supabaseReady = true;
+          try {
+            await supabase.auth.signOut();
+          } catch (e) {
+            // Ignore sign out errors if not logged in
+          }
+        }
+      } catch (error) {
+        console.warn('Supabase not available, proceeding with logout anyway:', error);
+      }
+    }
+
+    // Always clear local storage and redirect, regardless of Supabase status
+    // Preserve theme preference across logouts
+    const savedTheme = localStorage.getItem('hg-theme');
+    localStorage.clear();
+    if (savedTheme) {
+      localStorage.setItem('hg-theme', savedTheme);
+    }
+    
+    // Redirect to unlock page
+    window.location.href = '/auth/unlock/unlock.html';
+  });
+}
+
+// Setup logout button after a short delay to ensure DOM is ready
+setTimeout(setupLogoutButton, 100);
+
+// Get the actual user ID (handles account switcher)
+// When a player switches to parent view, we need to get the parent's ID
+async function getActualUserId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || !session.user) return null;
   
-  // Redirect to unlock page (server runs from src directory, serve strips .html extension)
-  window.location.href = '/auth/unlock/unlock';
-});
+  const currentRole = localStorage.getItem('hg-user-role');
+  console.log('getActualUserId - currentRole:', currentRole, 'session.user.id:', session.user.id);
+  
+  // If we're in parent view but logged in as a player, find the parent
+  if (currentRole === 'parent') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    
+    console.log('Current user profile:', profile);
+    
+    // If current user is actually a player, find their parent
+    if (profile && profile.role === 'player') {
+      const { data: relationship } = await supabase
+        .from('parent_player_relationships')
+        .select('parent_id')
+        .eq('player_id', session.user.id)
+        .single();
+      
+      console.log('Found parent relationship:', relationship);
+      
+      if (relationship) {
+        console.log('Returning parent ID:', relationship.parent_id);
+        return relationship.parent_id;
+      }
+    }
+  }
+  
+  // Otherwise, use the logged-in user's ID
+  console.log('Returning session.user.id:', session.user.id);
+  return session.user.id;
+}
 
 // Load parent profile data
 async function loadParentProfile() {
@@ -71,11 +134,22 @@ async function loadParentProfile() {
       return;
     }
 
+    // Get the actual parent ID (handles account switcher)
+    const actualParentId = await getActualUserId();
+    console.log('Loading parent profile - actualParentId:', actualParentId, 'session.user.id:', session.user.id);
+    
+    if (!actualParentId) {
+      console.warn('Could not determine parent ID');
+      return;
+    }
+
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('first_name, last_name, phone_number, birth_date')
-      .eq('id', session.user.id)
+      .eq('id', actualParentId)
       .single();
+    
+    console.log('Loaded profile:', profile);
 
     if (error) {
       console.error('Error loading profile:', error);
@@ -88,7 +162,19 @@ async function loadParentProfile() {
       document.getElementById('parentLastName').value = profile.last_name || '';
       document.getElementById('parentPhone').value = profile.phone_number || '';
       document.getElementById('parentBirthDate').value = profile.birth_date || '';
+      
+      // Get email from auth.users (email is not stored in profiles table)
+      // We need to get the parent's email, not the logged-in user's email
+      // If we're viewing as a player, we need to get the parent's email
+      if (actualParentId === session.user.id) {
+        // We're viewing our own profile
       document.getElementById('parentEmail').value = session.user.email || '';
+      } else {
+        // We're viewing someone else's profile (player viewing parent)
+        // We can't directly query auth.users, so we'll leave it empty or use a placeholder
+        // The email field is readonly anyway, so this is acceptable
+        document.getElementById('parentEmail').value = '';
+      }
     }
   } catch (error) {
     console.error('Error loading parent profile:', error);
@@ -115,6 +201,13 @@ editParentForm?.addEventListener('submit', async (e) => {
       return;
     }
 
+    // Get the actual parent ID (handles account switcher)
+    const actualParentId = await getActualUserId();
+    if (!actualParentId) {
+      showMessage(parentFormMessage, 'Could not determine parent ID', 'error');
+      return;
+    }
+
     saveParentBtn.disabled = true;
     saveParentBtn.innerHTML = '<span>Saving...</span>';
 
@@ -127,7 +220,7 @@ editParentForm?.addEventListener('submit', async (e) => {
     // Note: The RPC function uses COALESCE, so passing null preserves existing values
     // We need to pass the actual values (or empty strings) to update them
     const { error: rpcError } = await supabase.rpc('update_user_profile', {
-      p_user_id: session.user.id,
+      p_user_id: actualParentId,
       p_first_name: firstName, // Pass the actual value (even if empty string)
       p_last_name: lastName, // Pass the actual value (even if empty string)
       p_phone_number: phone || null, // Phone can be null
@@ -152,7 +245,7 @@ editParentForm?.addEventListener('submit', async (e) => {
     const { data: updatedProfile, error: verifyError } = await supabase
       .from('profiles')
       .select('first_name, last_name, phone_number, birth_date')
-      .eq('id', session.user.id)
+      .eq('id', actualParentId)
       .single();
 
     if (verifyError) {

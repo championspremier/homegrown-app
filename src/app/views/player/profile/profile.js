@@ -2,6 +2,7 @@
 // Import path is relative to this file's location: src/app/views/player/profile/
 // To reach src/auth/config/supabase.js, we need to go up 4 levels to src/, then into auth/
 import { initSupabase } from '../../../../auth/config/supabase.js';
+import { getAccountContext } from '../../../utils/account-context.js';
 
 // Initialize Supabase
 let supabase;
@@ -37,33 +38,13 @@ async function initProfile() {
 }
 
 // Get the actual user ID (handles account switcher)
+// Now uses centralized account context utility
 async function getActualUserId() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session || !session.user) return null;
+  const context = await getAccountContext();
+  if (!context) return null;
   
-  let userId = session.user.id;
-  const currentRole = localStorage.getItem('hg-current-role');
-  const selectedPlayerId = localStorage.getItem('selectedPlayerId');
-  
-  // If we're a parent viewing as a player, use the selected player ID
-  if (currentRole === 'player' && selectedPlayerId) {
-    // Verify the selected player is linked to this parent
-    const { data: relationship } = await supabase
-      .from('parent_player_relationships')
-      .select('player_id')
-      .eq('parent_id', session.user.id)
-      .eq('player_id', selectedPlayerId)
-      .single();
-    
-    if (relationship) {
-      userId = selectedPlayerId;
-      console.log(`Using account switcher: using player ID ${userId}`);
-    } else {
-      console.warn('Selected player ID not linked to parent, using parent ID');
-    }
-  }
-  
-  return userId;
+  // Use the helper method that determines the correct user ID for profile/photos
+  return context.getUserIdForProfile();
 }
 
 // Load player profile data from Supabase
@@ -284,31 +265,41 @@ async function loadProfilePhoto(userId) {
       return;
     }
 
-    // Find avatar file
-    const avatarFile = data.find(file => 
-      file.name.toLowerCase().startsWith('avatar.')
+    // Find avatar file - prefer .png, but fall back to any avatar file
+    let avatarFile = data.find(file => 
+      file.name.toLowerCase() === 'avatar.png'
     );
+    
+    // If no .png found, look for any avatar file
+    if (!avatarFile) {
+      avatarFile = data.find(file => 
+        file.name.toLowerCase().startsWith('avatar.')
+      );
+    }
 
     if (!avatarFile) {
       return; // No avatar file found
     }
 
-    // Get public URL
+    // Get public URL with cache-busting
     const { data: { publicUrl } } = supabase.storage
       .from('profile-photos')
       .getPublicUrl(`${userId}/${avatarFile.name}`);
+    
+    // Add cache-busting timestamp
+    const photoUrlWithCache = `${publicUrl}?t=${Date.now()}`;
 
     const profilePhoto = document.getElementById('profilePhoto');
     const photoPlaceholder = document.getElementById('photoPlaceholder');
     
-    if (profilePhoto && photoPlaceholder && publicUrl) {
-      profilePhoto.src = publicUrl;
+    if (profilePhoto && photoPlaceholder && photoUrlWithCache) {
+      profilePhoto.src = photoUrlWithCache;
       profilePhoto.style.display = 'block';
       photoPlaceholder.style.display = 'none';
     }
 
     // Update sidebar and leaderboard photos
-    await updateProfilePhotosInUI(publicUrl);
+    await updateProfilePhotosInUI(photoUrlWithCache);
 
   } catch (error) {
     console.error('Error loading profile photo:', error);
@@ -338,13 +329,77 @@ async function uploadProfilePhoto(file) {
     
     console.log(`Uploading photo for user ID: ${userId}`);
 
-    // Upload to storage
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/avatar.${fileExt}`;
+    // First, delete all existing avatar files for this user
+    try {
+      const { data: existingFiles, error: listError } = await supabase.storage
+        .from('profile-photos')
+        .list(`${userId}/`, {
+          limit: 100
+        });
+
+      if (!listError && existingFiles) {
+        // Find all avatar files (any extension)
+        const avatarFiles = existingFiles.filter(file => 
+          file.name.toLowerCase().startsWith('avatar.')
+        );
+
+        // Delete all old avatar files
+        for (const avatarFile of avatarFiles) {
+          const { error: deleteError } = await supabase.storage
+            .from('profile-photos')
+            .remove([`${userId}/${avatarFile.name}`]);
+          
+          if (deleteError) {
+            console.warn(`Could not delete old avatar file ${avatarFile.name}:`, deleteError);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Error cleaning up old avatar files:', error);
+      // Continue with upload even if cleanup fails
+    }
+
+    // Upload to storage - always use .png extension for consistency
+    // Convert image to PNG format if needed
+    const fileName = `${userId}/avatar.png`;
+
+    // Convert file to blob if it's not already PNG
+    let fileToUpload = file;
+    if (!file.type.includes('png')) {
+      // Convert to PNG using canvas
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = e.target.result;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        
+        fileToUpload = await new Promise((resolve) => {
+          canvas.toBlob((blob) => {
+            resolve(new File([blob], 'avatar.png', { type: 'image/png' }));
+          }, 'image/png');
+        });
+      } catch (conversionError) {
+        console.warn('Could not convert image to PNG, uploading original:', conversionError);
+        // Fall back to original file
+      }
+    }
 
     const { error: uploadError } = await supabase.storage
       .from('profile-photos')
-      .upload(fileName, file, {
+      .upload(fileName, fileToUpload, {
         cacheControl: '3600',
         upsert: true
       });
@@ -384,23 +439,23 @@ async function updateProfilePhotosInUI(photoUrl) {
   
   console.log(`Updating photo UI for user ID: ${userId}`);
 
-  // Update sidebar icon (only for current user)
-  const sidebarProfileLink = document.querySelector('.nav-link[data-page="profile"]');
-  if (sidebarProfileLink) {
-    const existingPhoto = sidebarProfileLink.querySelector('.profile-photo-nav');
-    if (existingPhoto) {
-      existingPhoto.src = photoUrl;
-    } else {
-      const icon = sidebarProfileLink.querySelector('.bx-user');
-      if (icon) {
-        const photo = document.createElement('img');
-        photo.className = 'profile-photo-nav';
-        photo.src = photoUrl;
-        photo.alt = 'Profile photo';
-        icon.parentNode.insertBefore(photo, icon);
-        icon.style.display = 'none';
-      }
-    }
+  // Update profile photo on the profile page itself
+  const profilePhoto = document.getElementById('profilePhoto');
+  const photoPlaceholder = document.getElementById('photoPlaceholder');
+  if (profilePhoto && photoPlaceholder) {
+    // Add cache-busting to ensure latest photo is loaded
+    profilePhoto.src = `${photoUrl}?t=${Date.now()}`;
+    profilePhoto.style.display = 'block';
+    photoPlaceholder.style.display = 'none';
+  }
+
+  // Update sidebar photo using the utility (which respects account context)
+  // This ensures the photo only shows if we're still viewing that account
+  try {
+    const { updateSidebarPhoto } = await import('../../../utils/sidebar-photo.js');
+    await updateSidebarPhoto();
+  } catch (error) {
+    console.error('Error updating sidebar photo:', error);
   }
 
   // Update ONLY the current user's leaderboard item (by userId)
@@ -458,45 +513,67 @@ function showMessage(elementId, message, type = 'success') {
   }, 5000);
 }
 
-// Logout functionality
-const logoutBtn = document.getElementById('logoutBtn');
-
-logoutBtn?.addEventListener('click', async () => {
-  // Try to sign out if Supabase is available, but always clear storage and redirect
-  if (supabaseReady && supabase) {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.warn('Sign out error (continuing anyway):', error);
-      }
-    } catch (error) {
-      console.warn('Sign out failed (continuing anyway):', error);
-    }
-  } else {
-    // Try to initialize one more time
-    try {
-      const client = await initSupabase();
-      if (client) {
-        supabase = client;
-        supabaseReady = true;
-        try {
-          await supabase.auth.signOut();
-        } catch (e) {
-          // Ignore sign out errors if not logged in
-        }
-      }
-    } catch (error) {
-      console.warn('Supabase not available, proceeding with logout anyway:', error);
-    }
+// Logout functionality - attach after DOM is ready
+function setupLogoutButton() {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (!logoutBtn) {
+    // Button not found, try again after a short delay
+    setTimeout(setupLogoutButton, 100);
+    return;
   }
 
-  // Always clear local storage and redirect, regardless of Supabase status
-  localStorage.clear();
-  
-  // Redirect to unlock page (server runs from src directory, serve strips .html extension)
-  window.location.href = '/auth/unlock/unlock';
-});
+  // Remove existing listeners by cloning
+  const newLogoutBtn = logoutBtn.cloneNode(true);
+  logoutBtn.parentNode.replaceChild(newLogoutBtn, logoutBtn);
+
+  newLogoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Try to sign out if Supabase is available, but always clear storage and redirect
+    if (supabaseReady && supabase) {
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.warn('Sign out error (continuing anyway):', error);
+        }
+      } catch (error) {
+        console.warn('Sign out failed (continuing anyway):', error);
+      }
+    } else {
+      // Try to initialize one more time
+      try {
+        const client = await initSupabase();
+        if (client) {
+          supabase = client;
+          supabaseReady = true;
+          try {
+            await supabase.auth.signOut();
+          } catch (e) {
+            // Ignore sign out errors if not logged in
+          }
+        }
+      } catch (error) {
+        console.warn('Supabase not available, proceeding with logout anyway:', error);
+      }
+    }
+
+    // Always clear local storage and redirect, regardless of Supabase status
+    // Preserve theme preference across logouts
+    const savedTheme = localStorage.getItem('hg-theme');
+    localStorage.clear();
+    if (savedTheme) {
+      localStorage.setItem('hg-theme', savedTheme);
+    }
+    
+    // Redirect to unlock page
+    window.location.href = '/auth/unlock/unlock.html';
+  });
+}
 
 // Initialize profile when page loads
 initProfile();
+
+// Setup logout button after a short delay to ensure DOM is ready
+setTimeout(setupLogoutButton, 100);
 

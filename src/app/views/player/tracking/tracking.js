@@ -24,13 +24,77 @@ async function init() {
       return;
     }
 
-    const playerId = session.user.id;
+    // Get the correct player ID (handles account switcher)
+    const playerId = await getPlayerId();
+    if (!playerId) {
+      console.error('Could not determine player ID');
+      return;
+    }
+
     await loadPointsSummary(playerId);
     await loadPointsHistory(playerId, 'current');
     setupQuarterSelector(playerId);
+    
+    // Listen for account switches
+    setupAccountSwitchListener();
   } catch (error) {
     console.error('Error initializing tracking:', error);
   }
+}
+
+// Get the correct player ID (handles account switcher)
+async function getPlayerId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || !session.user) return null;
+  
+  const currentRole = localStorage.getItem('hg-user-role');
+  const selectedPlayerId = localStorage.getItem('selectedPlayerId');
+  
+  // Check if parent viewing as player
+  if (currentRole === 'player' && selectedPlayerId) {
+    // Parent switched to view as player - use the selected player ID
+    console.log(`Parent viewing as player: ${selectedPlayerId}`);
+    return selectedPlayerId;
+  }
+  
+  // Otherwise, use the logged-in user's ID (actual player)
+  return session.user.id;
+}
+
+// Listen for account switches and reload data
+function setupAccountSwitchListener() {
+  window.addEventListener('accountSwitched', async (event) => {
+    const { role, accountId } = event.detail || {};
+    const selectedPlayerId = localStorage.getItem('selectedPlayerId');
+    
+    if (role === 'player' && selectedPlayerId) {
+      // Parent switched to player - reload that player's data
+      console.log(`Account switched to player: ${selectedPlayerId}`);
+      await loadPointsSummary(selectedPlayerId);
+      await loadPointsHistory(selectedPlayerId, 'current');
+      setupQuarterSelector(selectedPlayerId);
+    } else if (role === 'parent') {
+      // Switched back to parent - reload as actual player (if logged in as player)
+      const playerId = await getPlayerId();
+      if (playerId) {
+        await loadPointsSummary(playerId);
+        await loadPointsHistory(playerId, 'current');
+        setupQuarterSelector(playerId);
+      }
+    }
+  });
+  
+  // Also listen for storage changes (in case account switch happens in another tab/window)
+  window.addEventListener('storage', async (event) => {
+    if (event.key === 'selectedPlayerId' || event.key === 'hg-user-role') {
+      const playerId = await getPlayerId();
+      if (playerId) {
+        await loadPointsSummary(playerId);
+        await loadPointsHistory(playerId, 'current');
+        setupQuarterSelector(playerId);
+      }
+    }
+  });
 }
 
 async function loadPointsSummary(playerId) {
@@ -87,9 +151,9 @@ async function loadPointsHistory(playerId, view = 'current') {
         .eq('quarter_year', year)
         .eq('quarter_number', quarter)
         .eq('status', 'active');
-    } else {
-      // Previous quarters - show archived or all
-      query = query.eq('status', 'archived');
+    } else if (view === 'history') {
+      // History - get all transactions, we'll filter out current quarter in JavaScript
+      // No additional filters needed
     }
 
     const { data: transactions, error } = await query;
@@ -105,7 +169,66 @@ async function loadPointsHistory(playerId, view = 'current') {
       return;
     }
 
-    // Group by date
+    // If history view, show bar chart by quarter
+    if (view === 'history') {
+      // Filter out current quarter
+      const { year: currentYear, quarter: currentQuarter } = getCurrentQuarter();
+      const filteredTransactions = transactions.filter(t => 
+        !(t.quarter_year === currentYear && t.quarter_number === currentQuarter)
+      );
+
+      if (filteredTransactions.length === 0) {
+        container.innerHTML = '<div class="empty-state">No previous quarters data available</div>';
+        return;
+      }
+      // Group by quarter and year
+      const quarterGroups = filteredTransactions.reduce((acc, transaction) => {
+        const key = `Q${transaction.quarter_number} ${transaction.quarter_year}`;
+        if (!acc[key]) {
+          acc[key] = {
+            quarter: transaction.quarter_number,
+            year: transaction.quarter_year,
+            transactions: [],
+            total: 0
+          };
+        }
+        acc[key].transactions.push(transaction);
+        acc[key].total += parseFloat(transaction.points);
+        return acc;
+      }, {});
+
+      // Sort by year (desc) then quarter (desc)
+      const sortedQuarters = Object.values(quarterGroups).sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.quarter - a.quarter;
+      });
+
+      // Find max points for scaling
+      const maxPoints = Math.max(...sortedQuarters.map(q => q.total), 1);
+
+      // Render bar chart
+      container.innerHTML = `
+        <div class="quarter-chart-container">
+          ${sortedQuarters.map(quarterData => {
+            const percentage = (quarterData.total / maxPoints) * 100;
+            return `
+              <div class="quarter-chart-item">
+                <div class="quarter-chart-label">
+                  <span class="quarter-label">Q${quarterData.quarter} ${quarterData.year}</span>
+                  <span class="quarter-points">${quarterData.total.toFixed(1)} pts</span>
+                </div>
+                <div class="quarter-chart-bar-container">
+                  <div class="quarter-chart-bar" style="width: ${percentage}%"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+      return;
+    }
+
+    // Current quarter view - group by date
     const groupedByDate = transactions.reduce((acc, transaction) => {
       const date = new Date(transaction.checked_in_at);
       const dateKey = date.toLocaleDateString('en-US', { 
@@ -159,10 +282,19 @@ async function loadPointsHistory(playerId, view = 'current') {
 }
 
 function setupQuarterSelector(playerId) {
+  // Remove existing listeners to prevent duplicates
   const buttons = document.querySelectorAll('.quarter-btn');
   buttons.forEach(btn => {
+    // Clone and replace to remove old listeners
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+  });
+  
+  // Add fresh listeners
+  const freshButtons = document.querySelectorAll('.quarter-btn');
+  freshButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      buttons.forEach(b => b.classList.remove('active'));
+      freshButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const view = btn.dataset.quarter;
       loadPointsHistory(playerId, view);

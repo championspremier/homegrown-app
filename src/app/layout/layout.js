@@ -294,7 +294,7 @@ async function loadPage(pageName) {
     // Load page HTML from role-specific folder
     // Add cache-busting query parameter to prevent browser caching
     const cacheBuster = `?v=${Date.now()}`;
-    const response = await fetch(`app/views/${currentRole}/${pageName}/${pageName}.html${cacheBuster}`);
+    const response = await fetch(`/app/views/${currentRole}/${pageName}/${pageName}.html${cacheBuster}`);
     if (!response.ok) throw new Error(`Page not found: ${currentRole}/${pageName}`);
     const html = await response.text();
     contentArea.innerHTML = html;
@@ -326,35 +326,24 @@ async function loadPage(pageName) {
     const existingLink = document.querySelector(`link[data-page-css="${pageName}"]`);
     if (existingLink) existingLink.remove();
     
-    // Try to load CSS (fail silently if doesn't exist)
+    // Create link tag for CSS - Vite will serve it correctly
     // Add cache-busting query parameter to prevent browser caching
     const cssCacheBuster = `?v=${Date.now()}`;
-    fetch(`app/views/${currentRole}/${pageName}/${pageName}.css${cssCacheBuster}`)
-      .then(res => {
-        if (res.ok) {
-          // Remove existing CSS link for this page if it exists
-          const existingLink = document.querySelector(`link[data-page-css="${pageName}"]`);
-          if (existingLink) {
-            existingLink.remove();
-          }
-          
-          const link = document.createElement('link');
-          link.rel = 'stylesheet';
-          link.href = `app/views/${currentRole}/${pageName}/${pageName}.css${cssCacheBuster}`;
-          link.setAttribute('data-page-css', pageName);
-          // Insert after layout.css to ensure proper cascade
-          if (layoutCSS && layoutCSS.nextSibling) {
-            document.head.insertBefore(link, layoutCSS.nextSibling);
-          } else {
-            document.head.appendChild(link);
-          }
-        } else {
-          console.warn(`⚠️ CSS file not found for page: ${currentRole}/${pageName}`);
-        }
-      })
-      .catch((err) => {
-        console.warn(`Error loading CSS for ${currentRole}/${pageName}:`, err);
-      }); // CSS file doesn't exist, that's okay
+    const cssPath = `/app/views/${currentRole}/${pageName}/${pageName}.css${cssCacheBuster}`;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = cssPath;
+    link.setAttribute('data-page-css', pageName);
+    link.onerror = () => {
+      // Silently fail if CSS doesn't exist
+      link.remove();
+    };
+    // Insert after layout.css to ensure proper cascade
+    if (layoutCSS && layoutCSS.nextSibling) {
+      document.head.insertBefore(link, layoutCSS.nextSibling);
+    } else {
+      document.head.appendChild(link);
+    }
     
     // Load page-specific JS if exists
     const existingScript = document.querySelector(`script[data-page-js="${pageName}"]`);
@@ -364,7 +353,7 @@ async function loadPage(pageName) {
     // Use module type to support ES6 imports
     // Add cache-busting query parameter to prevent browser caching
     const jsCacheBuster = `?v=${Date.now()}`;
-    const jsPath = `app/views/${currentRole}/${pageName}/${pageName}.js${jsCacheBuster}`;
+    const jsPath = `/app/views/${currentRole}/${pageName}/${pageName}.js${jsCacheBuster}`;
     
     fetch(jsPath)
       .then(res => {
@@ -398,7 +387,7 @@ async function loadPage(pageName) {
           
           // If home page, also load account switcher (only for parent and player roles)
           if (pageName === 'home' && (currentRole === 'parent' || currentRole === 'player')) {
-            const switcherPath = `app/views/${currentRole}/${pageName}/account-switcher.js${jsCacheBuster}`;
+            const switcherPath = `/app/views/${currentRole}/${pageName}/account-switcher.js${jsCacheBuster}`;
             const switcherScript = document.createElement('script');
             switcherScript.type = 'module';
             switcherScript.src = switcherPath;
@@ -420,6 +409,94 @@ async function loadPage(pageName) {
 // Export setCurrentRole for future use (e.g., after authentication)
 window.setCurrentRole = setCurrentRole;
 
+// Helper function to switch icon to filled (solid) version
+function updateIconToFilled(button) {
+  if (!button) return;
+  
+  // Find the icon element - look for i tag with bx or bxs class, but not solo-icon-desktop
+  const icon = button.querySelector('i.bx:not(.solo-icon-desktop), i.bxs:not(.solo-icon-desktop)');
+  if (!icon) return;
+  
+  // Map of outline to filled icon classes
+  const iconMap = {
+    'bx-home': 'bxs-home',
+    'bx-calendar': 'bxs-calendar',
+    'bx-football': 'bxs-football',
+    'bx-chart': 'bxs-chart',
+    'bx-user': 'bxs-user'
+  };
+  
+  // Get all classes from the icon
+  const classes = Array.from(icon.classList);
+  
+  // Find the icon class (bx-* or bxs-*), excluding utility classes
+  let currentIconClass = null;
+  for (const cls of classes) {
+    if ((cls.startsWith('bx-') || cls.startsWith('bxs-')) && 
+        cls !== 'bx' && cls !== 'bxs' && 
+        !cls.includes('tada') && 
+        !cls.includes('hover')) {
+      currentIconClass = cls;
+      break;
+    }
+  }
+  
+  if (!currentIconClass) return;
+  
+  // If already filled, do nothing
+  if (currentIconClass.startsWith('bxs-')) return;
+  
+  // Switch to filled
+  if (iconMap[currentIconClass]) {
+    icon.classList.remove(currentIconClass);
+    icon.classList.add(iconMap[currentIconClass]);
+  }
+}
+
+// Helper function to switch icon back to outline version
+function updateIconToOutline(button) {
+  if (!button) return;
+  
+  // Find the icon element - look for i tag with bx or bxs class, but not solo-icon-desktop
+  const icon = button.querySelector('i.bx:not(.solo-icon-desktop), i.bxs:not(.solo-icon-desktop)');
+  if (!icon) return;
+  
+  // Map of filled to outline icon classes
+  const iconMap = {
+    'bxs-home': 'bx-home',
+    'bxs-calendar': 'bx-calendar',
+    'bxs-football': 'bx-football',
+    'bxs-chart': 'bx-chart',
+    'bxs-user': 'bx-user'
+  };
+  
+  // Get all classes from the icon
+  const classes = Array.from(icon.classList);
+  
+  // Find the icon class (bx-* or bxs-*), excluding utility classes
+  let currentIconClass = null;
+  for (const cls of classes) {
+    if ((cls.startsWith('bx-') || cls.startsWith('bxs-')) && 
+        cls !== 'bx' && cls !== 'bxs' && 
+        !cls.includes('tada') && 
+        !cls.includes('hover')) {
+      currentIconClass = cls;
+      break;
+    }
+  }
+  
+  if (!currentIconClass) return;
+  
+  // If already outline, do nothing
+  if (currentIconClass.startsWith('bx-') && !currentIconClass.startsWith('bxs-')) return;
+  
+  // Switch to outline
+  if (iconMap[currentIconClass]) {
+    icon.classList.remove(currentIconClass);
+    icon.classList.add(iconMap[currentIconClass]);
+  }
+}
+
 // Function to attach navigation event listeners
 function attachNavigationListeners() {
   const buttons = document.querySelectorAll('.button');
@@ -437,10 +514,16 @@ function attachNavigationListeners() {
       e.preventDefault();
       const pageName = link.getAttribute('data-page');
       
-      // Update active state
-      const allButtons = document.querySelectorAll('.button');
-      allButtons.forEach(btn => btn.classList.remove('active'));
+      // Update active state - get fresh list of all buttons
+      const allButtons = document.querySelectorAll('.nav-list .button');
+      allButtons.forEach(btn => {
+        btn.classList.remove('active');
+        updateIconToOutline(btn);
+      });
+      
+      // Set the clicked button as active
       newButton.classList.add('active');
+      updateIconToFilled(newButton);
       
       // Load page (this will also save to localStorage)
       await loadPage(pageName);
@@ -518,6 +601,14 @@ async function initializeApp() {
   // Load leaderboard in top-bar
   await loadLeaderboard();
   
+  // Initialize sidebar photo (handles account switcher) - load dynamically
+  try {
+    const { initSidebarPhoto } = await import('../utils/sidebar-photo.js');
+    initSidebarPhoto();
+  } catch (error) {
+    console.error('Error initializing sidebar photo:', error);
+  }
+  
   const savedPage = localStorage.getItem(CURRENT_PAGE_STORAGE_KEY);
   const pageToLoad = savedPage || 'home';
   
@@ -526,12 +617,14 @@ async function initializeApp() {
   await updateNavigationForRole();
   
   // Set active state for the saved page
-  const allButtons = document.querySelectorAll('.button');
+  const allButtons = document.querySelectorAll('.nav-list .button');
   allButtons.forEach(btn => {
     btn.classList.remove('active');
+    updateIconToOutline(btn);
     const link = btn.querySelector('.nav-link[data-page]');
     if (link && link.getAttribute('data-page') === pageToLoad) {
       btn.classList.add('active');
+      updateIconToFilled(btn);
     }
   });
   

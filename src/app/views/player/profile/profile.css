@@ -8,9 +8,15 @@
 /* Profile page styles */
 .profile-container {
   padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .profile-header {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -111,7 +117,11 @@
 }
 
 .profile-content {
-  max-width: 800px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .profile-section {
@@ -120,6 +130,7 @@
   border-radius: 12px;
   padding: 32px;
   margin-bottom: 24px;
+  width: 100%;
 }
 
 .profile-section h2 {
@@ -127,6 +138,8 @@
   font-weight: 600;
   color: var(--text);
   margin: 0 0 24px 0;
+  width: 100%;
+  text-align: center;
 }
 
 /* Photo Upload Section */

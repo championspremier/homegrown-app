@@ -584,13 +584,15 @@ parentPlayerSignupForm?.addEventListener('submit', async (e) => {
     if (parentAccessToken && parentRefreshToken) {
       try {
         // Create a new Supabase client with the parent's session
+        // Use a different storage key to avoid conflicts with the main client
         const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
         const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('../config/supabase.js');
         
         const parentSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
           auth: {
             persistSession: false,
-            autoRefreshToken: false
+            autoRefreshToken: false,
+            storageKey: 'parent-temp-session' // Use different storage key to avoid conflicts
           }
         });
         

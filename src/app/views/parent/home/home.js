@@ -1,5 +1,6 @@
 // Parent Home page scripts
 import { initSupabase } from '../../../../auth/config/supabase.js';
+import { getAccountContext } from '../../../utils/account-context.js';
 
 let supabase;
 let supabaseReady = false;
@@ -15,10 +16,141 @@ async function init() {
     await loadLinkedPlayers();
     setupEventListeners();
     renderCalendar();
-    loadReservedSessions();
+    await loadReservedSessions();
+    
+    // Listen for account switcher changes to reload data
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'hg-user-role' || e.key === 'selectedPlayerId') {
+        // Reload linked players and sessions when role changes
+        loadLinkedPlayers().then(() => {
+          loadReservedSessions();
+          loadReservations();
+        });
+      }
+    });
+    
+    // Also listen for custom event from account switcher
+    window.addEventListener('accountSwitched', async (e) => {
+      console.log('Account switched event received:', e.detail);
+      await loadLinkedPlayers();
+      // Reload based on current tab
+      const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+      console.log('Active tab after account switch:', activeTab);
+      if (activeTab === 'reservations') {
+        console.log('Reloading reservations after account switch');
+        await loadReservations();
+      } else {
+        console.log('Reloading sessions after account switch');
+        await loadReservedSessions();
+      }
+    });
+    
+    // Setup real-time subscriptions for session updates
+    setupRealtimeSubscriptions();
+    
+    // Also listen for localStorage changes (when selectedPlayerId changes)
+    window.addEventListener('storage', async (e) => {
+      if (e.key === 'selectedPlayerId' || e.key === 'hg-user-role') {
+        console.log('Storage change detected:', e.key, e.newValue);
+        await loadLinkedPlayers();
+        const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+        if (activeTab === 'reservations') {
+          await loadReservations();
+        } else {
+          await loadReservedSessions();
+        }
+      }
+    });
   } else {
     console.error('Failed to initialize Supabase');
   }
+}
+
+// Get the actual parent ID (handles account switcher)
+async function getActualParentId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || !session.user) {
+    console.warn('getActualParentId: No session');
+    return null;
+  }
+  
+  const currentRole = localStorage.getItem('hg-user-role');
+  console.log(`getActualParentId: currentRole=${currentRole}, session.user.id=${session.user.id}`);
+  
+  // Always check the profile role first to determine if user is actually a player or parent
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single();
+  
+  if (!profile) {
+    console.warn('getActualParentId: No profile found');
+    return session.user.id; // Fallback
+  }
+  
+  console.log(`getActualParentId: profile.role=${profile.role}`);
+  
+  // If we're viewing as parent (role in localStorage is 'parent')
+  // AND the logged-in user is actually a player, find their parent
+  if (currentRole === 'parent' && profile.role === 'player') {
+    console.log('getActualParentId: Player viewing as parent, finding parent ID...');
+    const { data: relationship } = await supabase
+      .from('parent_player_relationships')
+      .select('parent_id')
+      .eq('player_id', session.user.id)
+      .single();
+    
+    if (relationship && relationship.parent_id) {
+      console.log(`getActualParentId: Found parent ID: ${relationship.parent_id}`);
+      return relationship.parent_id;
+    } else {
+      console.warn('getActualParentId: No parent relationship found for player');
+    }
+  }
+  
+  // If logged in as parent, use their ID
+  if (profile.role === 'parent') {
+    console.log(`getActualParentId: Logged in as parent, using ID: ${session.user.id}`);
+    return session.user.id;
+  }
+  
+  // If we're on the parent home page but logged in as a player,
+  // we MUST be viewing as parent (account switcher), so find the parent
+  // This is a safety check - if we're on parent pages, we should always have a parent ID
+  if (profile.role === 'player' && currentRole === 'parent') {
+    console.log('getActualParentId: Player on parent page, must be viewing as parent, finding parent ID...');
+    const { data: relationship } = await supabase
+      .from('parent_player_relationships')
+      .select('parent_id')
+      .eq('player_id', session.user.id)
+      .single();
+    
+    if (relationship && relationship.parent_id) {
+      console.log(`getActualParentId: Found parent ID: ${relationship.parent_id}`);
+      return relationship.parent_id;
+    }
+  }
+  
+  // Last resort: if we're a player but no role is set, still try to find parent
+  // (this handles cases where role hasn't been set yet)
+  if (profile.role === 'player') {
+    console.log('getActualParentId: Player detected, attempting to find parent...');
+    const { data: relationship } = await supabase
+      .from('parent_player_relationships')
+      .select('parent_id')
+      .eq('player_id', session.user.id)
+      .single();
+    
+    if (relationship && relationship.parent_id) {
+      console.log(`getActualParentId: Found parent ID (fallback): ${relationship.parent_id}`);
+      return relationship.parent_id;
+    }
+  }
+  
+  // Final fallback: use the logged-in user's ID
+  console.log(`getActualParentId: Final fallback to session.user.id: ${session.user.id}`);
+  return session.user.id;
 }
 
 // Load linked players
@@ -29,6 +161,15 @@ async function loadLinkedPlayers() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) return;
 
+    // Get the actual parent ID (handles account switcher)
+    const actualParentId = await getActualParentId();
+    if (!actualParentId) {
+      console.warn('Could not determine parent ID');
+      return;
+    }
+
+    console.log(`Loading linked players for parent ID: ${actualParentId}`);
+    
     const { data: relationships, error } = await supabase
       .from('parent_player_relationships')
       .select(`
@@ -39,18 +180,24 @@ async function loadLinkedPlayers() {
           last_name
         )
       `)
-      .eq('parent_id', session.user.id);
+      .eq('parent_id', actualParentId);
 
     if (error) {
       console.error('Error loading linked players:', error);
+      console.error('Error details:', { code: error.code, message: error.message });
       return;
     }
+
+    console.log(`Found ${relationships?.length || 0} relationships:`, relationships);
 
     linkedPlayers = (relationships || []).map(rel => ({
       id: rel.player_id,
       name: rel.player ? `${rel.player.first_name || ''} ${rel.player.last_name || ''}`.trim() : 'Player',
+      parentId: actualParentId, // Store parent ID for comparison
       ...rel.player
     }));
+
+    console.log(`Loaded ${linkedPlayers.length} linked players for parent ${actualParentId}:`, linkedPlayers);
 
   } catch (error) {
     console.error('Error loading linked players:', error);
@@ -92,7 +239,7 @@ function setupEventListeners() {
       }
     };
 
-    setOpen(true);
+    setOpen(false); // Start closed when navigating to home
 
     btn.addEventListener('click', () => {
       const openNow = panel.classList.contains('is-open');
@@ -191,14 +338,39 @@ async function loadReservedSessions() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) return;
 
-    const parentId = session.user.id;
+    // Get the actual parent ID (handles account switcher)
+    const parentId = await getActualParentId();
+    if (!parentId) {
+      console.warn('Could not determine parent ID');
+      return;
+    }
+    
+    // Ensure linkedPlayers is loaded for this parent ID
+    // Check if linkedPlayers is empty or if it's for a different parent
+    const needsReload = linkedPlayers.length === 0 || 
+                      (linkedPlayers.length > 0 && (!linkedPlayers[0].parentId || linkedPlayers[0].parentId !== parentId));
+    
+    if (needsReload) {
+      console.log('Linked players array needs reloading for parent:', parentId);
+      await loadLinkedPlayers();
+    }
+
     const container = document.getElementById('sessionsListContainer');
     if (!container) return;
 
     container.innerHTML = '<div class="loading-state">Loading sessions...</div>';
 
-    // Get all linked player IDs
-    const playerIds = linkedPlayers.map(p => p.id);
+    // Get account context to determine correct player IDs
+    const context = await getAccountContext();
+    if (!context) {
+      console.warn('Could not get account context');
+      return;
+    }
+    
+    // Get all linked player IDs from context (handles account switcher correctly)
+    const playerIds = context.getPlayerIdsToQuery();
+    
+    console.log(`Loading sessions for ${playerIds.length} players (parent: ${parentId}):`, playerIds);
     
     if (playerIds.length === 0) {
       container.innerHTML = '<div class="empty-state">No linked players found</div>';
@@ -206,6 +378,8 @@ async function loadReservedSessions() {
     }
 
     // Load group session reservations for all linked players
+    // Filter out cancelled reservations
+    console.log(`Querying group reservations for playerIds:`, playerIds);
     const { data: groupReservations, error: groupError } = await supabase
       .from('session_reservations')
       .select(`
@@ -411,7 +585,14 @@ function renderSessionsList(sessions, container) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const reservationId = btn.dataset.reservationId;
-      const isIndividual = btn.dataset.isIndividual === 'true';
+      const isIndividual = btn.dataset.isIndividual === 'true' || btn.dataset.isIndividual === true;
+      
+      console.log('Cancel button clicked:', {
+        reservationId,
+        isIndividual,
+        isIndividualRaw: btn.dataset.isIndividual,
+        buttonElement: btn
+      });
       
       // Check if this is a group session with multiple players
       // Get the session card to check for multiple reservations
@@ -430,7 +611,7 @@ function renderSessionsList(sessions, container) {
               try {
                 reservationPlayerMap = JSON.parse(reservationPlayerMapStr);
               } catch (err) {
-                console.warn('Error parsing reservation-player map:', err);
+                // Error parsing reservation-player map
               }
             }
             
@@ -440,7 +621,7 @@ function renderSessionsList(sessions, container) {
           }
         } catch (err) {
           // Invalid JSON - treat as single reservation
-          console.warn('Error parsing reservation IDs, treating as single:', err, 'String was:', reservationIdsStr);
+          // Error parsing reservation IDs, treating as single
         }
       }
       
@@ -470,12 +651,15 @@ function createSessionCard(session) {
   // Format date as "December 12th, 2025"
   let dateString = '';
   if (session.session_date) {
-    const sessionDate = new Date(session.session_date + 'T00:00:00');
+    // Parse date in local timezone to avoid date shifts
+    // session_date is a DATE string like "2026-01-02", parse it as local time
+    const [year, month, day] = session.session_date.split('-').map(Number);
+    const sessionDate = new Date(year, month - 1, day); // month is 0-indexed
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 
                     'July', 'August', 'September', 'October', 'November', 'December'];
-    const day = sessionDate.getDate();
-    const month = months[sessionDate.getMonth()];
-    const year = sessionDate.getFullYear();
+    const dayNum = sessionDate.getDate();
+    const monthName = months[sessionDate.getMonth()];
+    const yearNum = sessionDate.getFullYear();
     
     // Add ordinal suffix (st, nd, rd, th)
     const getOrdinalSuffix = (n) => {
@@ -484,7 +668,7 @@ function createSessionCard(session) {
       return s[(v - 20) % 10] || s[v] || s[0];
     };
     
-    dateString = `${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
+    dateString = `${monthName} ${dayNum}${getOrdinalSuffix(dayNum)}, ${yearNum}`;
   }
 
   const coachName = session.coach
@@ -557,7 +741,13 @@ async function loadReservations() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) return;
 
-    const parentId = session.user.id;
+    // Get the actual parent ID (handles account switcher)
+    const parentId = await getActualParentId();
+    if (!parentId) {
+      console.warn('Could not determine parent ID');
+      return;
+    }
+    
     const container = document.getElementById('reservationsListContainer');
     if (!container) return;
 
@@ -569,8 +759,28 @@ async function loadReservations() {
 
     container.innerHTML = '<div class="loading-state">Loading reservations...</div>';
 
-    // Get all linked player IDs
-    const playerIds = linkedPlayers.map(p => p.id);
+    // Ensure linkedPlayers is loaded for this parent ID
+    // Check if linkedPlayers is empty or if it's for a different parent
+    const needsReload = linkedPlayers.length === 0 || 
+                      (linkedPlayers.length > 0 && linkedPlayers[0].parentId !== parentId);
+    
+    if (needsReload) {
+      console.log('Linked players array needs reloading for parent:', parentId);
+      await loadLinkedPlayers();
+    }
+
+    // Get account context to determine correct player IDs
+    const context = await getAccountContext();
+    if (!context) {
+      console.warn('Could not get account context');
+      return;
+    }
+    
+    // Get all linked player IDs from context (handles account switcher correctly)
+    const playerIds = context.getPlayerIdsToQuery();
+    
+    console.log(`loadReservations: playerIds=${playerIds.join(', ')}, viewingAsParent=${context.viewingAsParent}, viewingAsPlayer=${context.viewingAsPlayer}`);
+    console.log(`Loading reservations for ${playerIds.length} players:`, playerIds);
     
     if (playerIds.length === 0) {
       container.innerHTML = '<div class="empty-state">No linked players found</div>';
@@ -583,6 +793,8 @@ async function loadReservations() {
     const todayStr = today.toISOString().split('T')[0];
 
     // Load group session reservations for all linked players
+    // Filter out cancelled reservations
+    console.log(`Querying group reservations for playerIds:`, playerIds);
     const { data: groupReservations, error: groupError } = await supabase
       .from('session_reservations')
       .select(`
@@ -611,7 +823,8 @@ async function loadReservations() {
         )
       `)
       .in('player_id', playerIds)
-      .in('reservation_status', ['reserved', 'checked-in']);
+      .in('reservation_status', ['reserved', 'checked-in'])
+      .neq('reservation_status', 'cancelled');
 
     // Filter for future sessions in JavaScript
     const futureGroupReservations = groupReservations?.filter(reservation => {
@@ -625,8 +838,55 @@ async function loadReservations() {
       console.error('Error loading group reservations:', groupError);
     }
 
-    // Use filtered reservations
+    console.log(`Loaded ${groupReservations?.length || 0} group reservations, ${futureGroupReservations.length} are future`);
+    const groupReservationsByPlayer = futureGroupReservations.map(r => ({
+      player_id: r.player_id,
+      player_name: r.player ? `${r.player.first_name} ${r.player.last_name}` : 'Unknown',
+      session_type: r.session?.session_type,
+      session_date: r.session?.session_date
+    }));
+    console.log('Group reservations by player:', groupReservationsByPlayer);
+    const uniquePlayerIds = [...new Set(groupReservationsByPlayer.map(r => r.player_id))];
+    console.log(`Group reservations found for ${uniquePlayerIds.length} unique players:`, uniquePlayerIds);
+    console.log('Expected player IDs:', playerIds);
+    
+    // Use filtered reservations (define early so we can use it in the check below)
     const filteredGroupReservations = futureGroupReservations;
+    
+    // Only log missing reservations if we actually found some reservations
+    // (meaning the query worked, but some players don't have reservations)
+    // If we found 0 reservations total, it's likely all players just don't have future reservations
+    const missingPlayerIds = playerIds.filter(id => !uniquePlayerIds.includes(id));
+    if (missingPlayerIds.length > 0 && filteredGroupReservations.length > 0) {
+      console.log(`Note: ${missingPlayerIds.length} player(s) don't have group reservations:`, missingPlayerIds);
+      // Get player names for missing IDs
+      const missingPlayerNames = linkedPlayers
+        .filter(p => missingPlayerIds.includes(p.id))
+        .map(p => p.name || `${p.first_name} ${p.last_name}`.trim());
+      console.log(`Players without reservations: ${missingPlayerNames.join(', ')}`);
+      
+      // Check if these players have any reservations at all (including past) - this will help determine if it's RLS or no data
+      const { data: allReservations, error: checkError } = await supabase
+        .from('session_reservations')
+        .select('player_id, reservation_status, session:sessions(session_date)')
+        .in('player_id', missingPlayerIds)
+        .in('reservation_status', ['reserved', 'checked-in']);
+      
+      if (checkError) {
+        console.error('Error checking for missing players reservations:', checkError);
+      } else {
+        console.log(`Found ${allReservations?.length || 0} total reservations (including past) for missing players:`, allReservations);
+        if (allReservations && allReservations.length > 0) {
+          const futureReservations = allReservations.filter(r => {
+            if (!r.session || !r.session.session_date) return false;
+            const sessionDate = new Date(r.session.session_date);
+            sessionDate.setHours(0, 0, 0, 0);
+            return sessionDate >= today;
+          });
+          console.log(`Of those, ${futureReservations.length} are future reservations`);
+        }
+      }
+    }
 
     // Load individual session bookings for all linked players (future only)
     const { data: individualBookings, error: individualError } = await supabase
@@ -657,6 +917,36 @@ async function loadReservations() {
 
     if (individualError) {
       console.error('Error loading individual bookings:', individualError);
+    }
+
+    console.log(`Loaded ${individualBookings?.length || 0} individual bookings (future only) for playerIds:`, playerIds);
+    
+    // Filter individual bookings to only show bookings for the selected player(s)
+    // This is a safety check in case RLS returns more than expected (siblings' bookings)
+    const filteredIndividualBookings = individualBookings?.filter(b => {
+      const matches = playerIds.includes(b.player_id);
+      if (!matches && individualBookings) {
+        console.log(`Filtering out booking for player ${b.player_id} (not in selected playerIds: ${playerIds.join(', ')})`);
+      }
+      return matches;
+    }) || [];
+    console.log(`Filtered individual bookings to ${filteredIndividualBookings.length} bookings (from ${individualBookings?.length || 0} total) for ${playerIds.length} player(s)`);
+    
+    const individualBookingsByPlayer = filteredIndividualBookings.map(b => ({
+      player_id: b.player_id,
+      player_name: b.player ? `${b.player.first_name} ${b.player.last_name}` : 'Unknown',
+      session_type: b.session_type?.display_name || b.session_type?.name,
+      booking_date: b.booking_date
+    }));
+    console.log('Individual bookings by player (after filtering):', individualBookingsByPlayer);
+    const uniqueIndividualPlayerIds = [...new Set(individualBookingsByPlayer.map(b => b.player_id))];
+    console.log(`Individual bookings found for ${uniqueIndividualPlayerIds.length} unique players:`, uniqueIndividualPlayerIds);
+    // Only warn about missing bookings if we actually loaded some bookings
+    // (meaning the query worked, but some players don't have bookings)
+    // If we loaded 0 bookings total, it's likely all players just don't have bookings
+    const missingIndividualPlayerIds = playerIds.filter(id => !uniqueIndividualPlayerIds.includes(id));
+    if (missingIndividualPlayerIds.length > 0 && filteredIndividualBookings.length > 0) {
+      console.log(`Note: ${missingIndividualPlayerIds.length} player(s) don't have individual bookings:`, missingIndividualPlayerIds);
     }
 
     // Combine and format sessions (same grouping logic as loadReservedSessions)
@@ -716,9 +1006,9 @@ async function loadReservations() {
       allSessions.push(session);
     });
 
-    // Add individual sessions
-    if (individualBookings) {
-      individualBookings.forEach(booking => {
+    // Add individual sessions (use filtered bookings to ensure only selected player's bookings are shown)
+    if (filteredIndividualBookings && filteredIndividualBookings.length > 0) {
+      filteredIndividualBookings.forEach(booking => {
         const player = booking.player;
         const playerName = player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() : null;
         
@@ -774,53 +1064,31 @@ async function cancelReservation(reservationId, isIndividual) {
   }
 
   try {
-    if (isIndividual) {
-      // Cancel individual session booking
-      // Don't use .select() as RLS might block it - just check for errors
-      const { error } = await supabase
-        .from('individual_session_bookings')
-        .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString()
-        })
-        .eq('id', reservationId);
+    // Use secure database function to cancel reservation
+    // This function verifies the parent-player relationship and handles RLS
+    const { data: success, error } = await supabase.rpc('cancel_reservation_for_player', {
+      p_reservation_id: reservationId,
+      p_is_individual: isIndividual
+    });
 
-      if (error) {
-        console.error('Error cancelling booking:', error);
-        // Check if it's an RLS error
-        if (error.code === '42501' || error.message?.includes('row-level security')) {
-          alert('You do not have permission to cancel this booking. Please contact support.');
-        } else {
-          alert(`Error: ${error.message}`);
-        }
-        return;
-      }
-      
-      // If no error, assume update succeeded (RLS would have blocked it if not allowed)
-      console.log('Booking cancellation update sent (no error)');
-    } else {
-      // Cancel group session reservation
-      // Don't use .select() as RLS might block it - just check for errors
-      const { error } = await supabase
-        .from('session_reservations')
-        .update({ reservation_status: 'cancelled' })
-        .eq('id', reservationId);
+    if (error) {
+      console.error('Error cancelling reservation:', error);
+      alert(`Error: ${error.message || 'Failed to cancel reservation'}`);
+      return;
+    }
 
-      if (error) {
-        console.error('Error cancelling reservation:', error);
-        // Check if it's an RLS error
-        if (error.code === '42501' || error.message?.includes('row-level security')) {
-          alert('You do not have permission to cancel this reservation. Please contact support.');
-        } else {
-          alert(`Error: ${error.message}`);
-        }
-        return;
-      }
-      
-      // If no error, assume update succeeded (RLS would have blocked it if not allowed)
-      console.log('Reservation cancellation update sent (no error)');
+    console.log('Cancellation RPC result:', success);
+    
+    if (!success) {
+      console.warn('RPC function returned false - reservation may not have been cancelled');
+      alert('Failed to cancel reservation. The reservation may not exist or you may not have permission.');
+      return;
+    }
 
-      // Update session reservation count
+    // Reservation cancelled successfully
+
+    // Update session reservation count for group sessions
+    if (!isIndividual) {
       const { data: reservation } = await supabase
         .from('session_reservations')
         .select('session_id')
@@ -844,33 +1112,58 @@ async function cancelReservation(reservationId, isIndividual) {
     }
 
     // Remove the reservation card from the DOM immediately
+    let cardRemoved = false;
+    console.log(`Attempting to remove card for reservation ${reservationId} (individual: ${isIndividual})`);
+    
     const btn = document.querySelector(`button[data-reservation-id="${reservationId}"]`);
     if (btn) {
+      console.log('Found cancel button:', btn);
       const reservationCard = btn.closest('.reserved-session-card');
       if (reservationCard) {
+        console.log('Found reservation card, removing:', reservationCard);
         reservationCard.remove();
-        console.log('Reservation card removed from DOM:', reservationId);
+        cardRemoved = true;
+        console.log('Reservation card removed from DOM');
       } else {
         console.warn('Button found but could not find parent .reserved-session-card');
+        // Try to find parent with different selector
+        let parent = btn.parentElement;
+        while (parent && !parent.classList.contains('reserved-session-card')) {
+          parent = parent.parentElement;
+        }
+        if (parent) {
+          console.log('Found card via parent traversal, removing:', parent);
+          parent.remove();
+          cardRemoved = true;
+        }
       }
     } else {
-      console.warn('Could not find cancel button with reservation-id:', reservationId);
-      // Try to find by session ID as fallback
+      // Could not find cancel button - try to find by session ID as fallback
+      console.warn('Could not find cancel button, trying fallback method');
       const allCards = document.querySelectorAll('.reserved-session-card');
+      console.log(`Found ${allCards.length} reservation cards to search`);
       for (const card of allCards) {
         const cardBtn = card.querySelector(`button[data-reservation-id="${reservationId}"]`);
         if (cardBtn) {
+          console.log('Found card via fallback, removing:', card);
           card.remove();
-          console.log('Reservation card removed using fallback method');
+          cardRemoved = true;
+          console.log('Reservation card removed using fallback');
           break;
         }
       }
     }
     
+    if (!cardRemoved) {
+      console.warn('Could not remove reservation card from DOM, will reload');
+    }
+    
     alert('Reservation cancelled successfully!');
     
-    // Reload based on current tab to ensure UI is in sync
+    // Always reload to ensure UI is in sync with database
+    // This is especially important for individual sessions
     const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+    console.log(`Reloading after cancellation, active tab: ${activeTab}`);
     if (activeTab === 'reservations') {
       await loadReservations();
     } else {
@@ -992,19 +1285,17 @@ async function cancelSelectedReservations(selectedReservationIds, isIndividual, 
     let sessionId = null;
 
     for (const reservationId of selectedReservationIds) {
-      if (isIndividual) {
-        const { error } = await supabase
-          .from('individual_session_bookings')
-          .update({ 
-            status: 'cancelled',
-            cancelled_at: new Date().toISOString()
-          })
-          .eq('id', reservationId);
+      // Use secure database function to cancel each reservation
+      const { data: success, error } = await supabase.rpc('cancel_reservation_for_player', {
+        p_reservation_id: reservationId,
+        p_is_individual: isIndividual
+      });
 
-        if (!error) cancelledCount++;
-      } else {
-        // Get session_id before cancelling (if we don't have it yet)
-        if (!sessionId) {
+      if (!error && success) {
+        cancelledCount++;
+        
+        // Get session_id for group sessions (if we don't have it yet)
+        if (!isIndividual && !sessionId) {
           const { data: reservation } = await supabase
             .from('session_reservations')
             .select('session_id')
@@ -1015,13 +1306,6 @@ async function cancelSelectedReservations(selectedReservationIds, isIndividual, 
             sessionId = reservation.session_id;
           }
         }
-
-        const { error } = await supabase
-          .from('session_reservations')
-          .update({ reservation_status: 'cancelled' })
-          .eq('id', reservationId);
-
-        if (!error) cancelledCount++;
       }
     }
 
@@ -1041,24 +1325,20 @@ async function cancelSelectedReservations(selectedReservationIds, isIndividual, 
       }
     }
 
-    // If all reservations were cancelled, remove the entire card
-    // Otherwise, we'll need to reload to update the card
-    if (selectedReservationIds.length === allReservationIds.length) {
-      if (sessionCard) {
-        sessionCard.remove();
-        console.log('All reservations cancelled, card removed');
-      }
+    // Always reload to ensure UI is in sync with database
+    // This is more reliable than trying to manually remove cards
+    const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+    if (activeTab === 'reservations') {
+      await loadReservations();
     } else {
-      // Some reservations remain - reload to update the card
-      const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
-      if (activeTab === 'reservations') {
-        await loadReservations();
-      } else {
-        await loadReservedSessions();
-      }
+      await loadReservedSessions();
     }
 
-    alert(`${cancelledCount} reservation(s) cancelled successfully!`);
+    if (cancelledCount > 0) {
+      alert(`${cancelledCount} reservation(s) cancelled successfully!`);
+    } else {
+      alert('No reservations were cancelled. Please try again.');
+    }
   } catch (error) {
     console.error('Error cancelling selected reservations:', error);
     alert(`Error: ${error.message}`);
@@ -1074,34 +1354,27 @@ async function cancelMultipleReservations(reservationIds, isIndividual, sessionC
     let sessionId = null;
 
     for (const reservationId of reservationIds) {
-      if (isIndividual) {
-        const { error } = await supabase
-          .from('individual_session_bookings')
-          .update({ 
-            status: 'cancelled',
-            cancelled_at: new Date().toISOString()
-          })
-          .eq('id', reservationId);
+      // Use secure database function to cancel each reservation
+      const { data: success, error } = await supabase.rpc('cancel_reservation_for_player', {
+        p_reservation_id: reservationId,
+        p_is_individual: isIndividual
+      });
 
-        if (!error) cancelledCount++;
-      } else {
-        // Get session_id before cancelling
-        const { data: reservation } = await supabase
-          .from('session_reservations')
-          .select('session_id')
-          .eq('id', reservationId)
-          .single();
+      if (!error && success) {
+        cancelledCount++;
+        
+        // Get session_id for group sessions (if we don't have it yet)
+        if (!isIndividual && !sessionId) {
+          const { data: reservation } = await supabase
+            .from('session_reservations')
+            .select('session_id')
+            .eq('id', reservationId)
+            .single();
 
-        if (reservation) {
-          sessionId = reservation.session_id;
+          if (reservation) {
+            sessionId = reservation.session_id;
+          }
         }
-
-        const { error } = await supabase
-          .from('session_reservations')
-          .update({ reservation_status: 'cancelled' })
-          .eq('id', reservationId);
-
-        if (!error) cancelledCount++;
       }
     }
 
@@ -1137,6 +1410,120 @@ async function cancelMultipleReservations(reservationIds, isIndividual, sessionC
     console.error('Error cancelling reservations:', error);
     alert(`Error: ${error.message}`);
   }
+}
+
+// Setup real-time subscriptions to listen for reservation changes
+async function setupRealtimeSubscriptions() {
+  if (!supabaseReady || !supabase) return;
+
+  // Get account context to determine which players to listen for
+  const context = await getAccountContext();
+  if (!context) {
+    console.warn('Could not get account context for real-time subscriptions');
+    return;
+  }
+
+  const playerIds = context.getPlayerIdsToQuery();
+  if (playerIds.length === 0) {
+    console.warn('No player IDs to subscribe to');
+    return;
+  }
+
+  // Subscribe to group session reservations changes
+  const groupReservationsChannel = supabase
+    .channel('parent-group-reservations-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'session_reservations'
+      },
+      async (payload) => {
+        // Check if this reservation is for one of our linked players
+        if (payload.new && playerIds.includes(payload.new.player_id)) {
+          console.log('New group reservation created for linked player, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'session_reservations',
+        filter: 'reservation_status=eq.cancelled'
+      },
+      async (payload) => {
+        // Check if this reservation is for one of our linked players
+        if (payload.new && playerIds.includes(payload.new.player_id)) {
+          console.log('Group reservation cancelled for linked player, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .subscribe();
+
+  // Subscribe to individual session bookings changes
+  const individualBookingsChannel = supabase
+    .channel('parent-individual-bookings-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'individual_session_bookings'
+      },
+      async (payload) => {
+        // Check if this booking is for one of our linked players
+        if (payload.new && playerIds.includes(payload.new.player_id)) {
+          console.log('New individual booking created for linked player, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'individual_session_bookings',
+        filter: 'status=eq.cancelled'
+      },
+      async (payload) => {
+        // Check if this booking is for one of our linked players
+        if (payload.new && playerIds.includes(payload.new.player_id)) {
+          console.log('Individual booking cancelled for linked player, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .subscribe();
 }
 
 // Initialize on page load

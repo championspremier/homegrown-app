@@ -1,5 +1,6 @@
 // Player Home page scripts
 import { initSupabase } from '../../../../auth/config/supabase.js';
+import { getAccountContext } from '../../../utils/account-context.js';
 
 let supabase;
 let supabaseReady = false;
@@ -13,6 +14,7 @@ async function init() {
     supabaseReady = true;
     setupEventListeners();
     renderCalendar();
+    setupRealtimeSubscriptions();
     loadReservedSessions();
   } else {
     console.error('Failed to initialize Supabase');
@@ -44,25 +46,25 @@ function setupEventListeners() {
   const btn = document.getElementById('scheduleToggle');
   const panel = document.getElementById('hiddenSchedule');
   if (btn && panel) {
-    const icon = btn.querySelector('i');
-    const setOpen = (open) => {
-      panel.classList.toggle('is-open', open);
-      btn.setAttribute('aria-expanded', String(open));
-      if (icon) {
-        icon.classList.toggle('bx-chevron-down', open);
-        icon.classList.toggle('bx-chevron-up', !open);
-      }
-    };
+  const icon = btn.querySelector('i');
+  const setOpen = (open) => {
+    panel.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', String(open));
+    if (icon) {
+      icon.classList.toggle('bx-chevron-down', open);
+      icon.classList.toggle('bx-chevron-up', !open);
+    }
+  };
 
-    setOpen(true);
+  setOpen(false); // Start closed when navigating to home
 
-    btn.addEventListener('click', () => {
-      const openNow = panel.classList.contains('is-open');
-      setOpen(!openNow);
+  btn.addEventListener('click', () => {
+    const openNow = panel.classList.contains('is-open');
+    setOpen(!openNow);
       if (!openNow) {
         loadReservedSessions();
       }
-    });
+  });
   }
 }
 
@@ -150,63 +152,18 @@ async function loadReservedSessions() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) return;
 
-    // Get the actual player ID - handle account switcher case
-    let playerId = session.user.id;
-    const currentRole = await window.getCurrentRole?.();
+    // Get account context to determine correct player ID
+    const context = await getAccountContext();
+    if (!context) {
+      console.warn('Could not get account context');
+      return;
+    }
     
-    // If parent is viewing as player, get the selected player ID from localStorage
-    if (currentRole === 'player') {
-      // Check if user is actually a parent viewing as a player
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (profile && profile.role === 'parent') {
-        // Get the selected player ID from localStorage (set by account switcher)
-        const selectedPlayerId = localStorage.getItem('selectedPlayerId');
-        
-        if (selectedPlayerId) {
-          // Verify this player is actually linked to this parent
-          const { data: relationship } = await supabase
-            .from('parent_player_relationships')
-            .select('player_id')
-            .eq('parent_id', session.user.id)
-            .eq('player_id', selectedPlayerId)
-            .single();
-          
-          if (relationship) {
-            playerId = selectedPlayerId;
-          } else {
-            // If stored player ID is invalid, fall back to first linked player
-            const { data: relationships } = await supabase
-              .from('parent_player_relationships')
-              .select('player_id')
-              .eq('parent_id', session.user.id)
-              .limit(1);
-            
-            if (relationships && relationships.length > 0) {
-              playerId = relationships[0].player_id;
-              // Update localStorage with the valid player ID
-              localStorage.setItem('selectedPlayerId', playerId);
-            }
-          }
-        } else {
-          // No stored player ID, get the first linked player
-          const { data: relationships } = await supabase
-            .from('parent_player_relationships')
-            .select('player_id')
-            .eq('parent_id', session.user.id)
-            .limit(1);
-          
-          if (relationships && relationships.length > 0) {
-            playerId = relationships[0].player_id;
-            // Store it for next time
-            localStorage.setItem('selectedPlayerId', playerId);
-          }
-        }
-      }
+    // Get the correct player ID for this view
+    const playerId = context.getPlayerIdForAction();
+    if (!playerId) {
+      console.warn('Could not determine player ID');
+      return;
     }
     
     const container = document.getElementById('sessionsListContainer');
@@ -447,12 +404,15 @@ function createSessionCard(session) {
   // Format date as "December 12th, 2025"
   let dateString = '';
   if (session.session_date) {
-    const sessionDate = new Date(session.session_date + 'T00:00:00');
+    // Parse date in local timezone to avoid date shifts
+    // session_date is a DATE string like "2026-01-02", parse it as local time
+    const [year, month, day] = session.session_date.split('-').map(Number);
+    const sessionDate = new Date(year, month - 1, day); // month is 0-indexed
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 
                     'July', 'August', 'September', 'October', 'November', 'December'];
-    const day = sessionDate.getDate();
-    const month = months[sessionDate.getMonth()];
-    const year = sessionDate.getFullYear();
+    const dayNum = sessionDate.getDate();
+    const monthName = months[sessionDate.getMonth()];
+    const yearNum = sessionDate.getFullYear();
     
     // Add ordinal suffix (st, nd, rd, th)
     const getOrdinalSuffix = (n) => {
@@ -461,7 +421,7 @@ function createSessionCard(session) {
       return s[(v - 20) % 10] || s[v] || s[0];
     };
     
-    dateString = `${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
+    dateString = `${monthName} ${dayNum}${getOrdinalSuffix(dayNum)}, ${yearNum}`;
   }
 
   const coachName = session.coach
@@ -513,63 +473,18 @@ async function loadReservations() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) return;
 
-    // Get the actual player ID - handle account switcher case (same logic as loadReservedSessions)
-    let playerId = session.user.id;
-    const currentRole = await window.getCurrentRole?.();
+    // Get account context to determine correct player ID
+    const context = await getAccountContext();
+    if (!context) {
+      console.warn('Could not get account context');
+      return;
+    }
     
-    // If parent is viewing as player, get the selected player ID from localStorage
-    if (currentRole === 'player') {
-      // Check if user is actually a parent viewing as a player
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (profile && profile.role === 'parent') {
-        // Get the selected player ID from localStorage (set by account switcher)
-        const selectedPlayerId = localStorage.getItem('selectedPlayerId');
-        
-        if (selectedPlayerId) {
-          // Verify this player is actually linked to this parent
-          const { data: relationship } = await supabase
-            .from('parent_player_relationships')
-            .select('player_id')
-            .eq('parent_id', session.user.id)
-            .eq('player_id', selectedPlayerId)
-            .single();
-          
-          if (relationship) {
-            playerId = selectedPlayerId;
-          } else {
-            // If stored player ID is invalid, fall back to first linked player
-            const { data: relationships } = await supabase
-              .from('parent_player_relationships')
-              .select('player_id')
-              .eq('parent_id', session.user.id)
-              .limit(1);
-            
-            if (relationships && relationships.length > 0) {
-              playerId = relationships[0].player_id;
-              // Update localStorage with the valid player ID
-              localStorage.setItem('selectedPlayerId', playerId);
-            }
-          }
-        } else {
-          // No stored player ID, get the first linked player
-          const { data: relationships } = await supabase
-            .from('parent_player_relationships')
-            .select('player_id')
-            .eq('parent_id', session.user.id)
-            .limit(1);
-          
-          if (relationships && relationships.length > 0) {
-            playerId = relationships[0].player_id;
-            // Store it for next time
-            localStorage.setItem('selectedPlayerId', playerId);
-          }
-        }
-      }
+    // Get the correct player ID for this view
+    const playerId = context.getPlayerIdForAction();
+    if (!playerId) {
+      console.warn('Could not determine player ID');
+      return;
     }
     
     const container = document.getElementById('reservationsListContainer');
@@ -728,53 +643,25 @@ async function cancelReservation(reservationId, isIndividual) {
   }
 
   try {
-    if (isIndividual) {
-      // Cancel individual session booking
-      // Don't use .select() as RLS might block it - just check for errors
-      const { error } = await supabase
-        .from('individual_session_bookings')
-        .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString()
-        })
-        .eq('id', reservationId);
+    // Use RPC function to cancel (works for both parent and player)
+    const { data: cancelled, error: rpcError } = await supabase.rpc('cancel_reservation_for_player', {
+      p_reservation_id: reservationId,
+      p_is_individual: isIndividual
+    });
 
-      if (error) {
-        console.error('Error cancelling booking:', error);
-        // Check if it's an RLS error
-        if (error.code === '42501' || error.message?.includes('row-level security')) {
-          alert('You do not have permission to cancel this booking. Please contact support.');
-        } else {
-          alert(`Error: ${error.message}`);
-        }
-        return;
-      }
-      
-      // If no error, assume update succeeded (RLS would have blocked it if not allowed)
-      console.log('Booking cancellation update sent (no error)');
-    } else {
-      // Cancel group session reservation
-      // Don't use .select() as RLS might block it - just check for errors
-      const { error } = await supabase
-        .from('session_reservations')
-        .update({ reservation_status: 'cancelled' })
-        .eq('id', reservationId);
+    if (rpcError) {
+      console.error('Error cancelling reservation:', rpcError);
+      alert(`Error: ${rpcError.message || 'Failed to cancel reservation'}`);
+      return;
+    }
 
-      if (error) {
-        console.error('Error cancelling reservation:', error);
-        // Check if it's an RLS error
-        if (error.code === '42501' || error.message?.includes('row-level security')) {
-          alert('You do not have permission to cancel this reservation. Please contact support.');
-        } else {
-          alert(`Error: ${error.message}`);
-        }
-        return;
-      }
-      
-      // If no error, assume update succeeded (RLS would have blocked it if not allowed)
-      console.log('Reservation cancellation update sent (no error)');
+    if (!cancelled) {
+      alert('Failed to cancel reservation. Please try again.');
+      return;
+    }
 
-      // Update session reservation count
+    // If group reservation, update session reservation count
+    if (!isIndividual) {
       const { data: reservation } = await supabase
         .from('session_reservations')
         .select('session_id')
@@ -803,19 +690,19 @@ async function cancelReservation(reservationId, isIndividual) {
       const reservationCard = btn.closest('.reserved-session-card');
       if (reservationCard) {
         reservationCard.remove();
-        console.log('Reservation card removed from DOM:', reservationId);
+        // Reservation card removed
       } else {
-        console.warn('Button found but could not find parent .reserved-session-card');
+        // Button found but could not find parent card
       }
     } else {
-      console.warn('Could not find cancel button with reservation-id:', reservationId);
+      // Could not find cancel button
       // Try to find by session ID as fallback
       const allCards = document.querySelectorAll('.reserved-session-card');
       for (const card of allCards) {
         const cardBtn = card.querySelector(`button[data-reservation-id="${reservationId}"]`);
         if (cardBtn) {
           card.remove();
-          console.log('Reservation card removed using fallback method');
+          // Reservation card removed using fallback
           break;
         }
       }
@@ -834,6 +721,121 @@ async function cancelReservation(reservationId, isIndividual) {
     console.error('Error cancelling reservation:', error);
     alert(`Error: ${error.message}`);
   }
+}
+
+// Setup real-time subscriptions to listen for reservation changes
+async function setupRealtimeSubscriptions() {
+  if (!supabaseReady || !supabase) return;
+
+  // Import account context
+  const { getAccountContext } = await import('../../../utils/account-context.js');
+  const context = await getAccountContext();
+  if (!context) {
+    console.warn('Could not get account context for real-time subscriptions');
+    return;
+  }
+
+  const playerId = context.getPlayerIdForAction();
+  if (!playerId) {
+    console.warn('No player ID to subscribe to');
+    return;
+  }
+
+  // Subscribe to group session reservations changes
+  const groupReservationsChannel = supabase
+    .channel('player-home-group-reservations-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'session_reservations'
+      },
+      async (payload) => {
+        // Only reload if this reservation is for the current player
+        if (payload.new && payload.new.player_id === playerId) {
+          console.log('New group reservation created, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'session_reservations',
+        filter: 'reservation_status=eq.cancelled'
+      },
+      async (payload) => {
+        // Only reload if this reservation is for the current player
+        if (payload.new && payload.new.player_id === playerId) {
+          console.log('Group reservation cancelled, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .subscribe();
+
+  // Subscribe to individual session bookings changes
+  const individualBookingsChannel = supabase
+    .channel('player-home-individual-bookings-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'individual_session_bookings'
+      },
+      async (payload) => {
+        // Only reload if this booking is for the current player
+        if (payload.new && payload.new.player_id === playerId) {
+          console.log('New individual booking created, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'individual_session_bookings',
+        filter: 'status=eq.cancelled'
+      },
+      async (payload) => {
+        // Only reload if this booking is for the current player
+        if (payload.new && payload.new.player_id === playerId) {
+          console.log('Individual booking cancelled, reloading sessions:', payload);
+          // Reload based on current tab
+          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          if (activeTab === 'reservations') {
+            await loadReservations();
+          } else {
+            await loadReservedSessions();
+          }
+        }
+      }
+    )
+    .subscribe();
 }
 
 // Initialize on page load

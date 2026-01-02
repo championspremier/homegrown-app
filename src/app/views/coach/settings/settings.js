@@ -54,42 +54,64 @@ if (window.initThemeToggle) {
   }
 }
 
-// Logout functionality
-const logoutBtn = document.getElementById('logoutBtn');
-
-logoutBtn?.addEventListener('click', async () => {
-  // Try to sign out if Supabase is available, but always clear storage and redirect
-  if (supabaseReady && supabase) {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.warn('Sign out error (continuing anyway):', error);
-      }
-    } catch (error) {
-      console.warn('Sign out failed (continuing anyway):', error);
-    }
-  } else {
-    // Try to initialize one more time
-    try {
-      const client = await initSupabase();
-      if (client) {
-        supabase = client;
-        supabaseReady = true;
-        try {
-          await supabase.auth.signOut();
-        } catch (e) {
-          // Ignore sign out errors if not logged in
-        }
-      }
-    } catch (error) {
-      console.warn('Supabase not available, proceeding with logout anyway:', error);
-    }
+// Logout functionality - attach after DOM is ready
+function setupLogoutButton() {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (!logoutBtn) {
+    // Button not found, try again after a short delay
+    setTimeout(setupLogoutButton, 100);
+    return;
   }
 
-  // Always clear local storage and redirect, regardless of Supabase status
-  localStorage.clear();
-  
-  // Redirect to unlock page (server runs from src directory, serve strips .html extension)
-  window.location.href = '/auth/unlock/unlock';
-});
+  // Remove existing listeners by cloning
+  const newLogoutBtn = logoutBtn.cloneNode(true);
+  logoutBtn.parentNode.replaceChild(newLogoutBtn, logoutBtn);
+
+  newLogoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Try to sign out if Supabase is available, but always clear storage and redirect
+    if (supabaseReady && supabase) {
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.warn('Sign out error (continuing anyway):', error);
+        }
+      } catch (error) {
+        console.warn('Sign out failed (continuing anyway):', error);
+      }
+    } else {
+      // Try to initialize one more time
+      try {
+        const client = await initSupabase();
+        if (client) {
+          supabase = client;
+          supabaseReady = true;
+          try {
+            await supabase.auth.signOut();
+          } catch (e) {
+            // Ignore sign out errors if not logged in
+          }
+        }
+      } catch (error) {
+        console.warn('Supabase not available, proceeding with logout anyway:', error);
+      }
+    }
+
+    // Always clear local storage and redirect, regardless of Supabase status
+    // Preserve theme preference across logouts
+    const savedTheme = localStorage.getItem('hg-theme');
+    localStorage.clear();
+    if (savedTheme) {
+      localStorage.setItem('hg-theme', savedTheme);
+    }
+    
+    // Redirect to unlock page
+    window.location.href = '/auth/unlock/unlock.html';
+  });
+}
+
+// Setup logout button after a short delay to ensure DOM is ready
+setTimeout(setupLogoutButton, 100);
 

@@ -62,9 +62,20 @@ homegrown-app/
 4. **Deploy Edge Functions**
    - Follow the [Edge Function Deployment Guide](./docs/setup/DEPLOY_EDGE_FUNCTION.md)
 
-5. **Start Development**
-   - Open `src/index.html` in a local server
-   - Or use a simple HTTP server: `python -m http.server 8000`
+5. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+6. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
+   This will start a local development server at `http://localhost:3000`
+   - The server will automatically open in your browser
+   - Login page: `http://localhost:3000/auth/login-signup/login-signup.html`
+   - Coach login: `http://localhost:3000/auth/coach-login/coach-login.html`
+   - Main app: `http://localhost:3000/index.html`
 
 ## Documentation
 

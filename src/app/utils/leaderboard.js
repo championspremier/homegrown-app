@@ -81,7 +81,7 @@ export async function loadLeaderboard(container) {
       ).then(results => {
         const successful = results.filter(r => r.status === 'fulfilled').length;
         const failed = results.filter(r => r.status === 'rejected').length;
-        console.log(`Photo loading complete: ${successful} successful, ${failed} failed`);
+        // Photo loading complete
       });
     }, 100);
 
@@ -136,7 +136,7 @@ export async function getPlayerLeaderboardStats(playerId) {
  */
 async function loadPlayerPhoto(playerId) {
   if (!playerId) {
-    console.warn('loadPlayerPhoto called without playerId');
+    // loadPlayerPhoto called without playerId
     return;
   }
 
@@ -154,10 +154,7 @@ async function loadPlayerPhoto(playerId) {
       .list(`${playerId}/`, { limit: 10 });
 
     if (listError) {
-      console.warn(`Error listing files for player ${playerId}:`, listError);
-      console.warn(`List error details:`, JSON.stringify(listError, null, 2));
-    } else {
-      console.log(`Files found for player ${playerId}:`, files ? files.length : 0, files);
+      // Error listing files
     }
 
     // Since bucket is public, try common avatar file extensions directly
@@ -171,7 +168,7 @@ async function loadPlayerPhoto(playerId) {
         .from('profile-photos')
         .getPublicUrl(`${playerId}/avatar.${ext}`);
       
-      console.log(`Testing photo URL for player ${playerId}: ${publicUrl}`);
+      // Testing photo URL
       
       // Test if image exists by creating an image element
       const testUrlWithCache = `${publicUrl}?t=${Date.now()}&player=${playerId}`;
@@ -183,14 +180,14 @@ async function loadPlayerPhoto(playerId) {
           testImg.onload = () => {
             if (!resolved) {
               resolved = true;
-              console.log(`✓ Image loaded successfully for player ${playerId} (${ext}): ${publicUrl}`);
+              // Image loaded successfully
               resolve(true);
             }
           };
           testImg.onerror = (e) => {
             if (!resolved) {
               resolved = true;
-              console.log(`✗ Image failed to load for player ${playerId} (${ext}): ${publicUrl}`);
+              // Image failed to load
               resolve(false);
             }
           };
@@ -199,7 +196,7 @@ async function loadPlayerPhoto(playerId) {
           setTimeout(() => {
             if (!resolved) {
               resolved = true;
-              console.log(`⏱ Image load timeout for player ${playerId} (${ext})`);
+              // Image load timeout
               resolve(false);
             }
           }, 2000);
@@ -207,19 +204,18 @@ async function loadPlayerPhoto(playerId) {
         
         if (imageLoaded) {
           photoUrl = publicUrl;
-          console.log(`✓ Found valid photo for player ${playerId}: ${photoUrl}`);
+          // Found valid photo
           break; // Found a valid image
         }
       } catch (e) {
-        console.warn(`Error testing image for player ${playerId} (${ext}):`, e);
+        // Error testing image
         continue;
       }
     }
 
     if (!photoUrl) {
-      console.log(`No photo found for player ${playerId} (tried: ${extensions.join(', ')})`);
+      // No photo found with standard extensions
       if (files && files.length > 0) {
-        console.log(`But files exist in folder:`, files.map(f => f.name));
         // Try using the actual file name from the list
         const avatarFile = files.find(f => f.name.toLowerCase().startsWith('avatar.'));
         if (avatarFile) {
@@ -227,7 +223,7 @@ async function loadPlayerPhoto(playerId) {
             .from('profile-photos')
             .getPublicUrl(`${playerId}/${avatarFile.name}`);
           photoUrl = publicUrl;
-          console.log(`✓ Using actual file name: ${avatarFile.name} -> ${photoUrl}`);
+          // Using actual file name
           
           // Test this URL too
           const testImg2 = new Image();
@@ -238,14 +234,14 @@ async function loadPlayerPhoto(playerId) {
               testImg2.onload = () => {
                 if (!resolved) {
                   resolved = true;
-                  console.log(`✓ Actual file loaded successfully: ${avatarFile.name}`);
+                  // Actual file loaded successfully
                   resolve(true);
                 }
               };
               testImg2.onerror = () => {
                 if (!resolved) {
                   resolved = true;
-                  console.log(`✗ Actual file failed to load: ${avatarFile.name}`);
+                  // Actual file failed to load
                   resolve(false);
                 }
               };
@@ -259,15 +255,15 @@ async function loadPlayerPhoto(playerId) {
             });
             
             if (!imageLoaded2) {
-              console.warn(`Actual file ${avatarFile.name} failed to load, clearing photoUrl`);
+              // Actual file failed to load, clearing photoUrl
               photoUrl = null;
             }
           } catch (e) {
-            console.warn(`Error testing actual file ${avatarFile.name}:`, e);
+            // Error testing actual file
             photoUrl = null;
           }
         } else {
-          console.log(`No file starting with 'avatar.' found in folder. Available files:`, files.map(f => f.name));
+          // No file starting with 'avatar.' found
         }
       }
       if (!photoUrl) {
@@ -281,13 +277,13 @@ async function loadPlayerPhoto(playerId) {
     // Update the leaderboard item
     const item = document.querySelector(`.player-leaderboard-item[data-player-id="${playerId}"]`);
     if (!item) {
-      console.warn(`Leaderboard item not found for player ${playerId}`);
+      // Leaderboard item not found
       return; // Item not found
     }
 
     const circleImg = item.querySelector('.player-circle-img');
     if (!circleImg) {
-      console.warn(`Circle img not found for player ${playerId}`);
+      // Circle img not found
       return;
     }
 
@@ -315,7 +311,7 @@ async function loadPlayerPhoto(playerId) {
       
       // Handle successful load
       photo.onload = () => {
-        console.log(`✓ Photo loaded successfully for player ${playerId}`);
+        // Photo loaded successfully
         // Force visibility
         photo.style.display = 'block';
         photo.style.visibility = 'visible';
@@ -341,7 +337,7 @@ async function loadPlayerPhoto(playerId) {
       if (positionBadge) {
         // Make sure badge is still in the circleImg
         if (!circleImg.contains(positionBadge)) {
-          console.warn(`Position badge was removed! Re-adding for player ${playerId}`);
+          // Position badge was removed, re-adding
           // Recreate badge if it was lost
           const newBadge = document.createElement('div');
           newBadge.className = 'player-leader-position';
@@ -368,10 +364,10 @@ async function loadPlayerPhoto(playerId) {
           positionBadge.style.opacity = '0.85';
           positionBadge.style.zIndex = '100';
           positionBadge.style.position = 'absolute';
-          console.log(`✓ Position badge confirmed visible for player ${playerId}: ${positionBadge.textContent}`);
+          // Position badge confirmed visible
         }
       } else {
-        console.error(`✗ Position badge missing for player ${playerId}!`);
+        // Position badge missing
       }
     } else {
       // Update existing photo

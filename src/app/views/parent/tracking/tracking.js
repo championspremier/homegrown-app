@@ -15,6 +15,39 @@ initSupabase().then(client => {
   }
 });
 
+// Get the actual parent ID (handles account switcher)
+async function getActualParentId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || !session.user) return null;
+  
+  const currentRole = localStorage.getItem('hg-user-role');
+  
+  // If we're in parent view but logged in as a player, find the parent
+  if (currentRole === 'parent') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    
+    // If current user is actually a player, find their parent
+    if (profile && profile.role === 'player') {
+      const { data: relationship } = await supabase
+        .from('parent_player_relationships')
+        .select('parent_id')
+        .eq('player_id', session.user.id)
+        .single();
+      
+      if (relationship) {
+        return relationship.parent_id;
+      }
+    }
+  }
+  
+  // Otherwise, use the logged-in user's ID
+  return session.user.id;
+}
+
 async function init() {
   if (!supabaseReady) return;
 
@@ -25,12 +58,85 @@ async function init() {
       return;
     }
 
-    const parentId = session.user.id;
+    // Check if viewing as a player (parent switched to player account)
+    const currentRole = localStorage.getItem('hg-user-role');
+    const selectedPlayerId = localStorage.getItem('selectedPlayerId');
+    
+    if (currentRole === 'player' && selectedPlayerId) {
+      // Parent viewing as player - load that player's data directly
+      console.log(`Loading tracking data for selected player: ${selectedPlayerId}`);
+      await loadPlayerData(selectedPlayerId);
+      // Hide player selector when viewing as specific player
+      const selectorSection = document.getElementById('playerSelectorSection');
+      if (selectorSection) {
+        selectorSection.style.display = 'none';
+      }
+      return;
+    }
+
+    // Get the actual parent ID (handles account switcher)
+    const parentId = await getActualParentId();
+    if (!parentId) {
+      console.error('Could not determine parent ID');
+      return;
+    }
+
     await loadLinkedPlayers(parentId);
     setupPlayerSelector();
+    
+    // Listen for account switches
+    setupAccountSwitchListener();
   } catch (error) {
     console.error('Error initializing tracking:', error);
   }
+}
+
+// Listen for account switches and reload data
+function setupAccountSwitchListener() {
+  window.addEventListener('accountSwitched', async (event) => {
+    const { role, accountId } = event.detail || {};
+    const selectedPlayerId = localStorage.getItem('selectedPlayerId');
+    
+    if (role === 'player' && selectedPlayerId) {
+      // Parent switched to player - load that player's data
+      console.log(`Account switched to player: ${selectedPlayerId}`);
+      await loadPlayerData(selectedPlayerId);
+      // Hide player selector when viewing as specific player
+      const selectorSection = document.getElementById('playerSelectorSection');
+      if (selectorSection) {
+        selectorSection.style.display = 'none';
+      }
+    } else if (role === 'parent') {
+      // Switched back to parent - reload linked players
+      const parentId = await getActualParentId();
+      if (parentId) {
+        await loadLinkedPlayers(parentId);
+        setupPlayerSelector();
+      }
+    }
+  });
+  
+  // Also listen for storage changes (in case account switch happens in another tab/window)
+  window.addEventListener('storage', async (event) => {
+    if (event.key === 'selectedPlayerId' || event.key === 'hg-user-role') {
+      const currentRole = localStorage.getItem('hg-user-role');
+      const selectedPlayerId = localStorage.getItem('selectedPlayerId');
+      
+      if (currentRole === 'player' && selectedPlayerId) {
+        await loadPlayerData(selectedPlayerId);
+        const selectorSection = document.getElementById('playerSelectorSection');
+        if (selectorSection) {
+          selectorSection.style.display = 'none';
+        }
+      } else if (currentRole === 'parent') {
+        const parentId = await getActualParentId();
+        if (parentId) {
+          await loadLinkedPlayers(parentId);
+          setupPlayerSelector();
+        }
+      }
+    }
+  });
 }
 
 async function loadLinkedPlayers(parentId) {
@@ -173,9 +279,9 @@ async function loadPointsHistory(playerId, view = 'current') {
         .eq('quarter_year', year)
         .eq('quarter_number', quarter)
         .eq('status', 'active');
-    } else {
-      // Previous quarters - show archived or all
-      query = query.eq('status', 'archived');
+    } else if (view === 'history') {
+      // History - get all transactions, we'll filter out current quarter in JavaScript
+      // No additional filters needed
     }
 
     const { data: transactions, error } = await query;
@@ -191,7 +297,66 @@ async function loadPointsHistory(playerId, view = 'current') {
       return;
     }
 
-    // Group by date
+    // If history view, show bar chart by quarter
+    if (view === 'history') {
+      // Filter out current quarter
+      const { year: currentYear, quarter: currentQuarter } = getCurrentQuarter();
+      const filteredTransactions = transactions.filter(t => 
+        !(t.quarter_year === currentYear && t.quarter_number === currentQuarter)
+      );
+
+      if (filteredTransactions.length === 0) {
+        container.innerHTML = '<div class="empty-state">No previous quarters data available</div>';
+        return;
+      }
+      // Group by quarter and year
+      const quarterGroups = filteredTransactions.reduce((acc, transaction) => {
+        const key = `Q${transaction.quarter_number} ${transaction.quarter_year}`;
+        if (!acc[key]) {
+          acc[key] = {
+            quarter: transaction.quarter_number,
+            year: transaction.quarter_year,
+            transactions: [],
+            total: 0
+          };
+        }
+        acc[key].transactions.push(transaction);
+        acc[key].total += parseFloat(transaction.points);
+        return acc;
+      }, {});
+
+      // Sort by year (desc) then quarter (desc)
+      const sortedQuarters = Object.values(quarterGroups).sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.quarter - a.quarter;
+      });
+
+      // Find max points for scaling
+      const maxPoints = Math.max(...sortedQuarters.map(q => q.total), 1);
+
+      // Render bar chart
+      container.innerHTML = `
+        <div class="quarter-chart-container">
+          ${sortedQuarters.map(quarterData => {
+            const percentage = (quarterData.total / maxPoints) * 100;
+            return `
+              <div class="quarter-chart-item">
+                <div class="quarter-chart-label">
+                  <span class="quarter-label">Q${quarterData.quarter} ${quarterData.year}</span>
+                  <span class="quarter-points">${quarterData.total.toFixed(1)} pts</span>
+                </div>
+                <div class="quarter-chart-bar-container">
+                  <div class="quarter-chart-bar" style="width: ${percentage}%"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+      return;
+    }
+
+    // Current quarter view - group by date
     const groupedByDate = transactions.reduce((acc, transaction) => {
       const date = new Date(transaction.checked_in_at);
       const dateKey = date.toLocaleDateString('en-US', { 

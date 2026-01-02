@@ -192,13 +192,10 @@ html[data-theme="light"] .img {
   transition: background 120ms ease, color 120ms ease;
 }
 
-.nav-list li:hover {
-  background: var(--hover);
-}
+/* Removed hover effect for better mobile compatibility */
 
 .nav-list li.active {
-  background: rgba(120, 120, 120, 0.08);
-  box-shadow: 0px 0 3px 1px var(--text);
+  /* No background or border - clean look */
 }
 
 .button { 
@@ -273,21 +270,24 @@ html[data-theme="light"] .img {
 .bx {
   font-size: 22px;
   color: var(--text);
+  transition: transform 200ms ease, color 200ms ease;
+  display: inline-block;
 }
 
-/* Disable all animations and transforms on bx icons - keep it simple */
-.bx,
-.bx * {
-  animation: none !important;
-  transform: none !important;
-  transition: none !important;
+/* Active state: filled icon in white */
+.nav-list li.active .bx,
+.nav-list li.active .bxs {
+  color: var(--text);
+  transition: color 200ms ease;
 }
 
-.bx:hover,
-.bx:active,
-.bx:focus {
-  animation: none !important;
-  transform: none !important;
+/* Ensure filled icons (bxs-*) also get the active styling */
+.nav-list li.active .bxs-home,
+.nav-list li.active .bxs-calendar,
+.nav-list li.active .bxs-chart,
+.nav-list li.active .bxs-user,
+.nav-list li.active .bxs-football {
+  color: var(--text);
 }
 
 /* ========== MAIN CONTENT ========== */
@@ -703,7 +703,7 @@ body:has(.sidebar:not(.closed)) .main-content {
     height: 100%;
     width: 100% !important;
     gap: 0;
-    padding: 0 8px;
+    padding: 0;
     margin: 0;
   }
 

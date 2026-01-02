@@ -640,6 +640,31 @@
   border-color: var(--accent);
 }
 
+.check-in-all-btn {
+  background: var(--accent);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.check-in-all-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.check-in-all-btn:active {
+  transform: translateY(0);
+}
+
 .players-list {
   display: flex;
   flex-direction: column;
@@ -684,14 +709,16 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: flex-start;
+  flex-direction: row;
+  gap: 4px;
 }
 
 .player-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--text);
+  margin-right: 50px;
 }
 
 .player-positions {
@@ -731,7 +758,12 @@
 .player-check-in-btn.checked-in {
   background: var(--muted);
   opacity: 0.7;
-  cursor: not-allowed;
+  cursor: pointer;
+}
+
+.player-check-in-btn.checked-in:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 /* Dashboard Bottom Sections */

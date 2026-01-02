@@ -7,10 +7,37 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Initialize Supabase client
 // Using CDN import for browser compatibility
-let supabase;
+// Singleton pattern using window object to ensure only one client instance across all modules
+// This is necessary because dynamically loaded modules have separate scopes
+
+// Use window object for true global singleton (works across dynamically loaded modules)
+if (typeof window !== 'undefined' && !window.__homegrownSupabase) {
+  window.__homegrownSupabase = {
+    client: null,
+    createClientFn: null,
+    initPromise: null
+  };
+}
 
 async function initSupabase() {
-  if (typeof window !== 'undefined' && !supabase) {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const singleton = window.__homegrownSupabase;
+  
+  // Return existing client if already initialized
+  if (singleton.client) {
+    return singleton.client;
+  }
+
+  // If initialization is in progress, wait for it
+  if (singleton.initPromise) {
+    return singleton.initPromise;
+  }
+
+  // Start initialization
+  singleton.initPromise = (async () => {
     try {
       // Check if credentials are still placeholders
       if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL' || 
@@ -19,58 +46,65 @@ async function initSupabase() {
         return null;
       }
       
-      // Import Supabase from CDN - try multiple sources for reliability
-      let supabaseModule;
-      let createClient;
-      
-      // Try esm.sh first
-      try {
-        supabaseModule = await import('https://esm.sh/@supabase/supabase-js@2');
-      } catch (e1) {
-        console.warn('⚠️ esm.sh failed, trying unpkg:', e1);
+      // Only import createClient once and cache it globally
+      if (!singleton.createClientFn) {
+        let supabaseModule;
+        
+        // Try esm.sh first
         try {
-          // Fallback to unpkg
-          supabaseModule = await import('https://unpkg.com/@supabase/supabase-js@2/dist/esm/index.js');
-        } catch (e2) {
-          console.error('❌ Both CDN sources failed:', e1, e2);
-          throw e2;
+          supabaseModule = await import('https://esm.sh/@supabase/supabase-js@2');
+        } catch (e1) {
+          console.warn('⚠️ esm.sh failed, trying unpkg:', e1);
+          try {
+            // Fallback to unpkg
+            supabaseModule = await import('https://unpkg.com/@supabase/supabase-js@2/dist/esm/index.js');
+          } catch (e2) {
+            console.error('❌ Both CDN sources failed:', e1, e2);
+            throw e2;
+          }
+        }
+        
+        // Extract createClient - check various possible export patterns
+        if (supabaseModule.createClient) {
+          singleton.createClientFn = supabaseModule.createClient;
+        } else if (supabaseModule.default?.createClient) {
+          singleton.createClientFn = supabaseModule.default.createClient;
+        } else if (typeof supabaseModule.default === 'function') {
+          singleton.createClientFn = supabaseModule.default;
+        } else {
+          console.error('❌ createClient not found. Module structure:', supabaseModule);
+          console.error('Available keys:', Object.keys(supabaseModule));
+          return null;
+        }
+        
+        if (!singleton.createClientFn || typeof singleton.createClientFn !== 'function') {
+          console.error('❌ createClient is not a function:', typeof singleton.createClientFn, singleton.createClientFn);
+          return null;
         }
       }
       
-      // Extract createClient - check various possible export patterns
-      if (supabaseModule.createClient) {
-        createClient = supabaseModule.createClient;
-      } else if (supabaseModule.default?.createClient) {
-        createClient = supabaseModule.default.createClient;
-      } else if (typeof supabaseModule.default === 'function') {
-        createClient = supabaseModule.default;
-      } else {
-        console.error('❌ createClient not found. Module structure:', supabaseModule);
-        console.error('Available keys:', Object.keys(supabaseModule));
-        return null;
+      // Create client instance only once (globally)
+      if (!singleton.client) {
+        singleton.client = singleton.createClientFn(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        if (!singleton.client) {
+          console.error('Failed to create Supabase client');
+          return null;
+        }
       }
       
-      if (!createClient || typeof createClient !== 'function') {
-        console.error('❌ createClient is not a function:', typeof createClient, createClient);
-        return null;
-      }
-      
-      
-      supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      
-      if (!supabase) {
-        console.error('Failed to create Supabase client');
-        return null;
-      }
-      
-      return supabase;
+      return singleton.client;
     } catch (error) {
       console.error('Failed to initialize Supabase:', error);
       console.error('Error details:', error.message, error.stack);
       return null;
+    } finally {
+      // Clear the promise so we can retry if needed
+      singleton.initPromise = null;
     }
-  }
-  return supabase;
+  })();
+
+  return singleton.initPromise;
 }
 
 // Export for use in other files

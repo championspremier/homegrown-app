@@ -1,5 +1,6 @@
 // Schedule page scripts
 import { initSupabase } from '../../../../auth/config/supabase.js';
+import { getAccountContext } from '../../../utils/account-context.js';
 
 let supabase;
 let supabaseReady = false;
@@ -19,30 +20,85 @@ async function init() {
     supabaseReady = true;
     setupEventListeners();
     updateCalendarHeaders();
+    setupRealtimeSubscriptions();
+    
+    // Listen for account switching to refresh timeslots
+    setupAccountSwitchListener();
   } else {
     console.error('Failed to initialize Supabase');
   }
 }
 
+// Listen for account switching and refresh timeslots if needed
+function setupAccountSwitchListener() {
+  // Listen for storage changes (account switcher updates localStorage)
+  window.addEventListener('storage', async (e) => {
+    if (e.key === 'hg-user-role' && currentIndividualSessionType) {
+      // Account switched, refresh timeslots if a session type is selected
+      console.log('🔄 Account switched, refreshing timeslots...');
+      await refreshTimeslotsIfNeeded();
+    }
+  });
+  
+  // Also listen for custom event from account switcher (in case it's same window)
+  window.addEventListener('accountSwitched', async () => {
+    if (currentIndividualSessionType) {
+      console.log('🔄 Account switched (custom event), refreshing timeslots...');
+      await refreshTimeslotsIfNeeded();
+    }
+  });
+}
+
+// Refresh timeslots if a session type is currently selected
+async function refreshTimeslotsIfNeeded() {
+  if (!supabaseReady || !supabase || !currentIndividualSessionType) return;
+  
+  try {
+    // Get the currently selected date
+    const datePicker = document.getElementById('individualDatePicker');
+    const timeSlots = document.getElementById('individualTimeSlots');
+    
+    if (!datePicker || !timeSlots) return;
+    
+    const selectedDateNumber = datePicker.querySelector('.day-number.selected');
+    let selectedDate = new Date();
+    
+    if (selectedDateNumber) {
+      const calendarDay = selectedDateNumber.closest('.calendar-day');
+      if (calendarDay && calendarDay.dataset.date) {
+        const dateStr = calendarDay.dataset.date;
+        const [year, month, day] = dateStr.split('-').map(Number);
+        selectedDate = new Date(year, month - 1, day);
+      }
+    }
+    
+    // Reload the session type and coach availability, then regenerate timeslots
+    await loadIndividualSessionAvailability(currentIndividualSessionType);
+  } catch (error) {
+    console.error('Error refreshing timeslots after account switch:', error);
+  }
+}
+
 // Setup event listeners
 function setupEventListeners() {
-  const onFieldOption = document.getElementById('onFieldOption');
-  const onFieldHeader = document.getElementById('onFieldHeader');
-  const onFieldDropdown = document.getElementById('onFieldDropdown');
+  const onFieldToggle = document.getElementById('onFieldToggle');
+  const onFieldHiddenSchedule = document.getElementById('onFieldHiddenSchedule');
   
-  const virtualOption = document.getElementById('virtualOption');
-  const virtualHeader = document.getElementById('virtualHeader');
-  const virtualDropdown = document.getElementById('virtualDropdown');
+  const virtualToggle = document.getElementById('virtualToggle');
+  const virtualHiddenSchedule = document.getElementById('virtualHiddenSchedule');
 
   // Toggle On-Field dropdown
-  if (onFieldHeader && onFieldDropdown) {
-    onFieldHeader.addEventListener('click', async (e) => {
+  if (onFieldToggle && onFieldHiddenSchedule) {
+    onFieldToggle.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const isOpen = onFieldOption.classList.contains('is-open');
+      const isOpen = onFieldHiddenSchedule.classList.contains('is-open');
       
       // Close virtual if it's open
-      if (virtualOption.classList.contains('is-open')) {
-        virtualOption.classList.remove('is-open');
+      if (virtualHiddenSchedule && virtualHiddenSchedule.classList.contains('is-open')) {
+        virtualHiddenSchedule.classList.remove('is-open');
+        virtualToggle.setAttribute('aria-expanded', 'false');
+        virtualToggle.querySelector('i').classList.remove('bx-chevron-up');
+        virtualToggle.querySelector('i').classList.add('bx-chevron-down');
         currentLocationType = null;
         // Clean up virtual content when switching away
         cleanupVirtualContent();
@@ -50,11 +106,17 @@ function setupEventListeners() {
       
       // Toggle on-field
       if (isOpen) {
-        onFieldOption.classList.remove('is-open');
+        onFieldHiddenSchedule.classList.remove('is-open');
+        onFieldToggle.setAttribute('aria-expanded', 'false');
+        onFieldToggle.querySelector('i').classList.remove('bx-chevron-up');
+        onFieldToggle.querySelector('i').classList.add('bx-chevron-down');
         currentLocationType = null;
         currentFilterType = null;
       } else {
-        onFieldOption.classList.add('is-open');
+        onFieldHiddenSchedule.classList.add('is-open');
+        onFieldToggle.setAttribute('aria-expanded', 'true');
+        onFieldToggle.querySelector('i').classList.remove('bx-chevron-down');
+        onFieldToggle.querySelector('i').classList.add('bx-chevron-up');
         currentLocationType = 'on-field';
         currentSelectedDate = new Date(); // Reset to today
         currentFilterType = null;
@@ -74,26 +136,35 @@ function setupEventListeners() {
   }
 
   // Toggle Virtual dropdown
-  if (virtualHeader && virtualDropdown) {
-    virtualHeader.addEventListener('click', async (e) => {
+  if (virtualToggle && virtualHiddenSchedule) {
+    virtualToggle.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const isOpen = virtualOption.classList.contains('is-open');
+      const isOpen = virtualHiddenSchedule.classList.contains('is-open');
       
       // Close on-field if it's open
-      if (onFieldOption.classList.contains('is-open')) {
-        onFieldOption.classList.remove('is-open');
+      if (onFieldHiddenSchedule && onFieldHiddenSchedule.classList.contains('is-open')) {
+        onFieldHiddenSchedule.classList.remove('is-open');
+        onFieldToggle.setAttribute('aria-expanded', 'false');
+        onFieldToggle.querySelector('i').classList.remove('bx-chevron-up');
+        onFieldToggle.querySelector('i').classList.add('bx-chevron-down');
         currentLocationType = null;
       }
       
       // Toggle virtual
       if (isOpen) {
-        virtualOption.classList.remove('is-open');
+        virtualHiddenSchedule.classList.remove('is-open');
+        virtualToggle.setAttribute('aria-expanded', 'false');
+        virtualToggle.querySelector('i').classList.remove('bx-chevron-up');
+        virtualToggle.querySelector('i').classList.add('bx-chevron-down');
         currentLocationType = null;
         currentFilterType = null;
         // Clean up virtual content when closing
         cleanupVirtualContent();
       } else {
-        virtualOption.classList.add('is-open');
+        virtualHiddenSchedule.classList.add('is-open');
+        virtualToggle.setAttribute('aria-expanded', 'true');
+        virtualToggle.querySelector('i').classList.remove('bx-chevron-down');
+        virtualToggle.querySelector('i').classList.add('bx-chevron-up');
         currentLocationType = 'virtual';
         currentSelectedDate = new Date(); // Reset to today
         currentFilterType = null;
@@ -473,13 +544,9 @@ async function loadAndDisplaySessions(locationType, selectedDate = null, customS
       clearCoachCache(coachIds); // Clear cache for coaches in current sessions
     }
     
-    // Debug: Log sessions to verify coach_id is present
+    // Sessions loaded
     if (sessions && sessions.length > 0) {
-      console.log('Loaded sessions:', sessions.map(s => ({
-        id: s.id,
-        session_type: s.session_type,
-        coach_id: s.coach_id
-      })));
+      // Sessions loaded successfully
     }
 
     // Display sessions
@@ -624,9 +691,9 @@ async function createSessionElement(session, selectedDate) {
       const sessionType = e.target.closest('.individual-session-link').dataset.sessionType;
       if (sessionType) {
         // Navigate to individual session booking
-        const virtualOption = document.querySelector('.schedule-option[data-location="virtual"]');
-        if (virtualOption) {
-          virtualOption.click();
+        const virtualToggle = document.getElementById('virtualToggle');
+        if (virtualToggle) {
+          virtualToggle.click();
           // Wait a bit for the filters to load, then select the session type
           setTimeout(() => {
             const sessionTypeBtn = Array.from(document.querySelectorAll('.filter-btn')).find(btn => 
@@ -663,33 +730,45 @@ async function loadUpcomingSessions(locationType, sessionType, customContainerId
   if (!supabaseReady || !supabase) return;
   
   try {
-    const today = new Date();
-    const todayString = today.toISOString().split('T')[0];
+    const now = new Date();
+    const todayString = now.toISOString().split('T')[0];
     
+    // Get sessions that are scheduled and not cancelled
     const { data: sessions, error } = await supabase
       .from('sessions')
       .select('*')
       .eq('location_type', locationType)
       .eq('session_type', sessionType)
-      .eq('status', 'scheduled')
-      .gte('session_date', todayString)
+      .eq('status', 'scheduled') // Only scheduled sessions
+      .neq('status', 'cancelled') // Exclude cancelled sessions
+      .gte('session_date', todayString) // Today or future
       .order('session_date', { ascending: true })
       .order('session_time', { ascending: true })
-      .limit(4); // Limit to next 4 sessions
+      .limit(10); // Get more to filter by time
     
     if (error) {
       console.error('Error loading upcoming sessions:', error);
       return;
     }
     
+    // Filter out past sessions (check both date and time)
+    const futureSessions = (sessions || []).filter(session => {
+      const sessionDate = new Date(session.session_date);
+      const [hours, minutes] = session.session_time.split(':').map(Number);
+      sessionDate.setHours(hours, minutes, 0, 0);
+      
+      // Only include sessions that are in the future
+      return sessionDate > now;
+    }).slice(0, 4); // Limit to 4 sessions
+    
     // Clear coach cache to ensure fresh data (coach might have changed)
-    if (sessions && sessions.length > 0) {
-      const coachIds = sessions.map(s => s.coach_id).filter(Boolean);
+    if (futureSessions && futureSessions.length > 0) {
+      const coachIds = futureSessions.map(s => s.coach_id).filter(Boolean);
       clearCoachCache(coachIds); // Clear cache for coaches in current sessions
     }
     
     const containerId = customContainerId || (locationType === 'on-field' ? 'onFieldUpcomingSessions' : 'virtualUpcomingSessions');
-    await displayUpcomingSessions(sessions || [], containerId);
+    await displayUpcomingSessions(futureSessions || [], containerId);
   } catch (error) {
     console.error('Error loading upcoming sessions:', error);
   }
@@ -739,8 +818,10 @@ async function createUpcomingSessionElement(session) {
     hour12: true 
   });
   
-  // Format date
-  const sessionDate = new Date(session.session_date);
+  // Format date - parse in local timezone to avoid date shifts
+  // session_date is a DATE string like "2026-01-02", parse it as local time
+  const [year, month, day] = session.session_date.split('-').map(Number);
+  const sessionDate = new Date(year, month - 1, day); // month is 0-indexed
   const dateString = sessionDate.toLocaleDateString('en-US', { 
     weekday: 'short', 
     month: 'short', 
@@ -959,9 +1040,9 @@ async function showSessionDetails(session) {
         // Close modal first
         overlay.style.display = 'none';
         // Navigate to individual session booking
-        const virtualOption = document.querySelector('.schedule-option[data-location="virtual"]');
-        if (virtualOption) {
-          virtualOption.click();
+        const virtualToggle = document.getElementById('virtualToggle');
+        if (virtualToggle) {
+          virtualToggle.click();
           // Wait a bit for the filters to load, then select the session type
           setTimeout(() => {
             const sessionTypeBtn = Array.from(document.querySelectorAll('.filter-btn')).find(btn => 
@@ -1027,7 +1108,7 @@ async function handleReserveClick(session) {
     }
 
     // Verify user is a player (check localStorage role for account switcher support)
-    const currentRole = await window.getCurrentRole?.() || null;
+    const currentRole = localStorage.getItem('hg-user-role');
     
     // Determine the actual player ID and parent ID
     let actualPlayerId = authSession.user.id;
@@ -1040,10 +1121,26 @@ async function handleReserveClick(session) {
       .eq('id', authSession.user.id)
       .single();
     
+    console.log('Player schedule - handleReserveClick:', {
+      currentRole,
+      profileRole: profile?.role,
+      userId: authSession.user.id,
+      selectedPlayerId: localStorage.getItem('selectedPlayerId')
+    });
+    
+    // Get account context to determine correct player ID
+    const context = await getAccountContext();
+    if (!context) {
+      alert('Unable to determine account context. Please refresh and try again.');
+      return;
+    }
+    
+    // Use the correct player ID from context
+    let playerIdToCheck = context.getPlayerIdForAction();
+    
+    // If parent viewing as player, ensure we have the selected player ID
     if (profile && profile.role === 'parent' && currentRole === 'player') {
-      // Parent is viewing as a player - get the selected player ID
       const selectedPlayerId = localStorage.getItem('selectedPlayerId');
-      
       if (selectedPlayerId) {
         // Verify this player is linked to the parent
         const { data: relationship } = await supabase
@@ -1054,6 +1151,7 @@ async function handleReserveClick(session) {
           .single();
         
         if (relationship) {
+          playerIdToCheck = selectedPlayerId; // Use the selected player ID
           actualPlayerId = selectedPlayerId;
           parentId = authSession.user.id; // Set parent_id for RLS policy
         } else {
@@ -1071,50 +1169,147 @@ async function handleReserveClick(session) {
         return;
       }
     }
-
+    
+    console.log('🔍 DEBUG: Final player ID to use for reservation:', {
+      playerIdToCheck,
+      actualPlayerId,
+      parentId,
+      contextPlayerId: context.getPlayerIdForAction()
+    });
+    
     // Check if player already has a reservation
     // Use a simple select without joins to avoid RLS issues
+    // Only check for active reservations (not cancelled)
+    // Note: session_reservations doesn't have cancelled_at, it uses reservation_status
     const { data: existingReservations, error: checkError } = await supabase
       .from('session_reservations')
-      .select('id')
+      .select('id, reservation_status')
       .eq('session_id', session.id)
-      .eq('player_id', actualPlayerId)
-      .eq('reservation_status', 'reserved')
+      .eq('player_id', playerIdToCheck)
+      .in('reservation_status', ['reserved', 'checked-in']) // Only active reservations
       .limit(1);
 
     if (checkError && checkError.code !== 'PGRST116') {
       // PGRST116 is "not found" which is fine, but other errors are not
       console.error('Error checking existing reservation:', checkError);
-      alert(`Error: ${checkError.message}`);
-      return;
+      // Don't block if it's an RLS error - let the RPC function handle it
+      if (checkError.code !== '42501') {
+        alert(`Error: ${checkError.message}`);
+        return;
+      }
     }
 
     if (existingReservations && existingReservations.length > 0) {
-      alert('You already have a reservation for this session.');
+      console.log('Found existing active reservation:', existingReservations);
+      alert('You already have a reservation for this session. Please refresh the page to see updated reservations.');
+      // Reload sessions to show the existing reservation
+      const selectedDate = document.querySelector('.calendar-day.selected')?.dataset.date;
+      if (selectedDate && typeof loadUpcomingSessions === 'function') {
+        await loadUpcomingSessions(null, null);
+      }
       return;
     }
+    
+    console.log('No existing active reservation found, proceeding with reservation creation');
+    
+    // Also check for ANY reservation (including cancelled) to see what the RPC function will find
+    const { data: anyReservations, error: anyResError } = await supabase
+      .from('session_reservations')
+      .select('id, reservation_status, created_at, updated_at')
+      .eq('session_id', session.id)
+      .eq('player_id', playerIdToCheck)
+      .limit(1);
+    
+    console.log('🔍 DEBUG: Checking for ANY reservation (including cancelled):', {
+      found: anyReservations?.length > 0,
+      reservations: anyReservations,
+      error: anyResError
+    });
 
     // Check if session has available spots
     if (session.current_reservations >= session.attendance_limit) {
       alert('This session is full.');
       return;
     }
-
-    // Create reservation
-    const { data: reservation, error } = await supabase
+    
+    // Use secure database function (works for both parent and player)
+    console.log('🔍 DEBUG: About to call create_reservation_for_player RPC', {
+      sessionId: session.id,
+      playerId: playerIdToCheck,
+      sessionType: session.session_type,
+      sessionDate: session.session_date,
+      sessionTime: session.session_time,
+      context: {
+        currentRole,
+        profileRole: profile?.role,
+        actualPlayerId,
+        parentId
+      }
+    });
+    
+    const { data: reservationId, error: rpcError } = await supabase.rpc('create_reservation_for_player', {
+      p_session_id: session.id,
+      p_player_id: playerIdToCheck,
+      p_reservation_status: 'reserved'
+    });
+    
+    console.log('🔍 DEBUG: RPC response received', { reservationId, error: rpcError });
+    
+    if (rpcError) {
+      console.error('Error creating reservation - Full error object:', {
+        code: rpcError.code,
+        message: rpcError.message,
+        details: rpcError.details,
+        hint: rpcError.hint,
+        status: rpcError.status,
+        statusText: rpcError.statusText,
+        fullError: rpcError
+      });
+      
+      // Handle duplicate key error specifically
+      // 409 is HTTP Conflict, which can indicate duplicate key violations
+      // 23505 is PostgreSQL unique constraint violation
+      // P0001 is PostgreSQL exception code
+      const isDuplicateError = 
+        rpcError.code === '23505' || 
+        rpcError.code === 'P0001' ||
+        rpcError.status === 409 ||
+        rpcError.message?.includes('duplicate key') || 
+        rpcError.message?.includes('already exists') ||
+        rpcError.message?.includes('already has a reservation') ||
+        rpcError.message?.includes('This player already has a reservation');
+      
+      if (isDuplicateError) {
+        alert('You already have a reservation for this session. Please refresh the page to see updated reservations.');
+        // Reload sessions
+        const selectedDate = document.querySelector('.calendar-day.selected')?.dataset.date;
+        if (selectedDate && typeof loadUpcomingSessions === 'function') {
+          await loadUpcomingSessions(null, null);
+        } else if (typeof loadAndDisplaySessions === 'function') {
+          await loadAndDisplaySessions();
+        }
+        return;
+      }
+      
+      alert(`Error: ${rpcError.message || 'Failed to create reservation'}`);
+      return;
+    }
+    
+    if (!reservationId) {
+      alert('Failed to create reservation. Please try again.');
+      return;
+    }
+    
+    // Fetch the created reservation
+    const { data: reservation, error: fetchError } = await supabase
       .from('session_reservations')
-      .insert({
-        session_id: session.id,
-        player_id: actualPlayerId,
-        parent_id: parentId,
-        reservation_status: 'reserved'
-      })
-      .select()
+      .select('*')
+      .eq('id', reservationId)
       .single();
-
-    if (error) {
-      console.error('Error creating reservation:', error);
-      alert(`Error: ${error.message}`);
+    
+    if (fetchError || !reservation) {
+      console.error('Error fetching created reservation:', fetchError);
+      alert('Reservation created but could not load details.');
       return;
     }
 
@@ -1373,8 +1568,7 @@ async function loadIndividualSessionAvailability(sessionType) {
         hint: coachError.hint
       });
     } else {
-      console.log('Loaded coach availability for', sessionType, ':', coachAvailability);
-      console.log('Number of coaches with availability:', coachAvailability?.length || 0);
+      // Coach availability loaded
     }
     
     // Store session type data and coach availability globally
@@ -1726,13 +1920,7 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   const dayName = dayNames[dayOfWeek];
   
   // Debug logging
-  console.log('Date calculation for time slots:', {
-    originalDate: selectedDate.toString(),
-    localDate: localDate.toString(),
-    dayOfWeek,
-    dayName,
-    dateStr: `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`
-  });
+  // Calculate date for time slots
   
   // Check if we have session type data
   if (!sessionTypeData) {
@@ -1744,12 +1932,6 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   const generalAvailability = sessionTypeData.general_availability || {};
   const dayAvailability = generalAvailability[dayName] || {};
   
-  console.log('Availability check:', {
-    dayName,
-    dayAvailability,
-    generalAvailability
-  });
-  
   // Default time slot granularity (in minutes)
   const granularity = sessionTypeData.time_slot_granularity_minutes || 20;
   const duration = sessionTypeData.duration_minutes || 20;
@@ -1760,18 +1942,12 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   const logDay = String(selectedDate.getDate()).padStart(2, '0');
   const logDateStr = `${logYear}-${logMonth}-${logDay}`;
   
-  console.log('Generating time slots for:', {
-    date: logDateStr,
-    dayName,
-    dayAvailability,
-    coachAvailabilityCount: coachAvailability?.length || 0,
-    selectedCoachId,
-    granularity,
-    duration
-  });
+  // Generating time slots
   
   // Get available time slots
   const availableSlots = [];
+  
+  console.log('🔄 generateTimeSlots - selectedCoachId:', selectedCoachId, 'coachAvailability count:', coachAvailability?.length || 0);
   
   if (!selectedCoachId) {
     // Show all available coaches' time slots combined (any coach)
@@ -1926,13 +2102,13 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   // Pass selectedCoachId to filter bookings by coach if a specific coach is selected
   const bookedSlots = await getBookedSlots(selectedDate, sessionTypeData.id, selectedCoachId);
   
-  console.log('Available slots before booking check:', availableSlots.length);
+  // Available slots calculated
   
   // Get buffer times from session type
   const bufferBefore = sessionTypeData.buffer_before_minutes || 0;
   const bufferAfter = sessionTypeData.buffer_after_minutes || 0;
   
-  console.log('Buffer settings:', { bufferBefore, bufferAfter, bookedSlotsCount: bookedSlots.length });
+  // Buffer settings applied
   
   // Apply buffers to booked slots - mark slots as unavailable if they conflict
   const unavailableSlots = new Set();
@@ -1998,7 +2174,7 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   const finalAvailableSlots = availableSlots.filter(slot => !unavailableSlots.has(slot.time));
   
   // Render time slots
-  console.log('Final available slots after buffer and minimum notice check:', finalAvailableSlots.length);
+  // Final available slots calculated
   
   // Check if there are any available slots after filtering
   if (finalAvailableSlots.length === 0) {
@@ -2007,7 +2183,7 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   }
   
   if (unavailableSlots.size > 0) {
-    console.log('Unavailable slots (booked, in buffer, or too soon):', Array.from(unavailableSlots));
+    // Unavailable slots filtered
   }
   
   container.innerHTML = finalAvailableSlots.map(slot => {
@@ -2108,6 +2284,8 @@ function formatTimeFromDate(date) {
 }
 
 // Get booked slots for a date
+// IMPORTANT: This checks ALL bookings for the coach/session type/date, regardless of which player booked it.
+// Coach availability is universal - if one player books a slot, the coach is unavailable for all players.
 async function getBookedSlots(date, sessionTypeId, coachId = null) {
   if (!supabaseReady || !supabase || !sessionTypeId) return [];
   
@@ -2118,24 +2296,24 @@ async function getBookedSlots(date, sessionTypeId, coachId = null) {
     const day = String(date.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
     
-    // Get current user to filter by player_id (RLS requirement)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session || !session.user) return [];
+    // Get the coach ID to check (required for time slot availability)
+    const coachToCheck = coachId || selectedCoachId;
+    if (!coachToCheck) {
+      // No coach selected, can't determine availability
+      return [];
+    }
     
+    // Query ALL bookings for this coach/session type/date
+    // We don't filter by player_id because coach availability is universal
+    // If any player books a slot with this coach, the coach is unavailable for that time
     let query = supabase
       .from('individual_session_bookings')
       .select('booking_time')
       .eq('session_type_id', sessionTypeId)
       .eq('booking_date', dateString)
-      .eq('player_id', session.user.id) // Only get player's own bookings to avoid RLS 403
+      .eq('coach_id', coachToCheck) // Filter by coach (coach availability is universal)
       .eq('status', 'confirmed')
       .is('cancelled_at', null);
-    
-    // If a specific coach is selected, only check bookings for that coach
-    const coachToCheck = coachId || selectedCoachId;
-    if (coachToCheck) {
-      query = query.eq('coach_id', coachToCheck);
-    }
     
     const { data: bookings, error } = await query;
     
@@ -2303,8 +2481,7 @@ async function showCoachSelectionModal(sessionType) {
       return;
     }
     
-    console.log('Loaded coach availability:', coachAvailability);
-    console.log('Number of available coaches:', coachAvailability?.length || 0);
+    // Coach availability loaded
     
     // Create or show modal
     let modal = document.getElementById('coachSelectionModal');
@@ -2369,16 +2546,39 @@ async function showCoachSelectionModal(sessionType) {
         }
         
         // Reload time slots for selected coach
+        // Try to get selected date from calendar
+        let selectedDate = null;
         const selectedDateNumber = document.querySelector('.day-number.selected');
         if (selectedDateNumber) {
           const calendarDay = selectedDateNumber.closest('.calendar-day');
           if (calendarDay && calendarDay.dataset.date) {
             const dateStr = calendarDay.dataset.date;
             const [year, month, day] = dateStr.split('-').map(Number);
-            const selectedDate = new Date(year, month - 1, day);
-            await reloadTimeSlotsForCoach(selectedDate, sessionType);
+            selectedDate = new Date(year, month - 1, day);
           }
         }
+        
+        // If no date selected, use today or the first date in the calendar
+        if (!selectedDate) {
+          const firstDateNumber = document.querySelector('.day-number');
+          if (firstDateNumber) {
+            const calendarDay = firstDateNumber.closest('.calendar-day');
+            if (calendarDay && calendarDay.dataset.date) {
+              const dateStr = calendarDay.dataset.date;
+              const [year, month, day] = dateStr.split('-').map(Number);
+              selectedDate = new Date(year, month - 1, day);
+            }
+          }
+        }
+        
+        // If still no date, use today
+        if (!selectedDate) {
+          selectedDate = new Date();
+          selectedDate.setHours(0, 0, 0, 0);
+        }
+        
+        console.log('🔄 Reloading time slots for coach:', coachId || 'Any available', 'on date:', selectedDate);
+        await reloadTimeSlotsForCoach(selectedDate, sessionType);
         
         // If a time slot was already selected, update the booking summary
         const selectedSlot = document.querySelector('.time-slot-btn.selected');
@@ -2401,6 +2601,13 @@ async function reloadTimeSlotsForCoach(selectedDate, sessionType) {
   if (!supabaseReady || !supabase || !currentIndividualSessionType) return;
   
   try {
+    console.log('🔄 reloadTimeSlotsForCoach called with:', {
+      selectedDate,
+      sessionType,
+      selectedCoachId,
+      currentIndividualSessionType
+    });
+    
     // Get session type data
     const { data: sessionTypeData, error: typeError } = await supabase
       .from('individual_session_types')
@@ -2440,10 +2647,14 @@ async function reloadTimeSlotsForCoach(selectedDate, sessionType) {
     // Update stored coach availability
     currentCoachAvailability = coachAvailability || [];
     
-    // Regenerate time slots
+    console.log('🔄 Regenerating time slots with selectedCoachId:', selectedCoachId);
+    
+    // Regenerate time slots - this will use the updated selectedCoachId global variable
     const timeSlots = document.getElementById('individualTimeSlots');
     if (timeSlots) {
       await generateTimeSlots(selectedDate, sessionTypeData, coachAvailability || [], timeSlots);
+    } else {
+      console.error('❌ Time slots container not found');
     }
   } catch (error) {
     console.error('Error reloading time slots:', error);
@@ -2518,7 +2729,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
     }
     
     // Verify user is a player (check localStorage role for account switcher support)
-    const currentRole = await window.getCurrentRole?.() || null;
+    const currentRole = localStorage.getItem('hg-user-role');
     
     // Determine the actual player ID and parent ID (for account switcher)
     let actualPlayerId = session.user.id;
@@ -2531,10 +2742,18 @@ async function handleIndividualBookingConfirmation(sessionType) {
       .eq('id', session.user.id)
       .single();
     
+    // Use account context to handle all account switcher scenarios
+    const context = await getAccountContext();
+    if (!context) {
+      alert('Could not determine account context. Please refresh the page.');
+      return;
+    }
+    
+    const selectedPlayerId = localStorage.getItem('selectedPlayerId');
+    
+    // Determine the correct player ID based on account switcher state
     if (profile && profile.role === 'parent' && currentRole === 'player') {
       // Parent is viewing as a player - get the selected player ID
-      const selectedPlayerId = localStorage.getItem('selectedPlayerId');
-      
       if (selectedPlayerId) {
         // Verify this player is linked to the parent
         const { data: relationship } = await supabase
@@ -2555,9 +2774,40 @@ async function handleIndividualBookingConfirmation(sessionType) {
         alert('No player selected. Please use the account switcher to select a player.');
         return;
       }
+    } else if (profile && profile.role === 'player' && currentRole === 'player' && selectedPlayerId && selectedPlayerId !== session.user.id) {
+      // Player logged in, switched to parent, then switched to another player
+      // Verify both players are linked to the same parent
+      const { data: currentPlayerParent } = await supabase
+        .from('parent_player_relationships')
+        .select('parent_id')
+        .eq('player_id', session.user.id)
+        .single();
+      
+      const { data: selectedPlayerParent } = await supabase
+        .from('parent_player_relationships')
+        .select('parent_id')
+        .eq('player_id', selectedPlayerId)
+        .single();
+      
+      if (!currentPlayerParent || !selectedPlayerParent) {
+        alert('Could not verify player relationship. Please ensure both accounts are linked to a parent.');
+        return;
+      }
+      
+      if (currentPlayerParent.parent_id !== selectedPlayerParent.parent_id) {
+        alert('Selected player is not a sibling account. You can only book for players linked to the same parent.');
+        return;
+      }
+      
+      // Use the selected player ID and set parent ID for RLS
+      actualPlayerId = selectedPlayerId;
+      parentId = currentPlayerParent.parent_id;
     } else if (!profile || profile.role !== 'player') {
-      // Not a player and not a parent viewing as player
-      if (currentRole !== 'player') {
+      // Not a player - check if they're a parent viewing as player
+      if (profile && profile.role === 'parent' && currentRole === 'player') {
+        // Parent viewing as player - this is allowed, continue
+        // The account context will handle getting the correct player ID
+      } else if (currentRole !== 'player') {
         alert('Only players can book individual sessions. Please use a player account.');
         return;
       }
@@ -2664,21 +2914,59 @@ async function handleIndividualBookingConfirmation(sessionType) {
     fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player/schedule.js:2494',message:'Before player booking insert',data:{actualPlayerId,parentId,authUid:session.user.id,coachId,dateString,selectedTime,existingBookingsCount:existingBookings?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
     // #endregion
     
-    // Create booking
-    const { data: booking, error: bookingError } = await supabase
-      .from('individual_session_bookings')
-      .insert({
-        session_type_id: sessionTypeData.id,
-        coach_id: coachId,
-        player_id: actualPlayerId,
-        parent_id: parentId,
-        booking_date: dateString,
-        booking_time: selectedTime,
-        duration_minutes: sessionTypeData.duration_minutes,
-        status: 'confirmed'
-      })
-      .select()
-      .single();
+    // Use secure database function if parent is acting, otherwise direct insert for player
+    let booking;
+    let bookingError;
+    
+    if (parentId) {
+      // Parent is acting on behalf of player - use secure function
+      const { data: bookingId, error: rpcError } = await supabase.rpc('create_booking_for_player', {
+        p_session_type_id: sessionTypeData.id,
+        p_coach_id: coachId,
+        p_player_id: actualPlayerId,
+        p_booking_date: dateString,
+        p_booking_time: selectedTime,
+        p_duration_minutes: sessionTypeData.duration_minutes
+      });
+      
+      if (rpcError) {
+        bookingError = rpcError;
+      } else if (!bookingId) {
+        bookingError = { message: 'Failed to create booking' };
+      } else {
+        // Fetch the created booking
+        const { data: fetchedBooking, error: fetchError } = await supabase
+          .from('individual_session_bookings')
+          .select('*')
+          .eq('id', bookingId)
+          .single();
+        
+        if (fetchError || !fetchedBooking) {
+          bookingError = fetchError || { message: 'Could not load booking details' };
+        } else {
+          booking = fetchedBooking;
+        }
+      }
+    } else {
+      // Direct player booking - use direct insert
+      const { data: directBooking, error: directError } = await supabase
+        .from('individual_session_bookings')
+        .insert({
+          session_type_id: sessionTypeData.id,
+          coach_id: coachId,
+          player_id: actualPlayerId,
+          parent_id: null,
+          booking_date: dateString,
+          booking_time: selectedTime,
+          duration_minutes: sessionTypeData.duration_minutes,
+          status: 'confirmed'
+        })
+        .select()
+        .single();
+      
+      booking = directBooking;
+      bookingError = directError;
+    }
     
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player/schedule.js:2488',message:'Player booking insert result',data:{booking:booking?.id,error:bookingError?.message,errorCode:bookingError?.code,errorDetails:bookingError?.details,actualPlayerId,parentId,authUid:session.user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -2686,7 +2974,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
     
     if (bookingError) {
       console.error('Error creating booking:', bookingError);
-      alert(`Error creating booking: ${bookingError.message}`);
+      alert(`Error creating booking: ${bookingError.message || 'Failed to create booking'}`);
       return;
     }
     
@@ -2848,6 +3136,67 @@ async function regenerateTimeSlotsAfterBooking(selectedDate, sessionTypeData, co
   
   // Regenerate time slots with updated bookings
   await generateTimeSlots(dateToUse, currentSessionTypeData, currentCoachAvailability, timeSlots);
+}
+
+// Setup real-time subscriptions to update time slots when bookings change
+function setupRealtimeSubscriptions() {
+  if (!supabaseReady || !supabase) return;
+
+  // Subscribe to individual session bookings changes
+  const individualBookingsChannel = supabase
+    .channel('player-schedule-individual-bookings')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'individual_session_bookings'
+      },
+      async (payload) => {
+        console.log('New individual booking created, regenerating time slots:', payload);
+        // Regenerate time slots if we're viewing individual sessions
+        const timeSlots = document.getElementById('individualTimeSlots');
+        if (timeSlots && currentSessionTypeData && currentCoachAvailability) {
+          const selectedDateNumber = document.querySelector('.day-number.selected');
+          if (selectedDateNumber) {
+            const calendarDay = selectedDateNumber.closest('.calendar-day');
+            if (calendarDay && calendarDay.dataset.date) {
+              const dateStr = calendarDay.dataset.date;
+              const [year, month, day] = dateStr.split('-').map(Number);
+              const selectedDate = new Date(year, month - 1, day);
+              await generateTimeSlots(selectedDate, currentSessionTypeData, currentCoachAvailability, timeSlots);
+            }
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'individual_session_bookings',
+        filter: 'status=eq.cancelled'
+      },
+      async (payload) => {
+        console.log('Individual booking cancelled, regenerating time slots:', payload);
+        // Regenerate time slots if we're viewing individual sessions
+        const timeSlots = document.getElementById('individualTimeSlots');
+        if (timeSlots && currentSessionTypeData && currentCoachAvailability) {
+          const selectedDateNumber = document.querySelector('.day-number.selected');
+          if (selectedDateNumber) {
+            const calendarDay = selectedDateNumber.closest('.calendar-day');
+            if (calendarDay && calendarDay.dataset.date) {
+              const dateStr = calendarDay.dataset.date;
+              const [year, month, day] = dateStr.split('-').map(Number);
+              const selectedDate = new Date(year, month - 1, day);
+              await generateTimeSlots(selectedDate, currentSessionTypeData, currentCoachAvailability, timeSlots);
+            }
+          }
+        }
+      }
+    )
+    .subscribe();
 }
 
 // Initialize on page load

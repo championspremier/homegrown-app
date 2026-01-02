@@ -224,6 +224,55 @@
   color: var(--accent);
 }
 
+/* Quarter Chart (Bar Chart) */
+.quarter-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 0;
+}
+
+.quarter-chart-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quarter-chart-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.quarter-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.quarter-points {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.quarter-chart-bar-container {
+  width: 100%;
+  height: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.quarter-chart-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 100%);
+  border-radius: 8px;
+  transition: width 0.5s ease;
+  min-width: 4px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .tracking-container {
