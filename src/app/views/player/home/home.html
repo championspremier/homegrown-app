@@ -1,14 +1,26 @@
-<!-- Account Switcher -->
-<div class="account-switcher">
-  <button class="account-switcher-btn" id="accountSwitcherBtn" type="button" aria-expanded="false" aria-haspopup="true">
-    <span class="account-switcher-label">Switch to:</span>
-    <span class="account-switcher-name" id="accountSwitcherName">Loading...</span>
-    <i class="bx bx-chevron-down account-switcher-icon"></i>
-  </button>
-  <div class="account-switcher-dropdown" id="accountSwitcherDropdown" role="menu">
-    <div class="account-switcher-loading" id="accountSwitcherLoading">Loading accounts...</div>
-    <div class="account-switcher-items" id="accountSwitcherItems" style="display: none;"></div>
+<!-- Instagram-style Header -->
+<div class="home-header">
+  <!-- Left: Account Switcher -->
+  <div class="account-switcher">
+    <button class="account-switcher-btn" id="accountSwitcherBtn" type="button" aria-expanded="false" aria-haspopup="true">
+      <span class="account-switcher-name" id="accountSwitcherName">Loading...</span>
+    </button>
+    <div class="account-switcher-dropdown" id="accountSwitcherDropdown" role="menu">
+      <div class="account-switcher-loading" id="accountSwitcherLoading">Loading accounts...</div>
+      <div class="account-switcher-items" id="accountSwitcherItems" style="display: none;"></div>
+    </div>
   </div>
+  
+  <!-- Center: Homegrown Logo (clickable to show accounts) -->
+  <div class="home-header-logo" id="homeHeaderLogo">
+    <h1 class="homegrown-logo">Homegrown</h1>
+    <i class="bx bx-chevron-down account-switcher-icon"></i>
+  </div>
+  
+  <!-- Right: Notification Bell -->
+  <button class="notification-bell" id="notificationBell" type="button" aria-label="Notifications">
+    <i class="bx bx-bell"></i>
+  </button>
 </div>
 
 <!-- My Schedule, Quiz -->
@@ -18,82 +30,121 @@
     <button
       id="scheduleToggle"
       class="schedule-toggle"
-      aria-expanded="true"
+      aria-expanded="false"
       aria-controls="hiddenSchedule"
       type="button"
     >
-      <i class="bx bx-chevron-down"></i>
+      <i class="bx bx-chevron-up"></i>
     </button>
   </div>
 
-  <div class="hiddenSchedule is-open" id="hiddenSchedule">
-    <div class="weekly-widget">
-      <div class="month-bar" aria-label="Month">
-        <div></div>
-        <div class="month-label" id="monthLabel">Month YYYY</div>
-        <div></div>
-      </div>
+  <div class="hiddenSchedule" id="hiddenSchedule">
+    <!-- Tabs for Sessions and Reservations -->
+    <div class="schedule-tabs">
+      <button class="schedule-tab active" data-tab="sessions" type="button">Sessions</button>
+      <button class="schedule-tab" data-tab="reservations" type="button">Reservations</button>
+    </div>
 
-      <div class="week-bar" aria-label="Week navigation">
-        <button
-          class="nav-btn"
-          id="weekPrev"
-          aria-label="Previous week"
-          type="button"
-        >
-          <i class="bx bx-chevron-left"></i>
-        </button>
-        <div class="week-range" id="weekRange">Week Range</div>
-        <button
-          class="nav-btn"
-          id="weekNext"
-          aria-label="Next week"
-          type="button"
-        >
-          <i class="bx bx-chevron-right"></i>
-        </button>
-      </div>
+    <!-- Calendar -->
+    <div class="calendar-header-container" id="playerHomeCalendar">
+      <button class="calendar-nav-btn" id="playerHomeCalendarPrev" type="button">
+        <i class="bx bx-chevron-left"></i>
+      </button>
+      <div class="calendar-week-row" id="playerHomeCalendarWeek"></div>
+      <button class="calendar-nav-btn" id="playerHomeCalendarNext" type="button">
+        <i class="bx bx-chevron-right"></i>
+      </button>
+    </div>
 
-      <div
-        class="week"
-        id="weekStrip"
-        role="tablist"
-        aria-label="Week selector"
-      ></div>
+    <!-- Sessions Tab Content -->
+    <div class="schedule-tab-content active" id="sessionsTabContent">
+      <div class="sessions-list-container" id="sessionsListContainer">
+        <!-- Reserved sessions will be loaded here -->
+      </div>
+    </div>
+
+    <!-- Reservations Tab Content -->
+    <div class="schedule-tab-content" id="reservationsTabContent">
+      <div class="reservations-list-container" id="reservationsListContainer">
+        <!-- Reservations will be loaded here -->
+      </div>
     </div>
   </div>
 </div>
 
 <div class="sectionTwo">
-  <div class="currentCurFocus">
-    <h1>CURRENT FOCUS: BUILD-OUT</h1>
-  </div>
   <div class="bottomSec">
-    <div class="objectivesFromCoach">
-      <div class="objectives">
-        <h5>OBJECTIVES</h5>
-        <i class="bx bx-chevron-down objectivesToggle"></i>
+    <div class="tabs-switcher-container">
+      <!-- Tabs Header -->
+      <div class="tabs-switcher-header">
+        <button class="tab-button active" data-tab="objectives" type="button">
+          <span>Objectives</span>
+        </button>
+        <button class="tab-button" data-tab="quiz" type="button">
+          <span>Quiz</span>
+        </button>
+        <div class="tab-indicator"></div>
       </div>
-      <div class="coachAndTime">
-        <div class="coach">
-          <h5 class="coach">From: Coach Stanley</h5>
+      
+      <!-- Tab Content -->
+      <div class="tabs-switcher-content">
+        <!-- Objectives Content -->
+        <div class="tab-panel active" data-panel="objectives">
+          <div class="objectives-content">
+            <div class="currentCurFocus">
+              <h1>CURRENT FOCUS: <span class="curriculum-focus-text">Loading...</span></h1>
+            </div>
+            <div class="coachAndTime">
+              <div class="coach">
+                <h5 class="coach">From: Coach Stanley</h5>
+              </div>
+              <div class="time">
+                <h5>10/19/25</h5>
+              </div>
+            </div>
+            <div class="inPossession">
+              <h4>In Possession</h4>
+              <h5>5x per half break lines on the dribble centrally</h5>
+            </div>
+            <div class="outOfPossession">
+              <h4>Out Of Possession</h4>
+              <h5>
+                3x per half, if ball is behind you, sprint to get behind
+                horizontal line
+              </h5>
+            </div>
+          </div>
         </div>
-        <div class="time">
-          <h5>10/19/25</h5>
+        
+        <!-- Quiz Content -->
+        <div class="tab-panel" data-panel="quiz">
+          <div class="quiz-content">
+            <!-- Quiz content will be loaded here -->
+            <p>Quiz content coming soon...</p>
+          </div>
         </div>
-      </div>
-      <div class="inPossession">
-        <h4>In Possession</h4>
-        <h5>5x per half break lines on the dribble centrally</h5>
-      </div>
-      <div class="outOfPossession">
-        <h4>Out Of Possession</h4>
-        <h5>
-          3x per half, if ball is behind you, sprint to get behind
-          horizontal line
-        </h5>
       </div>
     </div>
-    <div class="curriculumQuiz"></div>
+  </div>
+</div>
+
+<!-- Notification Modal (Bottom Sheet) -->
+<div class="notification-modal-overlay" id="notificationModalOverlay" style="display: none;">
+  <div class="notification-bottom-sheet" id="notificationBottomSheet" data-level="2">
+    <div class="notification-bottom-sheet-handle"></div>
+    <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
+      <i class="bx bx-x"></i>
+    </button>
+    <div class="notification-bottom-sheet-content">
+      <div class="notification-full-content">
+        <h2 class="notification-title">Notifications</h2>
+        <div class="notification-list" id="notificationList">
+          <!-- Notifications will be loaded here -->
+          <div class="notification-empty-state">
+            <p>No notifications</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
