@@ -75,6 +75,8 @@ async function init() {
     renderCalendar();
     setupRealtimeSubscriptions();
     loadReservedSessions();
+    loadNotifications();
+    setupNotificationBottomSheet();
   } else {
     console.error('Failed to initialize Supabase');
   }
@@ -217,29 +219,33 @@ function setupEventListeners() {
     renderCalendar();
   });
 
+  // Objectives/Quiz Tab functionality
+  setupObjectivesQuizTabs();
+  
+  // Notification bell functionality
+  setupNotificationBottomSheet();
+  
   // Schedule toggle
   const btn = document.getElementById('scheduleToggle');
   const panel = document.getElementById('hiddenSchedule');
   if (btn && panel) {
-  const icon = btn.querySelector('i');
-  const setOpen = (open) => {
-    panel.classList.toggle('is-open', open);
-    btn.setAttribute('aria-expanded', String(open));
-    if (icon) {
-      icon.classList.toggle('bx-chevron-down', open);
-      icon.classList.toggle('bx-chevron-up', !open);
-    }
-  };
+    const setOpen = async (open) => {
+      panel.classList.toggle('is-open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      // Use toggleChevronIcon to update the SVG icon
+      const { toggleChevronIcon } = await import('../../../utils/lucide-icons.js');
+      toggleChevronIcon(btn, !open); // !open because chevron-up when open, chevron-down when closed
+    };
 
-  setOpen(false); // Start closed when navigating to home
+    setOpen(false); // Start closed when navigating to home
 
-  btn.addEventListener('click', () => {
-    const openNow = panel.classList.contains('is-open');
-    setOpen(!openNow);
+    btn.addEventListener('click', async () => {
+      const openNow = panel.classList.contains('is-open');
+      await setOpen(!openNow);
       if (!openNow) {
         loadReservedSessions();
       }
-  });
+    });
   }
 }
 
@@ -624,7 +630,12 @@ function renderSessionsList(sessions, container) {
   if (!container) return;
 
   if (sessions.length === 0) {
-    container.innerHTML = '<div class="empty-state">No reserved sessions</div>';
+    // Different empty state messages for Sessions vs Reservations tabs
+    const isReservationsTab = container.id === 'reservationsListContainer';
+    const emptyMessage = isReservationsTab 
+      ? 'No future reserved sessions'
+      : 'No reserved sessions today';
+    container.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
     return;
   }
 
@@ -1351,113 +1362,508 @@ async function setupRealtimeSubscriptions() {
     .subscribe();
 }
 
-// Initialize tabs switcher
-function initTabsSwitcher() {
-  const tabButtons = document.querySelectorAll('.tab-button');
+// Initialize on page load
+// Setup Objectives/Quiz Tabs (Material-UI style)
+function setupObjectivesQuizTabs() {
+  const tabButtons = document.querySelectorAll('.tab-button[data-tab]');
   const tabPanels = document.querySelectorAll('.tab-panel');
-  const tabIndicator = document.querySelector('.tab-indicator');
-  const header = document.querySelector('.tabs-switcher-header');
   
-  if (!tabButtons.length || !tabPanels.length) return;
+  // Hide all panels initially
+  tabPanels.forEach(panel => {
+    panel.classList.remove('active');
+  });
+  
+  // Remove active from all buttons initially
+  tabButtons.forEach(btn => {
+    btn.classList.remove('active');
+    btn.setAttribute('aria-selected', 'false');
+  });
   
   tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (e) => {
       const targetTab = button.dataset.tab;
       
-      // Update active button
-      tabButtons.forEach(btn => btn.classList.remove('active'));
-      button.classList.add('active');
-      
-      // Update header class for indicator positioning
-      if (header) {
-        header.classList.toggle('quiz-active', targetTab === 'quiz');
-      }
-      
-      // Update active panel with smooth transition
-      tabPanels.forEach(panel => {
-        if (panel.dataset.panel === targetTab) {
-          // Small delay to ensure smooth transition
-          setTimeout(() => {
-            panel.classList.add('active');
-          }, 10);
-        } else {
-          panel.classList.remove('active');
-        }
+      // Update active state on buttons
+      tabButtons.forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
       });
+      button.classList.add('active');
+      button.setAttribute('aria-selected', 'true');
+      
+      // Hide all panels first
+      tabPanels.forEach(panel => {
+        panel.classList.remove('active');
+      });
+      
+      // Show the selected panel
+      const targetPanel = document.getElementById(`${targetTab}-panel`);
+      if (targetPanel) {
+        targetPanel.classList.add('active');
+      }
     });
   });
 }
 
-// Initialize notification modal
-function initNotificationModal() {
+// Store current notifications for mark all as read
+let currentNotifications = [];
+
+// Load notifications for player
+async function loadNotifications() {
+  if (!supabaseReady || !supabase) return;
+
+  try {
+    const context = await getAccountContext();
+    if (!context) return;
+
+    const playerId = context.getPlayerIdForAction();
+    if (!playerId) return;
+
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('recipient_id', playerId)
+      .eq('recipient_role', 'player')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Error loading notifications:', error);
+      return;
+    }
+
+    currentNotifications = notifications || [];
+    renderNotifications(currentNotifications);
+    updateNotificationBell(currentNotifications);
+  } catch (error) {
+    console.error('Error in loadNotifications:', error);
+  }
+}
+
+// Render notifications in the bottom sheet
+function renderNotifications(notifications) {
+  const container = document.querySelector('.notification-content');
+  if (!container) return;
+
+  if (notifications.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: var(--muted);">
+        <i class="bx bx-bell-off" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+        <p>No notifications yet</p>
+      </div>
+    `;
+    return;
+  }
+
+  const notificationsHtml = notifications.map(notif => {
+    const date = new Date(notif.created_at);
+    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const isRead = notif.is_read;
+    const icon = getNotificationIcon(notif.notification_type);
+
+    return `
+      <div class="notification-item ${isRead ? 'read' : 'unread'}" data-notification-id="${notif.id}">
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-content-text">
+          <div class="notification-title">${escapeHtml(notif.title)}</div>
+          <div class="notification-message">${escapeHtml(notif.message)}</div>
+          <div class="notification-date">${dateStr}</div>
+        </div>
+        ${!isRead ? '<div class="notification-dot"></div>' : ''}
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = notificationsHtml;
+
+  // Add click handlers to mark as read
+  container.querySelectorAll('.notification-item').forEach(item => {
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const notificationId = item.dataset.notificationId;
+      const wasUnread = item.classList.contains('unread');
+      
+      if (!wasUnread) return; // Already read, no need to update
+      
+      const { error } = await markNotificationAsRead(notificationId);
+      
+      if (error) {
+        console.error('Failed to mark notification as read:', error);
+        return; // Don't update UI if database update failed
+      }
+      
+      item.classList.remove('unread');
+      item.classList.add('read');
+      const dot = item.querySelector('.notification-dot');
+      if (dot) dot.remove();
+      
+      // Update badge count immediately
+      const bell = document.getElementById('notificationBell');
+      if (bell) {
+        const badge = bell.querySelector('.notification-badge');
+        if (badge) {
+          const currentCount = parseInt(badge.textContent) || 0;
+          const newCount = Math.max(0, currentCount - 1);
+          if (newCount > 0) {
+            badge.textContent = newCount > 99 ? '99+' : newCount;
+          } else {
+            badge.remove();
+          }
+        }
+      }
+      
+      // Also update the currentNotifications array
+      const notif = currentNotifications.find(n => n.id === notificationId);
+      if (notif) {
+        notif.is_read = true;
+      }
+    });
+  });
+}
+
+// Get icon for notification type
+function getNotificationIcon(type) {
+  const icons = {
+    'solo_session_created': '<i class="bx bx-football"></i>',
+    'objectives_assigned': '<i class="bx bx-target-lock"></i>',
+    'announcement': '<i class="bx bx-message-rounded"></i>',
+    'points_awarded': '<i class="bx bx-trophy"></i>',
+    'quiz_assigned': '<i class="bx bx-question-mark"></i>',
+    'milestone_achieved': '<i class="bx bx-star"></i>',
+    'schedule_change': '<i class="bx bx-calendar"></i>',
+    'field_change': '<i class="bx bx-map"></i>',
+    'cancellation': '<i class="bx bx-x-circle"></i>'
+  };
+  return icons[type] || '<i class="bx bx-bell"></i>';
+}
+
+// Mark notification as read
+async function markNotificationAsRead(notificationId) {
+  if (!supabaseReady || !supabase) {
+    return { error: new Error('Supabase not ready') };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ 
+        is_read: true,
+        read_at: new Date().toISOString()
+      })
+      .eq('id', notificationId)
+      .select();
+    
+    if (error) {
+      console.error('Error marking notification as read:', error);
+      return { error };
+    }
+    
+    console.log('Notification marked as read:', data);
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    return { error };
+  }
+}
+
+// Update notification bell badge
+function updateNotificationBell(notifications) {
+  const bell = document.getElementById('notificationBell');
+  if (!bell) return;
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const badge = bell.querySelector('.notification-badge') || document.createElement('span');
+  
+  if (unreadCount > 0) {
+    badge.className = 'notification-badge';
+    badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+    if (!bell.querySelector('.notification-badge')) {
+      bell.appendChild(badge);
+    }
+  } else {
+    const existingBadge = bell.querySelector('.notification-badge');
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+  }
+}
+
+// Escape HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Setup Notification Bottom Sheet (opens directly to full height)
+function setupNotificationBottomSheet() {
   const notificationBell = document.getElementById('notificationBell');
-  const notificationOverlay = document.getElementById('notificationModalOverlay');
-  const notificationCloseBtn = document.getElementById('notificationCloseBtn');
-  const notificationBottomSheet = document.getElementById('notificationBottomSheet');
+  const bottomSheet = document.getElementById('notificationBottomSheet');
+  const closeBtn = document.getElementById('notificationCloseBtn');
+  const handle = bottomSheet?.querySelector('.notification-bottom-sheet-handle');
   
-  if (!notificationBell || !notificationOverlay || !notificationCloseBtn || !notificationBottomSheet) return;
+  if (!notificationBell || !bottomSheet) return;
   
-  // Open modal
-  notificationBell.addEventListener('click', () => {
-    openNotificationModal();
+  // Full height - 70% of viewport
+  const FULL_HEIGHT = Math.floor(window.innerHeight * 0.7);
+  const MIN_HEIGHT = 200; // Minimum height before closing
+  
+  let isDragging = false;
+  let startY = 0;
+  let startHeight = 0;
+  let isSheetOpen = false;
+  
+  // Function to open notification bottom sheet
+  function openNotificationSheet() {
+    isSheetOpen = true;
+    bottomSheet.style.display = 'flex';
+    bottomSheet.style.height = `${FULL_HEIGHT}px`;
+    bottomSheet.dataset.level = '2';
+    
+    // Animate in
+    requestAnimationFrame(() => {
+      bottomSheet.style.opacity = '1';
+      bottomSheet.style.transform = 'translateY(0)';
+    });
+  }
+  
+  // Function to close notification bottom sheet
+  function closeNotificationSheet() {
+    isSheetOpen = false;
+    bottomSheet.style.opacity = '0';
+    bottomSheet.style.transform = 'translateY(100%)';
+    setTimeout(() => {
+      bottomSheet.style.display = 'none';
+    }, 300);
+  }
+  
+  // Notification bell click handler
+  notificationBell.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!isSheetOpen) {
+      openNotificationSheet();
+    } else {
+      // If already open, close it
+      closeNotificationSheet();
+    }
   });
   
-  // Close modal
-  notificationCloseBtn.addEventListener('click', () => {
-    closeNotificationModal();
-  });
+  // Close button handler
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      closeNotificationSheet();
+    });
+  }
   
-  // Close on overlay click
-  notificationOverlay.addEventListener('click', (e) => {
-    if (e.target === notificationOverlay) {
-      closeNotificationModal();
+  // Draggable bottom sheet functionality - drag down to close
+  if (handle) {
+    // Touch events for mobile
+    handle.addEventListener('touchstart', (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      isDragging = true;
+      startY = e.touches[0].clientY;
+      startHeight = bottomSheet.offsetHeight;
+      e.stopPropagation();
+    }, { passive: false });
+    
+    handle.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const deltaY = e.touches[0].clientY - startY;
+      // Only allow dragging down (positive deltaY)
+      if (deltaY > 0) {
+        const newHeight = Math.max(MIN_HEIGHT, startHeight - deltaY);
+        bottomSheet.style.height = `${newHeight}px`;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+    }, { passive: false });
+    
+    handle.addEventListener('touchend', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      const finalHeight = bottomSheet.offsetHeight;
+      // If dragged below minimum, close it
+      if (finalHeight <= MIN_HEIGHT) {
+        closeNotificationSheet();
+      } else {
+        // Otherwise snap back to full height
+        bottomSheet.style.height = `${FULL_HEIGHT}px`;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+    }, { passive: false });
+    
+    // Mouse events for desktop
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaY = e.clientY - startY;
+      // Only allow dragging down (positive deltaY)
+      if (deltaY > 0) {
+        const newHeight = Math.max(MIN_HEIGHT, startHeight - deltaY);
+        bottomSheet.style.height = `${newHeight}px`;
+      }
+    };
+    
+    const handleMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      const finalHeight = bottomSheet.offsetHeight;
+      // If dragged below minimum, close it
+      if (finalHeight <= MIN_HEIGHT) {
+        closeNotificationSheet();
+      } else {
+        // Otherwise snap back to full height
+        bottomSheet.style.height = `${FULL_HEIGHT}px`;
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    handle.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startY = e.clientY;
+      startHeight = bottomSheet.offsetHeight;
+      e.preventDefault();
+      e.stopPropagation();
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    });
+  }
+  
+  // Close on backdrop click (click outside the sheet)
+  // Use a small delay to prevent immediate closing when bell is clicked
+  let backdropTimeout = null;
+  document.addEventListener('click', (e) => {
+    // Clear any pending backdrop close
+    if (backdropTimeout) {
+      clearTimeout(backdropTimeout);
+      backdropTimeout = null;
+    }
+    
+    // Don't close if clicking on the bell, mark all read button, or inside the sheet
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (notificationBell.contains(e.target) || 
+        bottomSheet.contains(e.target) ||
+        e.target === notificationBell ||
+        (markAllReadBtn && (markAllReadBtn.contains(e.target) || e.target === markAllReadBtn))) {
+      return;
+    }
+    
+    // Only close if sheet is actually open
+    if (isSheetOpen) {
+      backdropTimeout = setTimeout(() => {
+        closeNotificationSheet();
+      }, 100);
     }
   });
   
   // Close on Escape key
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && notificationOverlay.classList.contains('show')) {
-      closeNotificationModal();
+    if (e.key === 'Escape' && 
+        bottomSheet.style.display !== 'none' && 
+        bottomSheet.style.display) {
+      closeNotificationSheet();
     }
   });
   
-  function openNotificationModal() {
-    notificationOverlay.style.display = 'flex';
-    // Trigger reflow to ensure display change is applied
-    void notificationOverlay.offsetWidth;
-    
-    // Set initial height
-    const targetHeight = Math.floor(window.innerHeight * 0.7); // 70% of viewport
-    notificationBottomSheet.style.height = `${targetHeight}px`;
-    
-    // Show with animation
-    requestAnimationFrame(() => {
-      notificationOverlay.classList.add('show');
-    });
-  }
-  
-  function closeNotificationModal() {
-    notificationOverlay.classList.remove('show');
-    notificationBottomSheet.style.height = '0';
-    
-    // Hide after animation
-    setTimeout(() => {
-      if (!notificationOverlay.classList.contains('show')) {
-        notificationOverlay.style.display = 'none';
-      }
-    }, 300);
-  }
+  // Mark all as read button - set up with a delay to ensure DOM is ready
+  setTimeout(() => {
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (markAllReadBtn) {
+      // Remove any existing onclick handlers first
+      markAllReadBtn.onclick = null;
+      markAllReadBtn.onclick = async function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        console.log('Mark all as read button clicked');
+        
+        if (!supabaseReady || !supabase) {
+          console.log('Supabase not ready');
+          return;
+        }
+
+        try {
+          const context = await getAccountContext();
+          if (!context) {
+            console.log('No context');
+            return;
+          }
+
+          const playerId = context.getPlayerIdForAction();
+          if (!playerId) {
+            console.log('No player ID');
+            return;
+          }
+
+          // Get all unread notifications
+          const unreadNotifications = currentNotifications.filter(n => !n.is_read);
+          console.log('Unread notifications:', unreadNotifications.length);
+          
+          if (unreadNotifications.length === 0) {
+            // Update badge to zero if no unread
+            const bell = document.getElementById('notificationBell');
+            if (bell) {
+              const badge = bell.querySelector('.notification-badge');
+              if (badge) badge.remove();
+            }
+            return;
+          }
+
+          // Mark all as read
+          const notificationIds = unreadNotifications.map(n => n.id);
+          console.log('Marking notifications as read:', notificationIds);
+          
+          const { data, error } = await supabase
+            .from('notifications')
+            .update({ 
+              is_read: true,
+              read_at: new Date().toISOString()
+            })
+            .in('id', notificationIds)
+            .select();
+
+          if (error) {
+            console.error('Error updating notifications:', error);
+            throw error;
+          }
+
+          console.log('Notifications updated:', data);
+
+          // Update badge to zero immediately
+          const bell = document.getElementById('notificationBell');
+          if (bell) {
+            const badge = bell.querySelector('.notification-badge');
+            if (badge) badge.remove();
+          }
+
+          // Update currentNotifications array
+          currentNotifications.forEach(n => {
+            if (!n.is_read) n.is_read = true;
+          });
+
+          // Reload notifications to update UI
+          await loadNotifications();
+        } catch (error) {
+          console.error('Error marking all notifications as read:', error);
+        }
+      };
+    } else {
+      console.warn('Mark all read button not found');
+    }
+  }, 100);
 }
 
-// Initialize on page load
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    init();
-    initTabsSwitcher();
-    initNotificationModal();
-  });
+  document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
-  initTabsSwitcher();
-  initNotificationModal();
 }

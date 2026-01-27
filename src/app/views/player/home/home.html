@@ -72,79 +72,99 @@
   </div>
 </div>
 
-<div class="sectionTwo">
-  <div class="bottomSec">
-    <div class="tabs-switcher-container">
-      <!-- Tabs Header -->
-      <div class="tabs-switcher-header">
-        <button class="tab-button active" data-tab="objectives" type="button">
-          <span>Objectives</span>
+<div class="objectives-quiz-section">
+  <!-- Tab Container -->
+  <div class="tab-container">
+    <!-- Tab List -->
+    <div class="tab-list-wrapper">
+      <div class="tab-list" role="tablist" aria-label="Objectives and Quiz tabs">
+        <button 
+          class="tab-button" 
+          role="tab" 
+          aria-selected="false" 
+          aria-controls="objectives-panel" 
+          id="objectives-tab"
+          data-tab="objectives"
+          type="button"
+        >
+          Objectives
         </button>
-        <button class="tab-button" data-tab="quiz" type="button">
-          <span>Quiz</span>
+        <button 
+          class="tab-button" 
+          role="tab" 
+          aria-selected="false" 
+          aria-controls="quiz-panel" 
+          id="quiz-tab"
+          data-tab="quiz"
+          type="button"
+        >
+          Quiz
         </button>
-        <div class="tab-indicator"></div>
       </div>
-      
-      <!-- Tab Content -->
-      <div class="tabs-switcher-content">
-        <!-- Objectives Content -->
-        <div class="tab-panel active" data-panel="objectives">
-          <div class="objectives-content">
-            <div class="currentCurFocus">
-              <h1>CURRENT FOCUS: <span class="curriculum-focus-text">Loading...</span></h1>
+    </div>
+    
+    <!-- Tab Panels -->
+    <div class="tab-panels">
+      <!-- Objectives Panel -->
+      <div 
+        class="tab-panel" 
+        role="tabpanel" 
+        id="objectives-panel" 
+        aria-labelledby="objectives-tab"
+      >
+        <div class="current-focus-header">
+          <h1>CURRENT FOCUS: <span class="curriculum-focus-text">Loading...</span></h1>
+        </div>
+        <div class="objectives-content">
+          <div class="objectives-header">
+            <div class="coach-info">
+              <h5>From: Coach Stanley</h5>
             </div>
-            <div class="coachAndTime">
-              <div class="coach">
-                <h5 class="coach">From: Coach Stanley</h5>
-              </div>
-              <div class="time">
-                <h5>10/19/25</h5>
-              </div>
+            <div class="date-info">
+              <h5>10/19/25</h5>
             </div>
-            <div class="inPossession">
-              <h4>In Possession</h4>
-              <h5>5x per half break lines on the dribble centrally</h5>
-            </div>
-            <div class="outOfPossession">
-              <h4>Out Of Possession</h4>
-              <h5>
-                3x per half, if ball is behind you, sprint to get behind
-                horizontal line
-              </h5>
-            </div>
+          </div>
+          <div class="objective-item">
+            <h4>In Possession</h4>
+            <h5>5x per half break lines on the dribble centrally</h5>
+          </div>
+          <div class="objective-item">
+            <h4>Out Of Possession</h4>
+            <h5>
+              3x per half, if ball is behind you, sprint to get behind
+              horizontal line
+            </h5>
           </div>
         </div>
-        
-        <!-- Quiz Content -->
-        <div class="tab-panel" data-panel="quiz">
-          <div class="quiz-content">
-            <!-- Quiz content will be loaded here -->
-            <p>Quiz content coming soon...</p>
-          </div>
+      </div>
+      
+      <!-- Quiz Panel -->
+      <div 
+        class="tab-panel" 
+        role="tabpanel" 
+        id="quiz-panel" 
+        aria-labelledby="quiz-tab"
+      >
+        <div class="quiz-content">
+          <!-- Quiz content will be loaded here -->
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Notification Modal (Bottom Sheet) -->
-<div class="notification-modal-overlay" id="notificationModalOverlay" style="display: none;">
-  <div class="notification-bottom-sheet" id="notificationBottomSheet" data-level="2">
-    <div class="notification-bottom-sheet-handle"></div>
-    <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
-      <i class="bx bx-x"></i>
+<!-- Notification Bottom Sheet -->
+<div class="notification-bottom-sheet" id="notificationBottomSheet" style="display: none;">
+  <div class="notification-bottom-sheet-handle"></div>
+  <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
+    <i class="bx bx-x"></i>
+  </button>
+  <div class="notification-bottom-sheet-content">
+    <button class="mark-all-read-btn" id="markAllReadBtn" title="Mark all as read">
+      <i class="bx bx-book-check"></i>
     </button>
-    <div class="notification-bottom-sheet-content">
-      <div class="notification-full-content">
-        <h2 class="notification-title">Notifications</h2>
-        <div class="notification-list" id="notificationList">
-          <!-- Notifications will be loaded here -->
-          <div class="notification-empty-state">
-            <p>No notifications</p>
-          </div>
-        </div>
-      </div>
+    <div class="notification-content">
+      <!-- Notification content will be loaded here -->
     </div>
   </div>
 </div>

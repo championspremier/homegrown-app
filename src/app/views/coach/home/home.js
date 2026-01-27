@@ -2,9 +2,40 @@
 import { initSupabase } from '../../../../auth/config/supabase.js';
 import { getPointsForSessionType, getCurrentQuarter } from '../../../utils/points.js';
 
+// Calculate solo session duration from session data
+function calculateSoloSessionDuration(soloSession) {
+  if (!soloSession) return 30; // Default fallback
+  
+  let totalMinutes = 0;
+  
+  // Warm-up duration (default 5 minutes)
+  totalMinutes += 5;
+  
+  // Main exercises duration
+  if (soloSession.main_exercises && Array.isArray(soloSession.main_exercises)) {
+    soloSession.main_exercises.forEach(ex => {
+      const exerciseDuration = ex.duration || 3; // 3 min default per set
+      const restTime = ex.rest_time || 1; // 1 min rest default between sets
+      const sets = ex.sets || 1;
+      
+      // For each set: exercise duration + rest time (except last set)
+      totalMinutes += (exerciseDuration * sets) + (restTime * (sets - 1));
+    });
+  }
+  
+  // Finishing/Passing duration (default 5 minutes)
+  totalMinutes += 5;
+  
+  return Math.ceil(totalMinutes);
+}
+
 // Initialize Supabase
 let supabase;
 let supabaseReady = false;
+
+// Track past sessions pagination
+let pastSessionsLimit = 5;
+let allPastSessions = [];
 
 initSupabase().then(client => {
   if (client) {
@@ -32,10 +63,12 @@ async function initializeDashboard() {
   setupTabSwitching();
   setupDateRangeSelector();
   await loadCoachName();
-  await loadTodaySessions();
+  await loadSessions(false, null);
   await loadImportantSection();
   await loadStatsSection();
   setupRealtimeSubscriptions();
+  await loadNotifications();
+  setupNotificationBottomSheet();
 }
 
 // Load coach name
@@ -77,12 +110,21 @@ function setupTabSwitching() {
       btn.classList.add('active');
       
       const tab = btn.dataset.tab;
+      // Reset past sessions limit when switching tabs
+      if (tab !== 'past') {
+        pastSessionsLimit = 5;
+        allPastSessions = [];
+      }
+      
       if (tab === 'my-day') {
         // Filter to show only sessions where current coach is assigned
-        loadTodaySessions(true); // true = my day filter
+        loadSessions(true, null); // true = my day filter, null = today
+      } else if (tab === 'past') {
+        // Show past sessions (last 30 days)
+        loadSessions(false, 'past'); // false = full schedule, 'past' = past dates
       } else {
-        // Show all sessions
-        loadTodaySessions(false); // false = full schedule
+        // Show all sessions for today
+        loadSessions(false, null); // false = full schedule, null = today
       }
     });
   });
@@ -129,15 +171,32 @@ function getAgeGroup(age) {
 }
 
 // Load today's sessions
-async function loadTodaySessions(myDayOnly = false) {
+async function loadSessions(myDayOnly = false, dateFilter = null) {
   if (!supabaseReady || !supabase) return;
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) return;
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    // Determine date range based on filter
+    let startDate, endDate, dateStr;
+    if (dateFilter === 'past') {
+      // Past sessions: last 30 days (excluding today)
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      startDate = thirtyDaysAgo;
+      endDate = new Date(today);
+      endDate.setDate(today.getDate() - 1); // Exclude today
+      dateStr = null; // Will use date range query
+    } else {
+      // Today's sessions
+      const today = new Date();
+      dateStr = today.toISOString().split('T')[0];
+      startDate = today;
+      endDate = today;
+    }
+    
     const coachId = session.user.id;
 
     // Debug telemetry removed - was causing ERR_CONNECTION_REFUSED errors
@@ -152,16 +211,32 @@ async function loadTodaySessions(myDayOnly = false) {
           first_name,
           last_name
         )
-      `)
-      .eq('session_date', todayStr)
-      .eq('status', 'scheduled');
+      `);
+    
+    // Apply date filter
+    if (dateFilter === 'past') {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      query = query.gte('session_date', startDateStr).lte('session_date', endDateStr);
+    } else {
+      query = query.eq('session_date', dateStr);
+    }
+    
+    query = query.eq('status', 'scheduled');
 
     // Filter for "My day" - only sessions where coach is assigned
     if (myDayOnly) {
       query = query.or(`coach_id.eq.${coachId},assistant_coaches.cs.{${coachId}},goalkeeper_coaches.cs.{${coachId}}`);
     }
 
-    const { data: sessions, error } = await query.order('session_time', { ascending: true });
+    // Order by date (descending for past, ascending for today) and then by time
+    if (dateFilter === 'past') {
+      query = query.order('session_date', { ascending: false }).order('session_time', { ascending: true });
+    } else {
+      query = query.order('session_time', { ascending: true });
+    }
+    
+    const { data: sessions, error } = await query;
 
     if (error) {
       console.error('Error loading sessions:', error);
@@ -181,20 +256,17 @@ async function loadTodaySessions(myDayOnly = false) {
     let reservations = [];
     
     if (sessionIds.length > 0) {
-      console.log('🔍 Loading reservations for session IDs:', sessionIds);
+      // For past sessions, include checked-in status; for today, include reserved and checked-in
+      const reservationStatusFilter = dateFilter === 'past' 
+        ? ['reserved', 'checked-in']
+        : ['reserved', 'checked-in'];
       
       // First try without the player join to see if RLS is blocking
       const { data: simpleResData, error: simpleError } = await supabase
         .from('session_reservations')
         .select('*')
         .in('session_id', sessionIds)
-        .in('reservation_status', ['reserved', 'checked-in']);
-      
-      console.log('🔍 Simple query (no join) result:', {
-        count: simpleResData?.length || 0,
-        data: simpleResData,
-        error: simpleError
-      });
+        .in('reservation_status', reservationStatusFilter);
       
       // Now try with the player join
       const { data: resData, error: resError } = await supabase
@@ -211,27 +283,15 @@ async function loadTodaySessions(myDayOnly = false) {
           )
         `)
         .in('session_id', sessionIds)
-        .in('reservation_status', ['reserved', 'checked-in']);
-      
-      console.log('🔍 Query with player join result:', {
-        count: resData?.length || 0,
-        data: resData,
-        error: resError
-      });
+        .in('reservation_status', reservationStatusFilter);
 
       if (resError) {
         console.error('❌ Error loading reservations:', resError);
       } else {
         reservations = resData || [];
-        console.log('✅ Loaded reservations:', reservations.length, 'reservations found');
-        console.log('📋 Reservations by session:', reservations.map(r => ({
-          session_id: r.session_id,
-          player: r.player ? `${r.player.first_name} ${r.player.last_name}` : 'No player',
-          status: r.reservation_status
-        })));
       }
     } else {
-      console.log('⚠️ No session IDs to load reservations for');
+      // No group sessions to load reservations for (solo sessions are handled separately)
     }
 
     // Group reservations by session_id
@@ -242,12 +302,6 @@ async function loadTodaySessions(myDayOnly = false) {
       }
       reservationsBySession[res.session_id].push(res);
     });
-    
-    console.log('📊 Reservations grouped by session:', Object.keys(reservationsBySession).map(sessionId => ({
-      session_id: sessionId,
-      count: reservationsBySession[sessionId].length,
-      players: reservationsBySession[sessionId].map(r => r.player ? `${r.player.first_name} ${r.player.last_name}` : 'No player')
-    })));
 
     // Load staff for all sessions (assistant and goalkeeper coaches)
     const allStaffIds = new Set();
@@ -274,11 +328,13 @@ async function loadTodaySessions(myDayOnly = false) {
       }
     }
 
-    // Load individual session bookings for today
+    // Load individual session bookings
     let individualBookings = [];
+    let individualQuery;
+    
     if (myDayOnly) {
       // For "My day", only load bookings for this coach
-      const { data: bookings, error: bookingsError } = await supabase
+      individualQuery = supabase
         .from('individual_session_bookings')
         .select(`
           *,
@@ -302,37 +358,10 @@ async function loadTodaySessions(myDayOnly = false) {
             last_name
           )
         `)
-        .eq('booking_date', todayStr)
-        .eq('coach_id', coachId)
-        .in('status', ['confirmed', 'completed'])
-        .is('cancelled_at', null)  // Also check that cancelled_at is null as additional safety
-        .order('booking_time', { ascending: true });
-
-      // Debug telemetry removed - was causing ERR_CONNECTION_REFUSED errors
-
-      if (bookingsError) {
-        console.error('Error loading My day bookings:', bookingsError);
-      }
-
-      if (!bookingsError && bookings) {
-        individualBookings = bookings.map(booking => ({
-          id: booking.id,
-          session_type: booking.session_type?.display_name || booking.session_type?.name || 'Individual Session',
-          session_date: booking.booking_date,
-          session_time: booking.booking_time,
-          duration_minutes: booking.duration_minutes || booking.session_type?.duration_minutes || 20,
-          location_type: 'virtual', // Individual sessions are typically virtual
-          attendance_limit: 1,
-          current_reservations: 1,
-          coach_id: booking.coach_id,
-          coach: booking.coach, // Add coach profile
-          is_individual: true,
-          booking_data: booking
-        }));
-      }
+        .eq('coach_id', coachId);
     } else {
-      // For "Full schedule", load all individual bookings
-      const { data: bookings, error: bookingsError } = await supabase
+      // For "Full schedule" or "Past", load all bookings
+      individualQuery = supabase
         .from('individual_session_bookings')
         .select(`
           *,
@@ -355,54 +384,50 @@ async function loadTodaySessions(myDayOnly = false) {
             first_name,
             last_name
           )
-        `)
-        .eq('booking_date', todayStr)
-        .in('status', ['confirmed', 'completed'])
-        .is('cancelled_at', null)  // Also check that cancelled_at is null as additional safety
-        .order('booking_time', { ascending: true });
-
-      if (!bookingsError && bookings) {
-        individualBookings = bookings.map(booking => ({
-          id: booking.id,
-          session_type: booking.session_type?.display_name || booking.session_type?.name || 'Individual Session',
-          session_date: booking.booking_date,
-          session_time: booking.booking_time,
-          duration_minutes: booking.duration_minutes || booking.session_type?.duration_minutes || 20,
-          location_type: 'virtual',
-          attendance_limit: 1,
-          current_reservations: 1,
-          coach_id: booking.coach_id,
-          coach: booking.coach, // Add coach profile
-          is_individual: true,
-          booking_data: booking
-        }));
-      }
-    }
-
-    // Combine group sessions and individual bookings
-    // Filter out any cancelled sessions (client-side safety check)
-    const allSessions = [...onFieldSessions, ...virtualSessions, ...individualBookings]
-      .filter(session => !cancelledSessionIds.has(session.id))
-      .sort((a, b) => {
-        const timeA = a.session_time || '';
-        const timeB = b.session_time || '';
-        return timeA.localeCompare(timeB);
-      });
-    
-    // Show empty state only if we've checked both group and individual sessions and found nothing
-    if (allSessions.length === 0) {
-      const container = document.getElementById('sessionsList');
-      if (container) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <i class="bx bx-calendar"></i>
-            <div>No sessions scheduled for today</div>
-          </div>
-        `;
-      }
-      return;
+        `);
     }
     
+    // Apply date filter
+    if (dateFilter === 'past') {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      individualQuery = individualQuery.gte('booking_date', startDateStr).lte('booking_date', endDateStr);
+    } else {
+      individualQuery = individualQuery.eq('booking_date', dateStr);
+    }
+    
+    // Apply status filter (for past, include completed too)
+    const individualStatusFilter = dateFilter === 'past' 
+      ? ['confirmed', 'completed']
+      : ['confirmed', 'completed'];
+    
+    const { data: bookings, error: bookingsError } = await individualQuery
+      .in('status', individualStatusFilter)
+      .is('cancelled_at', null)
+      .order('booking_date', { ascending: false })
+      .order('booking_time', { ascending: true });
+
+    if (bookingsError) {
+      console.error('Error loading individual bookings:', bookingsError);
+    }
+
+    if (!bookingsError && bookings) {
+      individualBookings = bookings.map(booking => ({
+        id: booking.id,
+        session_type: booking.session_type?.display_name || booking.session_type?.name || 'Individual Session',
+        session_date: booking.booking_date,
+        session_time: booking.booking_time,
+        duration_minutes: booking.duration_minutes || booking.session_type?.duration_minutes || 20,
+        location_type: 'virtual', // Individual sessions are typically virtual
+        attendance_limit: 1,
+        current_reservations: 1,
+        coach_id: booking.coach_id,
+        coach: booking.coach, // Add coach profile
+        is_individual: true,
+        booking_data: booking
+      }));
+    }
+
     // For individual bookings, create reservation-like objects
     individualBookings.forEach(booking => {
       if (booking.booking_data && booking.booking_data.player) {
@@ -420,15 +445,184 @@ async function loadTodaySessions(myDayOnly = false) {
         });
       }
     });
+
+    // Load solo session bookings
+    const dateFilterStr = dateFilter === 'past' 
+      ? `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`
+      : dateStr;
+    let soloQuery = supabase
+      .from('player_solo_session_bookings')
+      .select(`
+        *,
+        solo_session:solo_sessions(
+          id,
+          title,
+          category,
+          period,
+          skill,
+          main_exercises
+        ),
+        player:profiles!player_solo_session_bookings_player_id_fkey(
+          id,
+          first_name,
+          last_name,
+          birth_year,
+          birth_date,
+          positions
+        )
+      `);
     
-    renderSessionsList(allSessions, reservationsBySession, staffProfiles);
+    // Apply date filter for solo bookings
+    if (dateFilter === 'past') {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      soloQuery = soloQuery.gte('scheduled_date', startDateStr).lte('scheduled_date', endDateStr);
+    } else {
+      soloQuery = soloQuery.eq('scheduled_date', dateStr);
+    }
+    
+    // For past sessions, include checked-in and denied statuses too
+    // For today's sessions, include checked-in so they remain visible until day end
+    const statusFilter = dateFilter === 'past' 
+      ? ['scheduled', 'completed', 'pending_review', 'checked-in', 'denied']
+      : ['scheduled', 'completed', 'pending_review', 'checked-in'];
+    
+    const { data: soloBookings, error: soloError } = await soloQuery.in('status', statusFilter);
+
+    if (soloError) {
+      console.error('❌ Error loading solo bookings:', soloError);
+    }
+
+    // Create solo sessions array
+    const soloSessions = [];
+    if (soloBookings && soloBookings.length > 0) {
+      // Fetch missing skills from videos in parallel
+      const bookingsWithSkills = await Promise.all(
+        soloBookings.map(async (booking) => {
+          let skillToUse = booking.solo_session?.skill;
+          
+          // If skill is null, try to get it from the first main exercise video
+          if (!skillToUse && booking.solo_session?.main_exercises && 
+              Array.isArray(booking.solo_session.main_exercises) && 
+              booking.solo_session.main_exercises.length > 0) {
+            const firstExercise = booking.solo_session.main_exercises[0];
+            if (firstExercise?.video_id) {
+              const { data: video } = await supabase
+                .from('solo_session_videos')
+                .select('skill')
+                .eq('id', firstExercise.video_id)
+                .single();
+              
+              if (video?.skill) {
+                skillToUse = video.skill;
+              }
+            }
+          }
+          
+          return { ...booking, resolvedSkill: skillToUse };
+        })
+      );
+      
+      bookingsWithSkills.forEach(booking => {
+        // Format skill name for display (e.g., "escape-moves" -> "Escape Moves")
+        let sessionType = 'Solo Session';
+        
+        if (booking.resolvedSkill) {
+          sessionType = booking.resolvedSkill
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        } else if (booking.solo_session?.title) {
+          // Fallback: remove date from title if present
+          const title = booking.solo_session.title;
+          // Remove date pattern like " - 1/5/2026" or " - 1/5/26"
+          sessionType = title.replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4}/, '');
+        }
+        
+        const soloSession = {
+          id: `solo-${booking.id}`,
+          session_type: sessionType,
+          session_time: booking.scheduled_time,
+          session_date: booking.scheduled_date, // Add date for sorting
+          duration_minutes: calculateSoloSessionDuration(booking.solo_session),
+          location_type: 'solo',
+          is_solo: true,
+          solo_booking: booking
+        };
+        soloSessions.push(soloSession);
+
+        // Create reservation-like object for solo session
+        if (!reservationsBySession[soloSession.id]) {
+          reservationsBySession[soloSession.id] = [];
+        }
+        reservationsBySession[soloSession.id].push({
+          id: booking.id,
+          session_id: soloSession.id,
+          player_id: booking.player_id,
+          parent_id: booking.parent_id,
+          reservation_status: booking.status === 'checked-in' ? 'checked-in' : 
+                             booking.status === 'pending_review' ? 'pending_review' : 'reserved',
+          checked_in_at: booking.checked_in_at,
+          checked_in_by: booking.checked_in_by,
+          player: booking.player,
+          completion_photo_url: booking.completion_photo_url,
+          is_solo: true
+        });
+      });
+    } else {
+    }
+
+    // Combine group sessions, individual bookings, and solo sessions
+    // Filter out any cancelled sessions (client-side safety check)
+    const allSessions = [...onFieldSessions, ...virtualSessions, ...individualBookings, ...soloSessions]
+      .filter(session => !cancelledSessionIds.has(session.id))
+      .sort((a, b) => {
+        if (dateFilter === 'past') {
+          // For past sessions, sort by date descending (most recent first), then by time
+          const dateA = a.session_date || a.booking_date || '';
+          const dateB = b.session_date || b.booking_date || '';
+          const dateCompare = dateB.localeCompare(dateA); // Descending
+          if (dateCompare !== 0) return dateCompare;
+        }
+        // Then sort by time (ascending for same date)
+        const timeA = a.session_time || a.booking_time || '';
+        const timeB = b.session_time || b.booking_time || '';
+        return timeA.localeCompare(timeB);
+      });
+    
+    // Show empty state only if we've checked group, individual, AND solo sessions and found nothing
+    if (allSessions.length === 0) {
+      const container = document.getElementById('sessionsList');
+      if (container) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <i class="bx bx-calendar"></i>
+            <div>No sessions scheduled for today</div>
+          </div>
+        `;
+      }
+      return;
+    }
+    
+    
+    // For past tab, limit to 5 sessions initially and store full list
+    let sessionsToDisplay = allSessions;
+    if (dateFilter === 'past') {
+      allPastSessions = allSessions;
+      sessionsToDisplay = allSessions.slice(0, pastSessionsLimit);
+    } else {
+      allPastSessions = [];
+      pastSessionsLimit = 5; // Reset limit when not on past tab
+    }
+    
+    renderSessionsList(sessionsToDisplay, reservationsBySession, staffProfiles, dateFilter === 'past' ? allSessions.length : 0);
   } catch (error) {
     console.error('Error loading today sessions:', error);
   }
 }
 
 // Render sessions as simple list
-function renderSessionsList(sessions, reservationsBySession, staffProfiles = {}) {
+function renderSessionsList(sessions, reservationsBySession, staffProfiles = {}, totalPastSessions = 0) {
   const container = document.getElementById('sessionsList');
   if (!container) return;
 
@@ -436,19 +630,45 @@ function renderSessionsList(sessions, reservationsBySession, staffProfiles = {})
     container.innerHTML = `
       <div class="empty-state">
         <i class="bx bx-calendar"></i>
-        <div>No sessions scheduled for today</div>
+        <div>No sessions scheduled</div>
       </div>
     `;
     return;
   }
 
-  container.innerHTML = sessions.map(session => {
+  const sessionsHTML = sessions.map(session => {
     const reservations = reservationsBySession[session.id] || [];
     return createSessionListItem(session, reservations);
   }).join('');
 
+  // Add "Load more" button if there are more past sessions
+  let loadMoreButton = '';
+  if (totalPastSessions > 0 && sessions.length < totalPastSessions) {
+    const remaining = totalPastSessions - sessions.length;
+    const loadCount = Math.min(5, remaining); // Always load 5 at a time (or remaining if less than 5)
+    loadMoreButton = `
+      <div class="load-more-container">
+        <button class="load-more-btn" id="loadMorePastSessions" type="button">
+          Load ${loadCount} more session${loadCount !== 1 ? 's' : ''}
+        </button>
+      </div>
+    `;
+  }
+
+  container.innerHTML = sessionsHTML + loadMoreButton;
+
   // Attach click listeners to open modal
   attachListEventListeners(sessions, reservationsBySession, staffProfiles);
+
+  // Attach load more button listener
+  if (totalPastSessions > 0) {
+    const loadMoreBtn = document.getElementById('loadMorePastSessions');
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', () => {
+        loadMorePastSessions();
+      });
+    }
+  }
 }
 
 // Create simple session list item
@@ -477,6 +697,15 @@ function createSessionListItem(session, reservations) {
         attendeeDisplay = `<div class="session-list-attendees">${playerName}</div>`;
       }
     }
+  } else if (session.is_solo && reservations.length > 0) {
+    // For solo sessions, show player name
+    const player = reservations[0].player;
+    if (player) {
+      const playerName = `${player.first_name || ''} ${player.last_name || ''}`.trim();
+      if (playerName) {
+        attendeeDisplay = `<div class="session-list-attendees">${playerName}</div>`;
+      }
+    }
   } else if (reservations.length > 0) {
     // For group sessions, show attendee count
     const attendeeCount = reservations.length;
@@ -496,16 +725,26 @@ function createSessionListItem(session, reservations) {
   `;
 }
 
+// Load more past sessions
+function loadMorePastSessions() {
+  pastSessionsLimit += 5;
+  const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+  if (activeTab === 'past') {
+    loadSessions(false, 'past');
+  }
+}
+
 // Attach event listeners to list items
 function attachListEventListeners(sessions, reservationsBySession, staffProfiles) {
   document.querySelectorAll('.session-list-item').forEach(item => {
     item.addEventListener('click', () => {
       const sessionId = item.dataset.sessionId;
-      const session = sessions.find(s => s.id === sessionId);
+      // Search in allPastSessions if available, otherwise use sessions
+      const session = allPastSessions.length > 0 
+        ? allPastSessions.find(s => s.id === sessionId)
+        : sessions.find(s => s.id === sessionId);
       if (session) {
         const reservations = reservationsBySession[session.id] || [];
-        console.log('🔍 Opening modal for session:', sessionId);
-        console.log('📋 Reservations for this session:', reservations.length, reservations);
         openSessionModal(session, reservations, staffProfiles);
       }
     });
@@ -551,6 +790,12 @@ function openSessionModal(session, reservations, staffProfiles) {
 
   // Show modal
   modal.classList.add('show');
+  
+  // Convert icons in modal to Lucide
+  setTimeout(async () => {
+    const { initLucideIcons } = await import('../../../utils/lucide-icons.js');
+    initLucideIcons(modal);
+  }, 0);
 
   // Attach event listeners for modal content
   attachSessionEventListeners([session], { [session.id]: reservations });
@@ -559,6 +804,14 @@ function openSessionModal(session, reservations, staffProfiles) {
   const closeBtn = document.getElementById('closeModalBtn');
   if (closeBtn) {
     closeBtn.onclick = () => closeSessionModal();
+    // Convert icon to Lucide
+    setTimeout(async () => {
+      const icon = closeBtn.querySelector('i.bx');
+      if (icon) {
+        const { replaceBoxiconWithLucide } = await import('../../../utils/lucide-icons.js');
+        replaceBoxiconWithLucide(icon, false);
+      }
+    }, 0);
   }
 
   modal.onclick = (e) => {
@@ -601,14 +854,18 @@ function createSessionCard(session, reservations, staffProfiles = {}) {
   const endTime = calculateEndTime(session.session_time, session.duration_minutes);
   const endTimeStr = formatTime(endTime);
   
-  // Handle individual sessions differently
+  // Handle individual and solo sessions differently
   const isIndividual = session.is_individual;
+  const isSolo = session.is_solo || false;
   const location = isIndividual 
     ? 'Virtual Session'
+    : isSolo
+    ? 'Solo Session'
     : (session.location_type === 'on-field' 
       ? session.location || 'Location TBD'
       : 'Virtual Session');
-  const locationIcon = isIndividual || session.location_type === 'virtual' ? 'bx-video' : 'bx-map';
+  const locationIcon = isIndividual || session.location_type === 'virtual' ? 'bx-video' : 
+                      isSolo ? 'bx-football' : 'bx-map';
 
   // Get staff members (for group sessions)
   let staff = [];
@@ -629,12 +886,18 @@ function createSessionCard(session, reservations, staffProfiles = {}) {
   }
   
   // Get players
-  const players = reservations.map(res => ({
-    ...res.player,
-    reservation_status: res.reservation_status,
-    reservation_id: res.id,
-    checked_in_at: res.checked_in_at
-  }));
+  const players = reservations.map(res => {
+    const playerData = {
+      ...res.player,
+      reservation_status: res.reservation_status,
+      reservation_id: res.id,
+      checked_in_at: res.checked_in_at,
+      completion_photo_url: res.completion_photo_url, // Include completion photo for solo sessions
+      is_solo: res.is_solo || false, // Include solo flag
+      reservation: res // Include full reservation object
+    };
+    return playerData;
+  });
 
   // Collect all unique positions from players
   const allPositions = new Set();
@@ -664,7 +927,7 @@ function createSessionCard(session, reservations, staffProfiles = {}) {
             <span>${location}</span>
           </div>
         </div>
-        <div class="session-capacity">${reservations.length} / ${session.attendance_limit}</div>
+        ${!isSolo ? `<div class="session-capacity">${reservations.length} / ${session.attendance_limit || 'N/A'}</div>` : ''}
       </div>
 
       ${staff.length > 0 ? `
@@ -690,8 +953,8 @@ function createSessionCard(session, reservations, staffProfiles = {}) {
 
       <div class="session-players">
         <div class="players-header">
-          <div class="players-title">Players</div>
-          ${!isIndividual ? `
+          <div class="players-title">${isSolo ? 'Player' : 'Players'}</div>
+          ${!isIndividual && !isSolo ? `
           <div style="display: flex; gap: 12px; align-items: center; justify-content: center; width: 100%;">
             <div class="filter-tabs">
               <button class="filter-tab active" data-filter="all">All</button>
@@ -732,7 +995,7 @@ function createSessionCard(session, reservations, staffProfiles = {}) {
           ` : ''}
         </div>
         <div class="players-list" data-session-players="${session.id}">
-          ${players.length > 0 ? players.map(player => createPlayerItem(player)).join('') : '<div class="empty-state">No players reserved</div>'}
+          ${players.length > 0 ? players.map(player => createPlayerItem(player, player.reservation)).join('') : '<div class="empty-state">No players reserved</div>'}
         </div>
       </div>
     </div>
@@ -784,7 +1047,7 @@ function getSessionStaff(session, staffProfiles = {}) {
 }
 
 // Create player item HTML
-function createPlayerItem(player) {
+function createPlayerItem(player, reservation = null) {
   if (!player) return '';
   
   const age = calculateAge(player.birth_year, player.birth_date);
@@ -792,16 +1055,71 @@ function createPlayerItem(player) {
   const initials = getInitials(player.first_name, player.last_name);
   const positions = player.positions || [];
   const isCheckedIn = player.reservation_status === 'checked-in';
+  const isSolo = reservation?.is_solo || player.is_solo || false;
+  const completionPhotoUrl = reservation?.completion_photo_url || player.completion_photo_url;
   // Create comma-separated positions string for data attribute
   const positionsStr = positions.length > 0 ? positions.join(',') : '';
   
+  // Solo session layout is different
+  if (isSolo && completionPhotoUrl) {
+    return `
+      <div class="player-item solo-session-item" 
+           data-player-id="${player.id}"
+           data-age-group="${ageGroup || 'unknown'}"
+           data-reservation-status="${player.reservation_status}"
+           data-reservation-id="${player.reservation_id}"
+           data-positions="${positionsStr}"
+           data-is-solo="${isSolo}">
+        <div class="solo-player-info-section">
+          <div class="player-avatar">
+            ${initials}
+          </div>
+          <div class="player-info">
+            <span class="player-name">${player.first_name} ${player.last_name}</span>
+            ${positions.length > 0 ? `
+              <div class="player-positions">
+                ${positions.map(pos => `<span class="position-badge">${pos}</span>`).join('')}
+              </div>
+            ` : ''}
+          </div>
+          <div class="solo-action-buttons">
+            <button class="player-check-in-btn ${isCheckedIn ? 'checked-in' : ''}"
+                    data-player-check-in="${player.id}"
+                    data-reservation-id="${player.reservation_id}"
+                    data-is-solo="${isSolo}"
+                    data-action="${isCheckedIn ? 'remove' : 'checkin'}"
+                    type="button">
+              Check-In
+            </button>
+            ${!isCheckedIn ? `
+              <button class="player-deny-btn"
+                      data-player-id="${player.id}"
+                      data-reservation-id="${player.reservation_id}"
+                      data-is-solo="${isSolo}"
+                      type="button">
+                Deny
+              </button>
+            ` : ''}
+            <div class="solo-checkin-note">Player solo session must be checked in for points</div>
+          </div>
+        </div>
+        <div class="solo-session-photo-section">
+          <img src="${completionPhotoUrl}" alt="Completion photo" class="solo-photo-preview-img">
+          <div class="solo-photo-label">Solo Session Completion Photo</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Regular player item (non-solo)
   return `
     <div class="player-item" 
          data-player-id="${player.id}"
          data-age-group="${ageGroup || 'unknown'}"
          data-reservation-status="${player.reservation_status}"
          data-reservation-id="${player.reservation_id}"
-         data-positions="${positionsStr}">
+         data-positions="${positionsStr}"
+         data-is-solo="${isSolo}">
       <div class="player-avatar">
         ${initials}
       </div>
@@ -816,6 +1134,7 @@ function createPlayerItem(player) {
       <button class="player-check-in-btn ${isCheckedIn ? 'checked-in' : ''}"
               data-player-check-in="${player.id}"
               data-reservation-id="${player.reservation_id}"
+              data-is-solo="${isSolo}"
               data-action="${isCheckedIn ? 'remove' : 'checkin'}"
               type="button">
         ${isCheckedIn ? 'Remove Check-in' : 'Check-in'}
@@ -1009,7 +1328,6 @@ function attachSessionEventListeners(sessions, reservationsBySession) {
       e.stopPropagation();
       const staffId = e.target.dataset.staffCheckIn;
       // TODO: Implement coach check-in
-      console.log('Coach check-in:', staffId);
     });
   });
 }
@@ -1182,6 +1500,102 @@ async function checkInPlayer(reservationId, playerId) {
       return;
     }
 
+    // Check if this is a solo session booking
+    const isSolo = document.querySelector(`.player-check-in-btn[data-reservation-id="${reservationId}"]`)?.dataset.isSolo === 'true';
+    
+    if (isSolo) {
+      // Handle solo session check-in
+      const { data: soloBooking, error: soloError } = await supabase
+        .from('player_solo_session_bookings')
+        .select(`
+          *,
+          solo_session:solo_sessions(
+            id,
+            title,
+            category
+          )
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (soloError || !soloBooking) {
+        alert(`Error: ${soloError?.message || 'Could not load solo booking'}`);
+        return;
+      }
+
+      if (!soloBooking.completion_photo_url) {
+        alert('Player must upload a completion photo before check-in.');
+        return;
+      }
+
+      // Update solo booking status
+      const { error: updateError } = await supabase
+        .from('player_solo_session_bookings')
+        .update({
+          status: 'checked-in',
+          checked_in_at: new Date().toISOString(),
+          checked_in_by: authSession.user.id
+        })
+        .eq('id', reservationId);
+
+      if (updateError) {
+        alert(`Error: ${updateError.message}`);
+        return;
+      }
+
+      // Award points for solo session (8 points default)
+      const points = 8; // Solo sessions get 8 points
+      const { year, quarter } = getCurrentQuarter();
+      
+      const { error: pointsError } = await supabase
+        .from('points_transactions')
+        .insert({
+          player_id: playerId,
+          points: points,
+          session_type: 'Solo Session',
+          session_id: soloBooking.solo_session_id,
+          reservation_id: reservationId,
+          checked_in_by: authSession.user.id,
+          checked_in_at: new Date().toISOString(),
+          quarter_year: year,
+          quarter_number: quarter,
+          status: 'active'
+        });
+
+      if (pointsError) {
+        console.error('Error awarding points:', pointsError);
+        // Don't fail check-in if points fail
+      } else {
+        // Create notification for points awarded
+        await createPointsNotification(playerId, points, 'Solo Session', soloBooking.solo_session_id);
+      }
+
+      // Update UI
+      const btn = document.querySelector(`.player-check-in-btn[data-reservation-id="${reservationId}"]`);
+      if (btn) {
+        btn.classList.add('checked-in');
+        btn.dataset.action = 'remove';
+        btn.textContent = 'Remove Check-in';
+        // Hide deny button if it exists
+        const denyBtn = document.querySelector(`.player-deny-btn[data-reservation-id="${reservationId}"]`);
+        if (denyBtn) {
+          denyBtn.style.display = 'none';
+        }
+      }
+
+      const playerItem = document.querySelector(`.player-item[data-reservation-id="${reservationId}"]`);
+      if (playerItem) {
+        playerItem.dataset.reservationStatus = 'checked-in';
+      }
+
+      // Reload
+      const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+      const isMyDay = activeTab === 'my-day';
+      const isPast = activeTab === 'past';
+      await loadSessions(isMyDay, isPast ? 'past' : null);
+      return;
+    }
+
     // Check if this is an individual session booking or group session reservation
     const { data: groupReservation } = await supabase
       .from('session_reservations')
@@ -1286,7 +1700,6 @@ async function checkInPlayer(reservationId, playerId) {
           console.error('Error awarding points:', pointsError);
           // Don't fail the check-in if points fail, just log it
         } else {
-          console.log(`Awarded ${points} points to player ${playerId} for ${sessionType}`);
         }
       }
     }
@@ -1297,6 +1710,11 @@ async function checkInPlayer(reservationId, playerId) {
       btn.classList.add('checked-in');
       btn.dataset.action = 'remove';
       btn.textContent = 'Remove Check-in';
+      // Hide deny button if it exists
+      const denyBtn = document.querySelector(`.player-deny-btn[data-reservation-id="${reservationId}"]`);
+      if (denyBtn) {
+        denyBtn.style.display = 'none';
+      }
     }
 
     const playerItem = document.querySelector(`.player-item[data-reservation-id="${reservationId}"]`);
@@ -1306,10 +1724,74 @@ async function checkInPlayer(reservationId, playerId) {
 
     // Reload to update list counts
     const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
-    await loadTodaySessions(activeTab === 'my-day');
+    const isMyDay = activeTab === 'my-day';
+    const isPast = activeTab === 'past';
+    await loadSessions(isMyDay, isPast ? 'past' : null);
   } catch (error) {
     console.error('Error checking in player:', error);
     alert(`Error: ${error.message}`);
+  }
+}
+
+// Deny solo session
+async function denySoloSession(reservationId, playerId) {
+  if (!supabaseReady || !supabase) {
+    alert('Supabase not ready');
+    return;
+  }
+
+  try {
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    if (!authSession || !authSession.user) {
+      alert('Not logged in');
+      return;
+    }
+
+    // Verify user is coach or admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', authSession.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      alert('Error: Could not verify user role');
+      return;
+    }
+
+    if (profile.role !== 'coach' && profile.role !== 'admin') {
+      alert('Error: Only coaches and admins can deny solo sessions');
+      return;
+    }
+
+    // Update solo booking status to 'denied'
+    const { error: updateError } = await supabase
+      .from('player_solo_session_bookings')
+      .update({
+        status: 'denied',
+        denied_at: new Date().toISOString(),
+        denied_by: authSession.user.id
+      })
+      .eq('id', reservationId);
+
+    if (updateError) {
+      alert(`Error: ${updateError.message}`);
+      return;
+    }
+
+    // TODO: Send notification to player that session was denied
+    // This could be done via a notifications table or email
+    
+    alert('Solo session denied. Player will be notified to submit another photo.');
+
+    // Reload the session list to reflect changes
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+    const isMyDay = activeTab === 'my-day';
+    const isPast = activeTab === 'past';
+    await loadSessions(isMyDay, isPast ? 'past' : null);
+  } catch (error) {
+    console.error('Error denying solo session:', error);
+    alert(`Error: ${error.message || 'Failed to deny solo session'}`);
   }
 }
 
@@ -1485,10 +1967,8 @@ async function removeCheckIn(reservationId, playerId) {
           console.warn('Could not remove points transaction. Points may need to be manually adjusted:', updateError);
           alert('Check-in removed, but points could not be reversed. Please contact an admin to adjust points manually.');
         } else {
-          console.log('Points transaction archived (not deleted)');
         }
       } else {
-        console.log('Points transaction deleted successfully');
       }
     } else if (pointsFindError) {
       console.warn('Error finding points transaction:', pointsFindError);
@@ -1509,7 +1989,9 @@ async function removeCheckIn(reservationId, playerId) {
 
     // Reload to update list counts
     const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
-    await loadTodaySessions(activeTab === 'my-day');
+    const isMyDay = activeTab === 'my-day';
+    const isPast = activeTab === 'past';
+    await loadSessions(isMyDay, isPast ? 'past' : null);
   } catch (error) {
     console.error('Error removing check-in:', error);
     alert(`Error: ${error.message}`);
@@ -1958,7 +2440,8 @@ async function updateIndividualSessionCoach(newCoachId) {
     // Preserve the active tab state when reloading
     const activeTab = document.querySelector('.tab-btn.active');
     const isMyDay = activeTab && activeTab.dataset.tab === 'my-day';
-    await loadTodaySessions(isMyDay);
+    const isPast = activeTab && activeTab.dataset.tab === 'past';
+    await loadSessions(isMyDay, isPast ? 'past' : null);
   } catch (error) {
     console.error('Error updating coach:', error);
     alert(`Error: ${error.message}`);
@@ -1992,7 +2475,8 @@ async function updateIndividualSessionSchedule(newDate, newTime) {
     // Preserve the active tab state when reloading
     const activeTab = document.querySelector('.tab-btn.active');
     const isMyDay = activeTab && activeTab.dataset.tab === 'my-day';
-    await loadTodaySessions(isMyDay);
+    const isPast = activeTab && activeTab.dataset.tab === 'past';
+    await loadSessions(isMyDay, isPast ? 'past' : null);
   } catch (error) {
     console.error('Error rescheduling:', error);
     alert(`Error: ${error.message}`);
@@ -2009,11 +2493,8 @@ const cancelledSessionIds = new Set();
 async function handleCancelSession() {
   // Prevent multiple simultaneous cancellations
   if (isCancelling) {
-    console.log('Cancellation already in progress, ignoring duplicate call');
     return;
   }
-  
-  console.log('handleCancelSession called', { currentSessionData, isIndividual: currentSessionData?.is_individual });
   
   if (!currentSessionData) {
     console.error('No current session data');
@@ -2035,8 +2516,6 @@ async function handleCancelSession() {
   isCancelling = true;
   
   const bookingId = currentSessionData.id;
-  console.log('Cancelling booking:', bookingId);
-  
   // Add to cancelled set immediately to prevent it from showing up
   cancelledSessionIds.add(bookingId);
   
@@ -2064,8 +2543,6 @@ async function handleCancelSession() {
     // If no error, the update succeeded
     // RLS policies may prevent us from reading the cancelled booking back,
     // but the update itself should have worked
-    console.log('✅ Session cancellation update sent successfully:', bookingId);
-    
     // If update succeeded, immediately remove the session from the UI
     const sessionListItem = document.querySelector(`.session-list-item[data-session-id="${bookingId}"]`);
     if (sessionListItem) {
@@ -2091,11 +2568,12 @@ async function handleCancelSession() {
     const isMyDay = activeTab && activeTab.dataset.tab === 'my-day';
     
     // Reload sessions after a delay to ensure database is updated
-    // The loadTodaySessions function already filters out cancelled sessions
+    // The loadSessions function already filters out cancelled sessions
     // (it only loads status: ['confirmed', 'completed'])
     // We also filter client-side as a safety measure
     setTimeout(async () => {
-      await loadTodaySessions(isMyDay);
+      const isPast = activeTab === 'past';
+      await loadSessions(isMyDay, isPast ? 'past' : null);
       
       // Double-check: remove any cancelled sessions that might have slipped through
       const container = document.getElementById('sessionsList');
@@ -2152,9 +2630,10 @@ function setupRealtimeSubscriptions() {
         table: 'session_reservations'
       },
       (payload) => {
-        console.log('New group reservation created, reloading coach home:', payload);
-        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
-        loadTodaySessions(activeTab === 'my-day');
+        const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+        const isMyDay = activeTab === 'my-day';
+        const isPast = activeTab === 'past';
+        loadSessions(isMyDay, isPast ? 'past' : null);
       }
     )
     .on(
@@ -2166,9 +2645,10 @@ function setupRealtimeSubscriptions() {
         filter: 'reservation_status=eq.cancelled'
       },
       (payload) => {
-        console.log('Group reservation cancelled, reloading coach home:', payload);
-        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
-        loadTodaySessions(activeTab === 'my-day');
+        const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+        const isMyDay = activeTab === 'my-day';
+        const isPast = activeTab === 'past';
+        loadSessions(isMyDay, isPast ? 'past' : null);
       }
     )
     .subscribe();
@@ -2184,9 +2664,10 @@ function setupRealtimeSubscriptions() {
         table: 'individual_session_bookings'
       },
       (payload) => {
-        console.log('New individual booking created, reloading coach home:', payload);
-        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
-        loadTodaySessions(activeTab === 'my-day');
+        const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+        const isMyDay = activeTab === 'my-day';
+        const isPast = activeTab === 'past';
+        loadSessions(isMyDay, isPast ? 'past' : null);
       }
     )
     .on(
@@ -2198,10 +2679,457 @@ function setupRealtimeSubscriptions() {
         filter: 'status=eq.cancelled'
       },
       (payload) => {
-        console.log('Individual booking cancelled, reloading coach home:', payload);
-        const activeTab = document.querySelector('.sections-tab.active')?.dataset.tab;
-        loadTodaySessions(activeTab === 'my-day');
+        const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+        const isMyDay = activeTab === 'my-day';
+        const isPast = activeTab === 'past';
+        loadSessions(isMyDay, isPast ? 'past' : null);
       }
     )
     .subscribe();
+}
+
+// Store current notifications for mark all as read
+let currentNotifications = [];
+
+// Load notifications for coach
+async function loadNotifications() {
+  if (!supabaseReady || !supabase) return;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+
+    const coachId = session.user.id;
+
+    // Get direct notifications for coaches
+    const { data: directNotifications, error: directError } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('recipient_id', coachId)
+      .in('recipient_role', ['coach', 'admin'])
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    // Get messages sent to coaches or all
+    const { data: messages, error: messagesError } = await supabase
+      .from('coach_messages')
+      .select('*')
+      .in('recipient_type', ['coaches', 'all'])
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    // Combine notifications and messages
+    const allNotifications = [];
+    
+    // Add direct notifications
+    if (directNotifications && !directError) {
+      allNotifications.push(...directNotifications);
+    }
+    
+    // Convert messages to notification format
+    if (messages && !messagesError) {
+      messages.forEach(msg => {
+        allNotifications.push({
+          id: `msg-${msg.id}`,
+          notification_type: 'announcement',
+          title: 'New Announcement',
+          message: msg.message_text,
+          created_at: msg.created_at,
+          is_read: false,
+          data: { message_id: msg.id, recipient_type: msg.recipient_type }
+        });
+      });
+    }
+    
+    // Sort by created_at descending
+    allNotifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const error = directError || messagesError;
+    if (error) {
+      console.error('Error loading notifications:', error);
+      return;
+    }
+
+    currentNotifications = allNotifications;
+    renderNotifications(currentNotifications);
+    updateNotificationBell(currentNotifications);
+  } catch (error) {
+    console.error('Error in loadNotifications:', error);
+  }
+}
+
+// Render notifications in the bottom sheet
+function renderNotifications(notifications) {
+  const container = document.querySelector('.notification-content');
+  if (!container) return;
+
+  if (notifications.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: var(--muted);">
+        <i class="bx bx-bell-off" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+        <p>No notifications yet</p>
+      </div>
+    `;
+    return;
+  }
+
+  const notificationsHtml = notifications.map(notif => {
+    const date = new Date(notif.created_at);
+    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const isRead = notif.is_read;
+    const icon = getNotificationIcon(notif.notification_type);
+
+    return `
+      <div class="notification-item ${isRead ? 'read' : 'unread'}" data-notification-id="${notif.id}">
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-content-text">
+          <div class="notification-title">${escapeHtml(notif.title)}</div>
+          <div class="notification-message">${escapeHtml(notif.message)}</div>
+          <div class="notification-date">${dateStr}</div>
+        </div>
+        ${!isRead ? '<div class="notification-dot"></div>' : ''}
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = notificationsHtml;
+
+  // Add click handlers to mark as read
+  container.querySelectorAll('.notification-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const notificationId = item.dataset.notificationId;
+      const wasUnread = item.classList.contains('unread');
+      
+      await markNotificationAsRead(notificationId);
+      item.classList.remove('unread');
+      item.classList.add('read');
+      const dot = item.querySelector('.notification-dot');
+      if (dot) dot.remove();
+      
+      // Reload notifications to update badge count
+      if (wasUnread) {
+        await loadNotifications();
+      }
+    });
+  });
+}
+
+// Mark all notifications as read
+async function markAllNotificationsAsRead() {
+  if (!supabaseReady || !supabase) return;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+
+    const coachId = session.user.id;
+
+    // Get all unread notifications (only real notifications, not messages)
+    const unreadNotifications = currentNotifications.filter(n => !n.is_read && !n.id.startsWith('msg-'));
+    if (unreadNotifications.length === 0) return;
+
+    // Mark all as read
+    const notificationIds = unreadNotifications.map(n => n.id);
+    await supabase
+      .from('notifications')
+      .update({ 
+        is_read: true,
+        read_at: new Date().toISOString()
+      })
+      .in('id', notificationIds);
+
+    // Reload notifications to update UI
+    await loadNotifications();
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+  }
+}
+
+// Get icon for notification type
+function getNotificationIcon(type) {
+  const icons = {
+    'solo_session_created': '<i class="bx bx-football"></i>',
+    'objectives_assigned': '<i class="bx bx-target-lock"></i>',
+    'announcement': '<i class="bx bx-message-rounded"></i>',
+    'points_awarded': '<i class="bx bx-trophy"></i>',
+    'quiz_assigned': '<i class="bx bx-question-mark"></i>',
+    'milestone_achieved': '<i class="bx bx-star"></i>',
+    'schedule_change': '<i class="bx bx-calendar"></i>',
+    'field_change': '<i class="bx bx-map"></i>',
+    'cancellation': '<i class="bx bx-x-circle"></i>'
+  };
+  return icons[type] || '<i class="bx bx-bell"></i>';
+}
+
+// Mark notification as read
+async function markNotificationAsRead(notificationId) {
+  if (!supabaseReady || !supabase) return;
+
+  try {
+    await supabase
+      .from('notifications')
+      .update({ 
+        is_read: true,
+        read_at: new Date().toISOString()
+      })
+      .eq('id', notificationId);
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+  }
+}
+
+// Update notification bell badge
+function updateNotificationBell(notifications) {
+  const bell = document.getElementById('notificationBell');
+  if (!bell) return;
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const badge = bell.querySelector('.notification-badge') || document.createElement('span');
+  
+  if (unreadCount > 0) {
+    badge.className = 'notification-badge';
+    badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+    if (!bell.querySelector('.notification-badge')) {
+      bell.appendChild(badge);
+    }
+  } else {
+    const existingBadge = bell.querySelector('.notification-badge');
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+  }
+}
+
+// Escape HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Setup Notification Bottom Sheet
+function setupNotificationBottomSheet() {
+  const notificationBell = document.getElementById('notificationBell');
+  const bottomSheet = document.getElementById('notificationBottomSheet');
+  const closeBtn = document.getElementById('notificationCloseBtn');
+  const handle = bottomSheet?.querySelector('.notification-bottom-sheet-handle');
+  
+  if (!notificationBell || !bottomSheet) return;
+  
+  const FULL_HEIGHT = Math.floor(window.innerHeight * 0.7);
+  const MIN_HEIGHT = 200;
+  
+  let isDragging = false;
+  let startY = 0;
+  let startHeight = 0;
+  let isSheetOpen = false;
+  
+  function openNotificationSheet() {
+    isSheetOpen = true;
+    bottomSheet.style.display = 'flex';
+    bottomSheet.style.height = `${FULL_HEIGHT}px`;
+    bottomSheet.dataset.level = '2';
+    
+    requestAnimationFrame(() => {
+      bottomSheet.style.opacity = '1';
+      bottomSheet.style.transform = 'translateY(0)';
+    });
+  }
+  
+  function closeNotificationSheet() {
+    isSheetOpen = false;
+    bottomSheet.style.opacity = '0';
+    bottomSheet.style.transform = 'translateY(100%)';
+    setTimeout(() => {
+      bottomSheet.style.display = 'none';
+    }, 300);
+  }
+  
+  notificationBell.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!isSheetOpen) {
+      openNotificationSheet();
+    } else {
+      closeNotificationSheet();
+    }
+  });
+  
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      closeNotificationSheet();
+    });
+  }
+  
+  if (handle) {
+    handle.addEventListener('touchstart', (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      isDragging = true;
+      startY = e.touches[0].clientY;
+      startHeight = bottomSheet.offsetHeight;
+      e.stopPropagation();
+    }, { passive: false });
+    
+    handle.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const deltaY = e.touches[0].clientY - startY;
+      if (deltaY > 0) {
+        const newHeight = Math.max(MIN_HEIGHT, startHeight - deltaY);
+        bottomSheet.style.height = `${newHeight}px`;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+    }, { passive: false });
+    
+    handle.addEventListener('touchend', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      const finalHeight = bottomSheet.offsetHeight;
+      if (finalHeight <= MIN_HEIGHT) {
+        closeNotificationSheet();
+      } else {
+        bottomSheet.style.height = `${FULL_HEIGHT}px`;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+    }, { passive: false });
+    
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaY = e.clientY - startY;
+      if (deltaY > 0) {
+        const newHeight = Math.max(MIN_HEIGHT, startHeight - deltaY);
+        bottomSheet.style.height = `${newHeight}px`;
+      }
+    };
+    
+    const handleMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      const finalHeight = bottomSheet.offsetHeight;
+      if (finalHeight <= MIN_HEIGHT) {
+        closeNotificationSheet();
+      } else {
+        bottomSheet.style.height = `${FULL_HEIGHT}px`;
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    handle.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startY = e.clientY;
+      startHeight = bottomSheet.offsetHeight;
+      e.preventDefault();
+      e.stopPropagation();
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    });
+  }
+  
+  // Close on backdrop click (click outside the sheet)
+  // Use a small delay to prevent immediate closing when bell is clicked
+  let backdropTimeout = null;
+  document.addEventListener('click', (e) => {
+    // Clear any pending backdrop close
+    if (backdropTimeout) {
+      clearTimeout(backdropTimeout);
+      backdropTimeout = null;
+    }
+    
+    // Don't close if clicking on the bell or inside the sheet
+    if (notificationBell.contains(e.target) || 
+        bottomSheet.contains(e.target) ||
+        e.target === notificationBell) {
+      return;
+    }
+    
+    // Only close if sheet is actually open
+    if (isSheetOpen) {
+      backdropTimeout = setTimeout(() => {
+        closeNotificationSheet();
+      }, 100);
+    }
+  });
+  
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && 
+        bottomSheet.style.display !== 'none' && 
+        bottomSheet.style.display) {
+      closeNotificationSheet();
+    }
+  });
+  
+  // Mark all as read button
+  const markAllReadBtn = document.getElementById('markAllReadBtn');
+  if (markAllReadBtn) {
+    markAllReadBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await markAllNotificationsAsRead();
+    });
+  }
+}
+
+// Create notification for points awarded
+async function createPointsNotification(playerId, points, sessionType, sessionId) {
+  if (!supabaseReady || !supabase) return;
+
+  try {
+    // Create notification for player
+    await supabase
+      .from('notifications')
+      .insert({
+        recipient_id: playerId,
+        recipient_role: 'player',
+        notification_type: 'points_awarded',
+        title: 'Points Awarded',
+        message: `You've been awarded ${points} points for ${sessionType}`,
+        data: {
+          points: points,
+          session_type: sessionType,
+          session_id: sessionId
+        },
+        related_entity_type: 'points',
+        related_entity_id: null
+      });
+
+    // Also notify parent if exists
+    const { data: relationships } = await supabase
+      .from('parent_player_relationships')
+      .select('parent_id, player:profiles!parent_player_relationships_player_id_fkey(first_name, last_name)')
+      .eq('player_id', playerId)
+      .limit(1)
+      .single();
+
+    if (relationships) {
+      await supabase
+        .from('notifications')
+        .insert({
+          recipient_id: relationships.parent_id,
+          recipient_role: 'parent',
+          notification_type: 'points_awarded',
+          title: `Points Awarded to ${relationships.player?.first_name || ''} ${relationships.player?.last_name || ''}`,
+          message: `${relationships.player?.first_name || 'Your player'} has been awarded ${points} points for ${sessionType}`,
+          data: {
+            points: points,
+            session_type: sessionType,
+            session_id: sessionId,
+            player_id: playerId
+          },
+          related_entity_type: 'points',
+          related_entity_id: null
+        });
+    }
+  } catch (error) {
+    console.error('Error creating points notification:', error);
+  }
 }

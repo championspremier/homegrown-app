@@ -1,5 +1,236 @@
-<div style="padding: 40px;">
-  <h1>Communicate</h1>
-  <p>Coach communication tools go here</p>
-</div>
+<div class="coach-communicate">
+  <div class="communicate-header">
+    <h1 class="page-title">Communicate</h1>
+    <p class="page-description">Send messages, objectives, and quizzes to players and parents</p>
+  </div>
 
+  <!-- Messages/Announcements Section (Top) -->
+  <div class="messages-section">
+    <div class="section-header">
+      <h2 class="section-title">
+        <i class="bx bx-message-rounded"></i>
+        Messages & Announcements
+      </h2>
+      <div class="rate-limit-info">
+        <span class="rate-limit-text" id="messageRateLimit">3 messages remaining today</span>
+      </div>
+    </div>
+    
+    <!-- Recipient Filter -->
+    <div class="recipient-filter">
+      <label for="recipientType">Send to:</label>
+      <select id="recipientType" class="recipient-select">
+        <option value="all">All (Parents/Players/Coaches)</option>
+        <option value="players">Players Only</option>
+        <option value="parents">Parents Only</option>
+        <option value="coaches">Coaches Only</option>
+      </select>
+    </div>
+
+    <!-- Messages History (Chat-like interface) -->
+    <div class="messages-history" id="messagesHistory">
+      <!-- Messages will be loaded here -->
+      <div class="messages-empty-state">
+        <i class="bx bx-message"></i>
+        <p>No messages yet. Start a conversation!</p>
+      </div>
+    </div>
+
+    <!-- Message Input Area -->
+    <div class="message-input-container">
+      <div class="message-input-wrapper">
+        <button class="message-input-icon" id="voiceInputBtn" title="Voice input">
+          <i class="bx bx-microphone"></i>
+        </button>
+        <input 
+          type="text" 
+          id="messageInput" 
+          class="message-input" 
+          placeholder="Type your message..."
+        />
+        <button class="message-input-icon" id="attachmentBtn" title="Attach file">
+          <i class="bx bx-paperclip"></i>
+        </button>
+        <input type="file" id="fileInput" style="display: none;" />
+      </div>
+      <button class="send-button" id="sendMessageBtn" title="Send message">
+        <i class="bx bx-send"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Objectives and Quizzes Section (Side by Side) -->
+  <div class="objectives-quizzes-section">
+    <!-- Objectives Section (Left) -->
+    <div class="objectives-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="bx bx-target-lock"></i>
+          Send Objectives
+        </h2>
+        <div class="rate-limit-info">
+          <span class="rate-limit-text" id="objectivesRateLimit">Once per week per player</span>
+        </div>
+      </div>
+
+      <!-- Player Search -->
+      <div class="player-search-container">
+        <label for="playerSearch">Select Player:</label>
+        <div class="search-input-wrapper">
+          <i class="bx bx-search"></i>
+          <input 
+            type="text" 
+            id="playerSearch" 
+            class="player-search-input" 
+            placeholder="Search for a player..."
+            autocomplete="off"
+          />
+        </div>
+        <div class="player-search-results" id="playerSearchResults" style="display: none;">
+          <!-- Search results will appear here -->
+        </div>
+        <div class="selected-player" id="selectedPlayer" style="display: none;">
+          <span class="selected-player-name" id="selectedPlayerName"></span>
+          <button class="remove-player-btn" id="removePlayerBtn">
+            <i class="bx bx-x"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Objectives Input -->
+      <div class="objectives-input-container">
+        <div class="objective-input-group">
+          <label for="inPossessionObjective">
+            <i class="bx bx-football"></i>
+            In Possession
+          </label>
+          <textarea 
+            id="inPossessionObjective" 
+            class="objective-textarea" 
+            placeholder="Enter objective for when player has the ball..."
+            rows="3"
+          ></textarea>
+        </div>
+
+        <div class="objective-input-group">
+          <label for="outPossessionObjective">
+            <i class="bx bx-shield"></i>
+            Out of Possession
+          </label>
+          <textarea 
+            id="outPossessionObjective" 
+            class="objective-textarea" 
+            placeholder="Enter objective for when player doesn't have the ball..."
+            rows="3"
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Send Objectives Button -->
+      <button class="send-objectives-btn" id="sendObjectivesBtn" disabled>
+        <i class="bx bx-send"></i>
+        Send Objectives
+      </button>
+    </div>
+
+    <!-- Quizzes Section (Right) -->
+    <div class="quizzes-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="bx bx-question-mark"></i>
+          Create Quiz
+        </h2>
+      </div>
+
+      <!-- Quiz Form -->
+      <div class="quiz-form">
+        <!-- Question Input -->
+        <div class="quiz-question-container">
+          <input 
+            type="text" 
+            id="quizQuestion" 
+            class="quiz-question-input" 
+            placeholder="Enter your question..."
+          />
+        </div>
+
+        <!-- Answer Options -->
+        <div class="quiz-answers-container" id="quizAnswersContainer">
+          <!-- Answer A (always present) -->
+          <div class="quiz-answer-item" data-answer-index="0">
+            <input 
+              type="text" 
+              class="quiz-answer-input" 
+              placeholder="Answer A"
+              data-answer="a"
+            />
+            <button class="correct-answer-btn" data-answer-index="0" title="Mark as correct answer">
+              <i class="bx bx-check"></i>
+            </button>
+          </div>
+
+          <!-- Answer B (always present) -->
+          <div class="quiz-answer-item" data-answer-index="1">
+            <input 
+              type="text" 
+              class="quiz-answer-input" 
+              placeholder="Answer B"
+              data-answer="b"
+            />
+            <button class="correct-answer-btn" data-answer-index="1" title="Mark as correct answer">
+              <i class="bx bx-check"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Add Another Option -->
+        <button class="add-answer-btn" id="addAnswerBtn">
+          <i class="bx bx-plus"></i>
+          Add another option
+        </button>
+
+        <!-- Curriculum Selection -->
+        <div class="quiz-curriculum-selection">
+          <div class="curriculum-select-group">
+            <label for="quizPeriod">Period:</label>
+            <select id="quizPeriod" class="curriculum-select">
+              <option value="">Select Period</option>
+              <option value="build-out">Build-Out</option>
+              <option value="middle-third">Middle Third</option>
+              <option value="final-third">Final Third</option>
+              <option value="wide-play">Wide Play</option>
+            </select>
+          </div>
+
+          <div class="curriculum-select-group">
+            <label for="quizCategory">Category:</label>
+            <select id="quizCategory" class="curriculum-select">
+              <option value="">Select Category</option>
+              <option value="technical">Technical</option>
+              <option value="physical">Physical</option>
+              <option value="mental">Mental</option>
+              <option value="tactical">Tactical</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Keywords Input -->
+        <div class="quiz-keywords-container">
+          <label for="quizKeywords">Keywords (comma-separated):</label>
+          <input 
+            type="text" 
+            id="quizKeywords" 
+            class="quiz-keywords-input" 
+            placeholder="e.g., passing, first-touch, dribbling"
+          />
+        </div>
+
+        <!-- Send Quiz Button -->
+        <button class="send-quiz-btn" id="sendQuizBtn" disabled>
+          <i class="bx bx-send"></i>
+          Send Quiz to All Players
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

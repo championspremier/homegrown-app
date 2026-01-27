@@ -17,6 +17,285 @@
 /* Welcome Section */
 .welcome-section {
   margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Notification Bell */
+.notification-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 50%;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.notification-bell:hover {
+  background: var(--hover);
+}
+
+.notification-bell:active {
+  transform: scale(0.95);
+}
+
+.notification-bell i {
+  font-size: 24px;
+  color: var(--text);
+}
+
+/* Notification Badge */
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid var(--bg);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.notification-badge:empty {
+  display: none;
+}
+
+/* Notification Bottom Sheet */
+.notification-bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70vh;
+  min-height: 200px;
+  max-height: 70%;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.12)
+  );
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border-radius: 24px 24px 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    0 -6px 30px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  z-index: 10002;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition:
+    height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.notification-bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--muted);
+  border-radius: 2px;
+  margin: 12px auto 8px;
+  cursor: grab;
+  user-select: none;
+  z-index: 10003;
+  flex-shrink: 0;
+}
+
+.notification-bottom-sheet-handle:active {
+  cursor: grabbing;
+}
+
+.notification-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+  z-index: 10004;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notification-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.notification-close-btn:active {
+  transform: scale(0.95);
+}
+
+.notification-close-btn i {
+  font-size: 24px;
+  color: rgba(0, 0, 0, 0.8);
+  font-weight: bold;
+}
+
+html[data-theme="dark"] .notification-close-btn i,
+html:not([data-theme]) .notification-close-btn i {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.notification-bottom-sheet-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  overflow-x: hidden;
+  display: block;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.mark-all-read-btn {
+  position: absolute;
+  top: 12px;
+  left: 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+  z-index: 10005;
+  color: var(--text);
+}
+
+.mark-all-read-btn:hover {
+  background: var(--hover);
+  transform: scale(1.05);
+}
+
+.mark-all-read-btn:active {
+  transform: scale(0.95);
+}
+
+.mark-all-read-btn i {
+  font-size: 20px;
+}
+
+.notification-content {
+  padding: 60px 16px 16px;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  overflow-x: hidden;
+  display: block;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.notification-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  color: var(--text);
+  padding: 60px 16px 16px;
+  overflow-y: auto;
+  gap: 12px;
+}
+
+.notification-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.notification-item:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.notification-item.unread {
+  background: rgba(255, 255, 255, 0.7);
+  border-left: 4px solid var(--accent);
+}
+
+.notification-icon {
+  font-size: 24px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.notification-content-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.notification-message {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.notification-date {
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.notification-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 4px;
 }
 
 .welcome-message {
@@ -27,7 +306,7 @@
 }
 
 .coach-name {
-  background: linear-gradient(90deg, #D3AF37, #7BB8D4, #D3AF37, #7BB8D4);
+  background: var(--accent);
   background-size: 300% 100%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -192,6 +471,35 @@
   opacity: 0.5;
 }
 
+/* Load More Button */
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  margin-top: 16px;
+}
+
+.load-more-btn {
+  background: var(--accent);
+  color: var(--text);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.load-more-btn:active {
+  transform: translateY(0);
+}
+
 /* Session Modal */
 .session-modal-overlay {
   position: fixed;
@@ -270,6 +578,21 @@
 .modal-close:hover {
   background: var(--hover);
   color: var(--text);
+}
+
+.modal-close i {
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in modal close use correct color */
+.modal-close svg,
+.modal-close .lucide-icon {
+  color: var(--text);
+}
+
+.modal-close svg path {
+  stroke: currentColor;
+  fill: none;
 }
 
 .modal-edit-btn {
@@ -718,7 +1041,7 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--text);
-  margin-right: 50px;
+  text-align: center;
 }
 
 .player-positions {
@@ -764,6 +1087,100 @@
 .player-check-in-btn.checked-in:hover {
   opacity: 0.9;
   transform: translateY(-1px);
+}
+
+/* Solo Session Item Layout */
+.solo-session-item {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-left: 3px solid var(--accent);
+}
+
+.solo-player-info-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.solo-player-info-section .player-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.solo-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  min-width: 150px;
+}
+
+.solo-action-buttons .player-check-in-btn,
+.solo-action-buttons .player-deny-btn {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.player-deny-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.player-deny-btn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.player-deny-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.solo-checkin-note {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* Solo Session Photo Section */
+.solo-session-photo-section {
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.solo-photo-preview-img {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.solo-photo-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 /* Dashboard Bottom Sections */
@@ -1062,6 +1479,19 @@
   .modal-content {
     padding: 16px;
   }
+
+  .solo-player-info-section {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .player-name {
+    text-align: center;
+    padding: 0;
+    margin: 0;
+  }
+
 }
 
 /* Edit Menu */

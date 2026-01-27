@@ -1,14 +1,26 @@
-<!-- Account Switcher -->
-<div class="account-switcher">
-  <button class="account-switcher-btn" id="accountSwitcherBtn" type="button" aria-expanded="false" aria-haspopup="true">
-    <span class="account-switcher-label">Switch to:</span>
-    <span class="account-switcher-name" id="accountSwitcherName">Loading...</span>
-    <i class="bx bx-chevron-down account-switcher-icon"></i>
-  </button>
-  <div class="account-switcher-dropdown" id="accountSwitcherDropdown" role="menu">
-    <div class="account-switcher-loading" id="accountSwitcherLoading">Loading accounts...</div>
-    <div class="account-switcher-items" id="accountSwitcherItems" style="display: none;"></div>
+<!-- Instagram-style Header -->
+<div class="home-header">
+  <!-- Left: Account Switcher -->
+  <div class="account-switcher">
+    <button class="account-switcher-btn" id="accountSwitcherBtn" type="button" aria-expanded="false" aria-haspopup="true">
+      <span class="account-switcher-name" id="accountSwitcherName">Loading...</span>
+    </button>
+    <div class="account-switcher-dropdown" id="accountSwitcherDropdown" role="menu">
+      <div class="account-switcher-loading" id="accountSwitcherLoading">Loading accounts...</div>
+      <div class="account-switcher-items" id="accountSwitcherItems" style="display: none;"></div>
+    </div>
   </div>
+  
+  <!-- Center: Homegrown Logo (clickable to show accounts) -->
+  <div class="home-header-logo" id="homeHeaderLogo">
+    <h1 class="homegrown-logo">Homegrown</h1>
+    <i class="bx bx-chevron-down account-switcher-icon"></i>
+  </div>
+  
+  <!-- Right: Notification Bell -->
+  <button class="notification-bell" id="notificationBell" type="button" aria-label="Notifications">
+    <i class="bx bx-bell"></i>
+  </button>
 </div>
 
 <!-- My Schedule -->
@@ -56,6 +68,22 @@
       <div class="reservations-list-container" id="reservationsListContainer">
         <!-- Reservations will be loaded here -->
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Bottom Sheet -->
+<div class="notification-bottom-sheet" id="notificationBottomSheet" style="display: none;">
+  <div class="notification-bottom-sheet-handle"></div>
+  <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
+    <i class="bx bx-x"></i>
+  </button>
+  <div class="notification-bottom-sheet-content">
+    <button class="mark-all-read-btn" id="markAllReadBtn" title="Mark all as read">
+      <i class="bx bx-book-check"></i>
+    </button>
+    <div class="notification-content">
+      <!-- Notification content will be loaded here -->
     </div>
   </div>
 </div>

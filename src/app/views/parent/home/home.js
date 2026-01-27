@@ -8,14 +8,53 @@ let currentWeekStart = new Date();
 let selectedDate = new Date();
 let linkedPlayers = []; // Store linked players for showing names
 
+// Clean up any lingering skeletons
+function cleanupSkeletons() {
+  const contentArea = document.querySelector('.content-area');
+  if (contentArea) {
+    const contentSkeleton = contentArea.querySelector('.page-skeleton');
+    if (contentSkeleton) {
+      contentSkeleton.remove();
+    }
+    
+    // Restore any hidden content
+    const hiddenContent = contentArea.querySelectorAll('[data-skeleton-hidden="true"]');
+    hiddenContent.forEach(element => {
+      element.style.display = '';
+      element.removeAttribute('data-skeleton-hidden');
+    });
+  }
+  
+  // Remove header skeleton if it exists
+  const mainContent = document.querySelector('.main-content');
+  if (mainContent) {
+    const headerSkeleton = mainContent.querySelector('.skeleton-home-header');
+    if (headerSkeleton) {
+      headerSkeleton.remove();
+    }
+  }
+}
+
 // Initialize Supabase
 async function init() {
   supabase = await initSupabase();
   if (supabase) {
     supabaseReady = true;
+    
+    // Clean up any lingering skeletons from previous loads
+    cleanupSkeletons();
+    
     await loadLinkedPlayers();
     setupEventListeners();
-    renderCalendar();
+    
+    // Wait for layout to be ready before rendering calendar
+    // This ensures container widths are properly calculated on mobile
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        renderCalendar();
+      }, 0);
+    });
+    
     await loadReservedSessions();
     
     // Listen for account switcher changes to reload data
@@ -32,6 +71,10 @@ async function init() {
     // Also listen for custom event from account switcher
     window.addEventListener('accountSwitched', async (e) => {
       console.log('Account switched event received:', e.detail);
+      
+      // Clean up any skeletons that might be showing
+      cleanupSkeletons();
+      
       await loadLinkedPlayers();
       // Reload based on current tab
       const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
@@ -47,6 +90,14 @@ async function init() {
     
     // Setup real-time subscriptions for session updates
     setupRealtimeSubscriptions();
+    loadNotifications();
+    setupNotificationBottomSheet();
+    
+    // Move home-header above top-bar (with delay to ensure DOM is ready)
+    // Only move header on home page (this file only loads on home page anyway)
+    setTimeout(() => {
+      moveHeaderAboveTopBar();
+    }, 50);
     
     // Also listen for localStorage changes (when selectedPlayerId changes)
     window.addEventListener('storage', async (e) => {
@@ -63,6 +114,113 @@ async function init() {
     });
   } else {
     console.error('Failed to initialize Supabase');
+  }
+}
+
+// Move home-header above top-bar in the DOM
+let moveHeaderRetryCount = 0;
+const MAX_RETRIES = 10;
+
+function moveHeaderAboveTopBar() {
+  const mainContent = document.querySelector('.main-content');
+  if (!mainContent) {
+    // Retry after a short delay if main-content doesn't exist yet
+    if (moveHeaderRetryCount < MAX_RETRIES) {
+      moveHeaderRetryCount++;
+      setTimeout(moveHeaderAboveTopBar, 100);
+    }
+    return;
+  }
+  
+  // Check if header is already in the correct position (in main-content before top-bar)
+  const topBar = document.querySelector('.top-bar');
+  const existingHeaderInMain = mainContent ? mainContent.querySelector('.home-header:not(.skeleton-home-header)') : null;
+  const contentArea = document.querySelector('.content-area');
+  const homeHeaderInContent = contentArea ? contentArea.querySelector('.home-header') : null;
+  
+  // If header is already in main-content and positioned correctly, remove skeleton and any duplicate in content-area
+  if (existingHeaderInMain && topBar && existingHeaderInMain.parentElement === mainContent) {
+    const headerIndex = Array.from(mainContent.children).indexOf(existingHeaderInMain);
+    const topBarIndex = Array.from(mainContent.children).indexOf(topBar);
+    if (headerIndex < topBarIndex) {
+      // Header is already in the correct position
+      // Remove skeleton header if it exists
+      const skeletonHeader = mainContent.querySelector('.skeleton-home-header');
+      if (skeletonHeader) {
+        skeletonHeader.remove();
+      }
+      // Remove any duplicate header that might still be in content-area
+      if (homeHeaderInContent) {
+        console.log('Removing duplicate header from content-area');
+        homeHeaderInContent.remove();
+      }
+      moveHeaderRetryCount = 0;
+      return;
+    }
+  }
+  
+  // If we have a header in content-area, move it to main-content
+  if (homeHeaderInContent && topBar && mainContent) {
+    // Remove old header from main-content only if we have a new one to move
+    const allHeaders = mainContent.querySelectorAll('.home-header:not(.skeleton-home-header)');
+    allHeaders.forEach(header => {
+      // Check if it's a direct child of main-content (not inside content-area)
+      if (header.parentElement === mainContent) {
+        console.log('Removing old header from main-content before moving new one');
+        header.remove();
+      }
+    });
+    
+    // Make header visible before moving (it was hidden to prevent jump)
+    // Reset all hidden styles
+    homeHeaderInContent.style.display = '';
+    homeHeaderInContent.style.visibility = '';
+    homeHeaderInContent.style.opacity = '';
+    homeHeaderInContent.style.position = '';
+    homeHeaderInContent.style.pointerEvents = '';
+    
+    // Move home-header to appear before top-bar (replacing skeleton position)
+    mainContent.insertBefore(homeHeaderInContent, topBar);
+    
+    // Remove skeleton header after moving actual header (prevents visual jump)
+    const skeletonHeader = mainContent.querySelector('.skeleton-home-header');
+    if (skeletonHeader) {
+      skeletonHeader.remove();
+    }
+    
+    // Remove content skeleton and restore hidden content now that header is moved and content is ready
+    const contentArea = document.querySelector('.content-area');
+    if (contentArea) {
+      const contentSkeleton = contentArea.querySelector('.page-skeleton');
+      if (contentSkeleton) {
+        contentSkeleton.remove();
+      }
+      
+      // Restore all content that was hidden for skeleton
+      const hiddenContent = contentArea.querySelectorAll('[data-skeleton-hidden="true"]');
+      hiddenContent.forEach(element => {
+        element.style.display = '';
+        element.removeAttribute('data-skeleton-hidden');
+      });
+    }
+    
+    moveHeaderRetryCount = 0; // Reset on success
+    
+    // Re-attach account switcher listeners after moving header
+    // The elements might have been replaced during the move
+    if (window.attachAccountSwitcherListeners) {
+      setTimeout(() => {
+        console.log('Re-attaching account switcher listeners after header move');
+        window.attachAccountSwitcherListeners();
+      }, 50);
+    }
+  } else if (!homeHeader && moveHeaderRetryCount < MAX_RETRIES) {
+    // Header not found yet, retry after a short delay
+    moveHeaderRetryCount++;
+    setTimeout(moveHeaderAboveTopBar, 100);
+  } else {
+    // Reset retry count if we've exhausted retries
+    moveHeaderRetryCount = 0;
   }
 }
 
@@ -99,7 +257,7 @@ async function getActualParentId() {
       .from('parent_player_relationships')
       .select('parent_id')
       .eq('player_id', session.user.id)
-      .single();
+      .maybeSingle();
     
     if (relationship && relationship.parent_id) {
       console.log(`getActualParentId: Found parent ID: ${relationship.parent_id}`);
@@ -124,7 +282,7 @@ async function getActualParentId() {
       .from('parent_player_relationships')
       .select('parent_id')
       .eq('player_id', session.user.id)
-      .single();
+      .maybeSingle();
     
     if (relationship && relationship.parent_id) {
       console.log(`getActualParentId: Found parent ID: ${relationship.parent_id}`);
@@ -140,7 +298,7 @@ async function getActualParentId() {
       .from('parent_player_relationships')
       .select('parent_id')
       .eq('player_id', session.user.id)
-      .single();
+      .maybeSingle();
     
     if (relationship && relationship.parent_id) {
       console.log(`getActualParentId: Found parent ID (fallback): ${relationship.parent_id}`);
@@ -206,6 +364,9 @@ async function loadLinkedPlayers() {
 
 // Setup event listeners
 function setupEventListeners() {
+  // Notification bell functionality
+  setupNotificationBottomSheet();
+  
   // Tab switching
   document.querySelectorAll('.schedule-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -229,21 +390,19 @@ function setupEventListeners() {
   const btn = document.getElementById('scheduleToggle');
   const panel = document.getElementById('hiddenSchedule');
   if (btn && panel) {
-    const icon = btn.querySelector('i');
-    const setOpen = (open) => {
+    const setOpen = async (open) => {
       panel.classList.toggle('is-open', open);
       btn.setAttribute('aria-expanded', String(open));
-      if (icon) {
-        icon.classList.toggle('bx-chevron-down', open);
-        icon.classList.toggle('bx-chevron-up', !open);
-      }
+      // Use toggleChevronIcon to update the SVG icon
+      const { toggleChevronIcon } = await import('../../../utils/lucide-icons.js');
+      toggleChevronIcon(btn, !open); // !open because chevron-up when open, chevron-down when closed
     };
 
     setOpen(false); // Start closed when navigating to home
 
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const openNow = panel.classList.contains('is-open');
-      setOpen(!openNow);
+      await setOpen(!openNow);
       if (!openNow) {
         loadReservedSessions();
       }
@@ -268,6 +427,10 @@ function switchTab(tabName) {
   if (calendar) {
     if (tabName === 'sessions') {
       calendar.style.display = 'flex';
+      // Recalculate calendar after it becomes visible to ensure proper sizing on mobile
+      requestAnimationFrame(() => {
+        renderCalendar();
+      });
     } else {
       calendar.style.display = 'none';
     }
@@ -574,7 +737,12 @@ function renderSessionsList(sessions, container) {
   if (!container) return;
 
   if (sessions.length === 0) {
-    container.innerHTML = '<div class="empty-state">No reserved sessions</div>';
+    // Different empty state messages for Sessions vs Reservations tabs
+    const isReservationsTab = container.id === 'reservationsListContainer';
+    const emptyMessage = isReservationsTab 
+      ? 'No future reserved sessions'
+      : 'No reserved sessions today';
+    container.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
     return;
   }
 
@@ -1526,7 +1694,471 @@ async function setupRealtimeSubscriptions() {
     .subscribe();
 }
 
+// Store current notifications for mark all as read
+let currentNotifications = [];
+
+// Load notifications for parent
+async function loadNotifications() {
+  if (!supabaseReady || !supabase) return;
+
+  try {
+    const context = await getAccountContext();
+    if (!context) return;
+
+    // Get parent ID - use effectiveParentId or actualUserId if parent
+    const parentId = context.effectiveParentId || (context.isParent ? context.actualUserId : null);
+    if (!parentId) return;
+
+    // Get notifications for parent and their linked players
+    const playerIds = context.getPlayerIdsToQuery();
+    const allRecipientIds = [parentId, ...playerIds];
+
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .in('recipient_id', allRecipientIds)
+      .in('recipient_role', ['parent', 'player'])
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Error loading notifications:', error);
+      return;
+    }
+
+    currentNotifications = notifications || [];
+    renderNotifications(currentNotifications);
+    updateNotificationBell(currentNotifications);
+  } catch (error) {
+    console.error('Error in loadNotifications:', error);
+  }
+}
+
+
+// Render notifications in the bottom sheet
+function renderNotifications(notifications) {
+  const container = document.querySelector('.notification-content');
+  if (!container) return;
+
+  if (notifications.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: var(--muted);">
+        <i class="bx bx-bell-off" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+        <p>No notifications yet</p>
+      </div>
+    `;
+    return;
+  }
+
+  const notificationsHtml = notifications.map(notif => {
+    const date = new Date(notif.created_at);
+    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const isRead = notif.is_read;
+    const icon = getNotificationIcon(notif.notification_type);
+
+    return `
+      <div class="notification-item ${isRead ? 'read' : 'unread'}" data-notification-id="${notif.id}">
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-content-text">
+          <div class="notification-title">${escapeHtml(notif.title)}</div>
+          <div class="notification-message">${escapeHtml(notif.message)}</div>
+          <div class="notification-date">${dateStr}</div>
+        </div>
+        ${!isRead ? '<div class="notification-dot"></div>' : ''}
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = notificationsHtml;
+
+  // Add click handlers to mark as read
+  container.querySelectorAll('.notification-item').forEach(item => {
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const notificationId = item.dataset.notificationId;
+      const wasUnread = item.classList.contains('unread');
+      
+      if (!wasUnread) return; // Already read, no need to update
+      
+      const { error } = await markNotificationAsRead(notificationId);
+      
+      if (error) {
+        console.error('Failed to mark notification as read:', error);
+        return; // Don't update UI if database update failed
+      }
+      
+      item.classList.remove('unread');
+      item.classList.add('read');
+      const dot = item.querySelector('.notification-dot');
+      if (dot) dot.remove();
+      
+      // Update badge count immediately
+      const bell = document.getElementById('notificationBell');
+      if (bell) {
+        const badge = bell.querySelector('.notification-badge');
+        if (badge) {
+          const currentCount = parseInt(badge.textContent) || 0;
+          const newCount = Math.max(0, currentCount - 1);
+          if (newCount > 0) {
+            badge.textContent = newCount > 99 ? '99+' : newCount;
+          } else {
+            badge.remove();
+          }
+        }
+      }
+      
+      // Also update the currentNotifications array
+      const notif = currentNotifications.find(n => n.id === notificationId);
+      if (notif) {
+        notif.is_read = true;
+      }
+    });
+  });
+}
+
+// Get icon for notification type
+function getNotificationIcon(type) {
+  const icons = {
+    'solo_session_created': '<i class="bx bx-football"></i>',
+    'objectives_assigned': '<i class="bx bx-target-lock"></i>',
+    'announcement': '<i class="bx bx-message-rounded"></i>',
+    'points_awarded': '<i class="bx bx-trophy"></i>',
+    'quiz_assigned': '<i class="bx bx-question-mark"></i>',
+    'milestone_achieved': '<i class="bx bx-star"></i>',
+    'schedule_change': '<i class="bx bx-calendar"></i>',
+    'field_change': '<i class="bx bx-map"></i>',
+    'cancellation': '<i class="bx bx-x-circle"></i>'
+  };
+  return icons[type] || '<i class="bx bx-bell"></i>';
+}
+
+// Mark notification as read
+async function markNotificationAsRead(notificationId) {
+  if (!supabaseReady || !supabase) {
+    return { error: new Error('Supabase not ready') };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ 
+        is_read: true,
+        read_at: new Date().toISOString()
+      })
+      .eq('id', notificationId)
+      .select();
+    
+    if (error) {
+      console.error('Error marking notification as read:', error);
+      return { error };
+    }
+    
+    console.log('Notification marked as read:', data);
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    return { error };
+  }
+}
+
+// Update notification bell badge
+function updateNotificationBell(notifications) {
+  const bell = document.getElementById('notificationBell');
+  if (!bell) return;
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const badge = bell.querySelector('.notification-badge') || document.createElement('span');
+  
+  if (unreadCount > 0) {
+    badge.className = 'notification-badge';
+    badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+    if (!bell.querySelector('.notification-badge')) {
+      bell.appendChild(badge);
+    }
+  } else {
+    const existingBadge = bell.querySelector('.notification-badge');
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+  }
+}
+
+// Escape HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // Initialize on page load
+// Setup Notification Bottom Sheet (opens directly to full height)
+function setupNotificationBottomSheet() {
+  const notificationBell = document.getElementById('notificationBell');
+  const bottomSheet = document.getElementById('notificationBottomSheet');
+  const closeBtn = document.getElementById('notificationCloseBtn');
+  const handle = bottomSheet?.querySelector('.notification-bottom-sheet-handle');
+  
+  if (!notificationBell || !bottomSheet) return;
+  
+  // Full height - 70% of viewport
+  const FULL_HEIGHT = Math.floor(window.innerHeight * 0.7);
+  const MIN_HEIGHT = 200; // Minimum height before closing
+  
+  let isDragging = false;
+  let startY = 0;
+  let startHeight = 0;
+  let isSheetOpen = false;
+  
+  // Function to open notification bottom sheet
+  function openNotificationSheet() {
+    isSheetOpen = true;
+    bottomSheet.style.display = 'flex';
+    bottomSheet.style.height = `${FULL_HEIGHT}px`;
+    bottomSheet.dataset.level = '2';
+    
+    // Animate in
+    requestAnimationFrame(() => {
+      bottomSheet.style.opacity = '1';
+      bottomSheet.style.transform = 'translateY(0)';
+    });
+  }
+  
+  // Function to close notification bottom sheet
+  function closeNotificationSheet() {
+    isSheetOpen = false;
+    bottomSheet.style.opacity = '0';
+    bottomSheet.style.transform = 'translateY(100%)';
+    setTimeout(() => {
+      bottomSheet.style.display = 'none';
+    }, 300);
+  }
+  
+  // Notification bell click handler
+  notificationBell.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!isSheetOpen) {
+      openNotificationSheet();
+    } else {
+      // If already open, close it
+      closeNotificationSheet();
+    }
+  });
+  
+  // Close button handler
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      closeNotificationSheet();
+    });
+  }
+  
+  // Draggable bottom sheet functionality - drag down to close
+  if (handle) {
+    // Touch events for mobile
+    handle.addEventListener('touchstart', (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      isDragging = true;
+      startY = e.touches[0].clientY;
+      startHeight = bottomSheet.offsetHeight;
+      e.stopPropagation();
+    }, { passive: false });
+    
+    handle.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const deltaY = e.touches[0].clientY - startY;
+      // Only allow dragging down (positive deltaY)
+      if (deltaY > 0) {
+        const newHeight = Math.max(MIN_HEIGHT, startHeight - deltaY);
+        bottomSheet.style.height = `${newHeight}px`;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+    }, { passive: false });
+    
+    handle.addEventListener('touchend', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      const finalHeight = bottomSheet.offsetHeight;
+      // If dragged below minimum, close it
+      if (finalHeight <= MIN_HEIGHT) {
+        closeNotificationSheet();
+      } else {
+        // Otherwise snap back to full height
+        bottomSheet.style.height = `${FULL_HEIGHT}px`;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+    }, { passive: false });
+    
+    // Mouse events for desktop
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaY = e.clientY - startY;
+      // Only allow dragging down (positive deltaY)
+      if (deltaY > 0) {
+        const newHeight = Math.max(MIN_HEIGHT, startHeight - deltaY);
+        bottomSheet.style.height = `${newHeight}px`;
+      }
+    };
+    
+    const handleMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      const finalHeight = bottomSheet.offsetHeight;
+      // If dragged below minimum, close it
+      if (finalHeight <= MIN_HEIGHT) {
+        closeNotificationSheet();
+      } else {
+        // Otherwise snap back to full height
+        bottomSheet.style.height = `${FULL_HEIGHT}px`;
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    handle.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startY = e.clientY;
+      startHeight = bottomSheet.offsetHeight;
+      e.preventDefault();
+      e.stopPropagation();
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    });
+  }
+  
+  // Close on backdrop click (click outside the sheet)
+  // Use a small delay to prevent immediate closing when bell is clicked
+  let backdropTimeout = null;
+  document.addEventListener('click', (e) => {
+    // Clear any pending backdrop close
+    if (backdropTimeout) {
+      clearTimeout(backdropTimeout);
+      backdropTimeout = null;
+    }
+    
+    // Don't close if clicking on the bell, mark all read button, or inside the sheet
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (notificationBell.contains(e.target) || 
+        bottomSheet.contains(e.target) ||
+        e.target === notificationBell ||
+        (markAllReadBtn && (markAllReadBtn.contains(e.target) || e.target === markAllReadBtn))) {
+      return;
+    }
+    
+    // Only close if sheet is actually open
+    if (isSheetOpen) {
+      backdropTimeout = setTimeout(() => {
+        closeNotificationSheet();
+      }, 100);
+    }
+  });
+  
+  // Close on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && 
+        bottomSheet.style.display !== 'none' && 
+        bottomSheet.style.display) {
+      closeNotificationSheet();
+    }
+  });
+  
+  // Mark all as read button - set up with a delay to ensure DOM is ready
+  setTimeout(() => {
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (markAllReadBtn) {
+      // Remove any existing onclick handlers first
+      markAllReadBtn.onclick = null;
+      markAllReadBtn.onclick = async function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        console.log('Mark all as read button clicked');
+        
+        if (!supabaseReady || !supabase) {
+          console.log('Supabase not ready');
+          return;
+        }
+
+        try {
+          const context = await getAccountContext();
+          if (!context) {
+            console.log('No context');
+            return;
+          }
+
+          // Get parent ID
+          const parentId = context.effectiveParentId || (context.isParent ? context.actualUserId : null);
+          if (!parentId) {
+            console.log('No parent ID');
+            return;
+          }
+
+          // Get all unread notifications
+          const unreadNotifications = currentNotifications.filter(n => !n.is_read);
+          console.log('Unread notifications:', unreadNotifications.length);
+          
+          if (unreadNotifications.length === 0) {
+            // Update badge to zero if no unread
+            const bell = document.getElementById('notificationBell');
+            if (bell) {
+              const badge = bell.querySelector('.notification-badge');
+              if (badge) badge.remove();
+            }
+            return;
+          }
+
+          // Mark all as read
+          const notificationIds = unreadNotifications.map(n => n.id);
+          console.log('Marking notifications as read:', notificationIds);
+          
+          const { data, error } = await supabase
+            .from('notifications')
+            .update({ 
+              is_read: true,
+              read_at: new Date().toISOString()
+            })
+            .in('id', notificationIds)
+            .select();
+
+          if (error) {
+            console.error('Error updating notifications:', error);
+            throw error;
+          }
+
+          console.log('Notifications updated:', data);
+
+          // Update badge to zero immediately
+          const bell = document.getElementById('notificationBell');
+          if (bell) {
+            const badge = bell.querySelector('.notification-badge');
+            if (badge) badge.remove();
+          }
+
+          // Update currentNotifications array
+          currentNotifications.forEach(n => {
+            if (!n.is_read) n.is_read = true;
+          });
+
+          // Reload notifications to update UI
+          await loadNotifications();
+        } catch (error) {
+          console.error('Error marking all notifications as read:', error);
+        }
+      };
+    } else {
+      console.warn('Mark all read button not found');
+    }
+  }, 100);
+}
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {

@@ -4,6 +4,9 @@
     <h1 class="welcome-message">
       Welcome <span class="coach-name" id="coachName">Coach</span>
     </h1>
+    <button class="notification-bell" id="notificationBell" type="button" aria-label="Notifications">
+      <i class="bx bx-bell"></i>
+    </button>
   </div>
 
   <!-- Schedule and Check-in Section -->
@@ -16,6 +19,7 @@
       <div class="section-tabs">
         <button class="tab-btn active" data-tab="full-schedule">Full schedule</button>
         <button class="tab-btn" data-tab="my-day">My day</button>
+        <button class="tab-btn" data-tab="past">Past</button>
       </div>
     </div>
     <p class="section-description">Make sure to check in players after a group or individual session for their points.</p>
@@ -138,6 +142,22 @@
     </div>
     <div class="reschedule-footer">
       <button class="reschedule-btn" id="saveRescheduleBtn" type="button" disabled>Reschedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Bottom Sheet -->
+<div class="notification-bottom-sheet" id="notificationBottomSheet" style="display: none;">
+  <div class="notification-bottom-sheet-handle"></div>
+  <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
+    <i class="bx bx-x"></i>
+  </button>
+  <div class="notification-bottom-sheet-content">
+    <button class="mark-all-read-btn" id="markAllReadBtn" title="Mark all as read">
+      <i class="bx bx-book-check"></i>
+    </button>
+    <div class="notification-content">
+      <!-- Notification content will be loaded here -->
     </div>
   </div>
 </div>
