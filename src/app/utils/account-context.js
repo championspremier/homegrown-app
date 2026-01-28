@@ -73,23 +73,32 @@ export async function getAccountContext() {
 
   if (isPlayer && viewingAsParent) {
     // Player viewing as parent - find parent and all siblings
-    const { data: relationship } = await supabase
-      .from('parent_player_relationships')
-      .select('parent_id')
-      .eq('player_id', actualUserId)
-      .single();
-
-    if (relationship) {
-      effectiveParentId = relationship.parent_id;
+    // Use RPC function to avoid 406 errors for player-only accounts
+    try {
+      const { data: parentId, error: rpcError } = await supabase.rpc('get_player_parent_id', {
+        p_player_id: actualUserId
+      });
       
-      // Get all players linked to this parent
-      const { data: allRelationships } = await supabase
-        .from('parent_player_relationships')
-        .select('player_id')
-        .eq('parent_id', effectiveParentId);
-      
-      allLinkedPlayerIds = allRelationships?.map(r => r.player_id) || [];
+      if (!rpcError && parentId) {
+        effectiveParentId = parentId;
+        
+        // Get all players linked to this parent
+        const { data: allRelationships } = await supabase
+          .from('parent_player_relationships')
+          .select('player_id')
+          .eq('parent_id', effectiveParentId);
+        
+        allLinkedPlayerIds = allRelationships?.map(r => r.player_id) || [];
+        effectivePlayerId = selectedPlayerId || actualUserId;
+      } else {
+        // Player-only account - no parent relationship
+        effectivePlayerId = selectedPlayerId || actualUserId;
+        allLinkedPlayerIds = [actualUserId];
+      }
+    } catch (error) {
+      // Player-only account - no parent relationship
       effectivePlayerId = selectedPlayerId || actualUserId;
+      allLinkedPlayerIds = [actualUserId];
     }
   } else if (isParent && viewingAsPlayer) {
     // Parent viewing as player
@@ -119,15 +128,21 @@ export async function getAccountContext() {
     effectivePlayerId = actualUserId;
     allLinkedPlayerIds = [actualUserId];
     
-    // Find parent for RLS purposes
-    const { data: relationship } = await supabase
-      .from('parent_player_relationships')
-      .select('parent_id')
-      .eq('player_id', actualUserId)
-      .single();
-    
-    if (relationship) {
-      effectiveParentId = relationship.parent_id;
+    // Find parent for RLS purposes (player-only accounts won't have a relationship)
+    // Use RPC function to avoid 406 errors (bypasses RLS)
+    try {
+      const { data: parentId, error: rpcError } = await supabase.rpc('get_player_parent_id', {
+        p_player_id: actualUserId
+      });
+      
+      if (!rpcError && parentId) {
+        effectiveParentId = parentId;
+      }
+      // If RPC fails or returns null, player has no parent (player-only account)
+      // This is expected and not an error condition
+    } catch (error) {
+      // Silently ignore - player-only accounts won't have a parent
+      // The RPC function should handle this gracefully, but catch just in case
     }
   }
 

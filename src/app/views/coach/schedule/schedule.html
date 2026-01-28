@@ -148,7 +148,10 @@
 
         <div class="form-group">
           <label for="sessionDate" class="required">Date</label>
-          <input type="date" id="sessionDate" name="sessionDate" required>
+          <div class="date-input-wrapper">
+            <input type="date" id="sessionDate" name="sessionDate" required>
+            <span class="day-name-display" id="dayNameDisplay"></span>
+          </div>
         </div>
 
         <div class="form-group">
@@ -169,16 +172,6 @@
             <option value="monthly">Monthly</option>
           </select>
           
-          <div class="day-selector">
-            <button type="button" class="day-btn" data-day="0">S</button>
-            <button type="button" class="day-btn" data-day="1">M</button>
-            <button type="button" class="day-btn" data-day="2">T</button>
-            <button type="button" class="day-btn" data-day="3">W</button>
-            <button type="button" class="day-btn" data-day="4">T</button>
-            <button type="button" class="day-btn" data-day="5">F</button>
-            <button type="button" class="day-btn" data-day="6">S</button>
-          </div>
-          
           <button type="button" class="repeats-forever-link" id="repeatsForeverBtn">Repeats forever</button>
         </div>
 
@@ -187,12 +180,11 @@
           <select id="mainCoach" name="mainCoach" required>
             <option value="">— Select Coach —</option>
           </select>
-          <select id="assistantCoach" name="assistantCoach">
-            <option value="">— Assistant coach (optional) —</option>
-          </select>
-          <select id="goalkeeperCoach" name="goalkeeperCoach">
-            <option value="">— Goalkeeper coach (optional) —</option>
-          </select>
+          <div id="additionalCoachesContainer"></div>
+          <button type="button" class="btn-add-coach" id="addCoachBtn">
+            <i class="bx bx-plus"></i>
+            <span>Add Coach</span>
+          </button>
         </div>
       </div>
 

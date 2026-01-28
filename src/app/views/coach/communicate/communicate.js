@@ -11,6 +11,26 @@ let selectedPlayerId = null;
 let correctAnswerIndex = null; // For quiz
 let messageRateLimit = 3;
 let objectivesRateLimit = true;
+let pendingAttachment = null; // { type: 'photo'|'video', file, localUrl } for compose preview
+
+// Announcement type icon + color (Info=yellow, Cancellation=red, Merch=blue, Pro player=green, Time=red, Veo=green)
+const ANNOUNCEMENT_TYPE_ICONS = {
+  information: 'bx-info-circle',
+  time_change: 'bx-alarm',
+  cancellation: 'bx-block',
+  popup_session: 'bx-calendar-check',
+  veo_link: 'bx-video',
+  merch: 'bx-purchase-tag'
+};
+
+function updateAnnouncementTypeIcon() {
+  const wrap = document.getElementById('announcementTypeIconWrap');
+  const sel = document.getElementById('announcementType');
+  if (!wrap || !sel) return;
+  const type = (sel.value || 'information');
+  const bx = ANNOUNCEMENT_TYPE_ICONS[type] || 'bx-info-circle';
+  wrap.innerHTML = `<i class="bx ${bx} announcement-type-icon announcement-type-icon--${type}"></i>`;
+}
 
 // Initialize Supabase
 async function init() {
@@ -56,26 +76,33 @@ function setupEventListeners() {
         handleSendMessage();
       }
     });
+    messageInput.addEventListener('input', updateComposeAttachmentPreview);
+    messageInput.addEventListener('paste', () => setTimeout(updateComposeAttachmentPreview, 0));
   }
 
-  // File attachment
-  const attachmentBtn = document.getElementById('attachmentBtn');
-  const fileInput = document.getElementById('fileInput');
-  
-  if (attachmentBtn && fileInput) {
-    attachmentBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', handleFileSelect);
+  // Plus dropdown: Photo, Video, Link
+  setupPlusAttachDropdown();
+
+  // Announcement type: update colored icon when type changes
+  const announcementTypeSelect = document.getElementById('announcementType');
+  if (announcementTypeSelect) {
+    updateAnnouncementTypeIcon();
+    announcementTypeSelect.addEventListener('change', updateAnnouncementTypeIcon);
   }
 
-  // Player search for objectives
-  const playerSearch = document.getElementById('playerSearch');
-  if (playerSearch) {
-    playerSearch.addEventListener('input', handlePlayerSearch);
-    playerSearch.addEventListener('focus', () => {
-      if (playerSearch.value.trim()) {
-        handlePlayerSearch({ target: playerSearch });
+  // Player search for objectives (event delegation so it works even if DOM isn't ready yet)
+  if (!window.__communicatePlayerSearchDelegation) {
+    window.__communicatePlayerSearchDelegation = true;
+    document.body.addEventListener('input', (e) => {
+      if (e.target.id === 'playerSearch') {
+        handlePlayerSearch(e);
       }
     });
+    document.body.addEventListener('focus', (e) => {
+      if (e.target.id === 'playerSearch' && e.target.value.trim()) {
+        handlePlayerSearch({ target: e.target });
+      }
+    }, true);
   }
 
   // Remove selected player
@@ -370,18 +397,147 @@ function renderMessages(messages) {
   container.scrollTop = container.scrollHeight; // Scroll to bottom
 }
 
+// Plus dropdown: Photo, Video, Link (sent to all accounts' notification bottom sheets)
+function setupPlusAttachDropdown() {
+  const plusBtn = document.getElementById('plusAttachBtn');
+  const dropdown = document.getElementById('plusAttachDropdown');
+  const photoInput = document.getElementById('photoInput');
+  const videoInput = document.getElementById('videoInput');
+  const messageInput = document.getElementById('messageInput');
+  if (!plusBtn || !dropdown) return;
+
+  plusBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('is-open');
+    dropdown.setAttribute('aria-hidden', dropdown.classList.contains('is-open') ? 'false' : 'true');
+  });
+
+  function closeDropdown() {
+    plusBtn?.focus();
+    dropdown.classList.remove('is-open');
+    dropdown.setAttribute('aria-hidden', 'true');
+  }
+
+  document.addEventListener('click', () => {
+    if (dropdown.classList.contains('is-open')) closeDropdown();
+  });
+  dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+  dropdown.querySelectorAll('.plus-attach-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const type = opt.dataset.type;
+      closeDropdown();
+      if (type === 'photo' && photoInput) {
+        photoInput.click();
+      } else if (type === 'video' && videoInput) {
+        videoInput.click();
+      } else if (type === 'link' && messageInput) {
+        const url = prompt('Enter link URL:');
+        if (url && url.trim()) {
+          const text = messageInput.value.trim();
+          messageInput.value = text ? `${text}\n${url.trim()}` : url.trim();
+        }
+      }
+    });
+  });
+
+  if (photoInput) {
+    photoInput.addEventListener('change', (e) => {
+      handleFileSelect(e);
+      photoInput.value = '';
+    });
+  }
+  if (videoInput) {
+    videoInput.addEventListener('change', (e) => {
+      handleFileSelect(e);
+      videoInput.value = '';
+    });
+  }
+}
+
+// Update the compose-area preview (photo/link/video at flex-end)
+function updateComposeAttachmentPreview() {
+  const el = document.getElementById('composeAttachmentPreview');
+  const messageInput = document.getElementById('messageInput');
+  if (!el) return;
+
+  if (pendingAttachment) {
+    if (pendingAttachment.type === 'photo' && pendingAttachment.localUrl) {
+      el.innerHTML = `<img src="${pendingAttachment.localUrl}" alt="" class="preview-thumb" />`;
+      el.style.display = 'flex';
+    } else if (pendingAttachment.type === 'video') {
+      el.innerHTML = `<div class="preview-video-wrap" title="Video"><i class="bx bx-video"></i></div>`;
+      el.style.display = 'flex';
+    } else {
+      el.innerHTML = '';
+      el.style.display = 'none';
+    }
+    return;
+  }
+
+  const url = messageInput?.value ? extractFirstUrl(messageInput.value) : null;
+  if (url) {
+    el.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="preview-link-wrap" title="Link"><i class="bx bx-link"></i></a>`;
+    el.style.display = 'flex';
+  } else {
+    el.innerHTML = '';
+    el.style.display = 'none';
+  }
+}
+
 // Handle file selection
 async function handleFileSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
 
-  // TODO: Upload file to Supabase Storage
-  // For now, we'll just store the file info
-  console.log('File selected:', file.name, file.size);
-  
-  // You can add file upload logic here
-  // const filePath = `messages/${currentCoachId}/${Date.now()}_${file.name}`;
-  // const { data, error } = await supabase.storage.from('messages').upload(filePath, file);
+  if (pendingAttachment?.localUrl) {
+    URL.revokeObjectURL(pendingAttachment.localUrl);
+  }
+  const type = (file.type || '').startsWith('video') ? 'video' : 'photo';
+  pendingAttachment = {
+    type,
+    file,
+    localUrl: type === 'photo' ? URL.createObjectURL(file) : null
+  };
+  updateComposeAttachmentPreview();
+}
+
+const MESSAGE_ATTACHMENTS_BUCKET = 'coach-message-attachments';
+
+// Sanitize filename for storage path (keep extension, safe chars)
+function sanitizeAttachmentFilename(name) {
+  const base = (name || 'file').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '');
+  const ext = base.includes('.') ? base.slice(base.lastIndexOf('.')) : '';
+  const stem = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+  return (stem || 'file') + ext;
+}
+
+// Upload pending attachment to storage; returns { attachment_url, attachment_type, attachment_name, attachment_size } or null
+async function uploadPendingAttachment() {
+  if (!pendingAttachment?.file || !currentCoachId || !supabase) return null;
+  const file = pendingAttachment.file;
+  const type = pendingAttachment.type; // 'photo' | 'video'
+  const path = `${currentCoachId}/${Date.now()}_${sanitizeAttachmentFilename(file.name)}`;
+
+  const { error } = await supabase.storage
+    .from(MESSAGE_ATTACHMENTS_BUCKET)
+    .upload(path, file, { upsert: false });
+
+  if (error) {
+    console.error('Attachment upload failed:', error);
+    throw error;
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from(MESSAGE_ATTACHMENTS_BUCKET)
+    .getPublicUrl(path);
+
+  return {
+    attachment_url: publicUrl,
+    attachment_type: type,
+    attachment_name: file.name,
+    attachment_size: file.size
+  };
 }
 
 // Handle send message
@@ -394,6 +550,7 @@ async function handleSendMessage() {
 
   const messageInput = document.getElementById('messageInput');
   const recipientType = document.getElementById('recipientType')?.value || 'all';
+  const announcementType = document.getElementById('announcementType')?.value || 'information';
   const messageText = messageInput?.value.trim();
 
   if (!messageText || messageText.length === 0) {
@@ -413,14 +570,38 @@ async function handleSendMessage() {
       return;
     }
 
-    // Create message
+    // Upload attachment first if present (coach_messages has attachment_url, attachment_name, attachment_size only)
+    let attachmentPayload = {};
+    let attachmentTypeForNotifications = null;
+    if (pendingAttachment?.file) {
+      try {
+        const att = await uploadPendingAttachment();
+        if (att) {
+          attachmentPayload = {
+            attachment_url: att.attachment_url,
+            attachment_name: att.attachment_name,
+            attachment_size: att.attachment_size
+          };
+          attachmentTypeForNotifications = att.attachment_type;
+        }
+      } catch (err) {
+        alert('Failed to upload attachment. Send without it?');
+        return;
+      }
+    }
+
+    const insertPayload = {
+      coach_id: currentCoachId,
+      message_text: messageText,
+      recipient_type: recipientType,
+      announcement_type: announcementType,
+      ...attachmentPayload
+    };
+
+    // Create message (announcement_type: time_change, cancellation, popup_session, information, veo_link)
     const { data: message, error } = await supabase
       .from('coach_messages')
-      .insert({
-        coach_id: currentCoachId,
-        message_text: messageText,
-        recipient_type: recipientType
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -430,12 +611,26 @@ async function handleSendMessage() {
       return;
     }
 
-    // Create notifications for recipients
-    await createMessageNotifications(message, recipientType);
+    // Ensure message has attachment fields for createMessageNotifications (table has no attachment_type; we infer it)
+    if (attachmentPayload.attachment_url && !message.attachment_url) {
+      message.attachment_url = attachmentPayload.attachment_url;
+      message.attachment_name = attachmentPayload.attachment_name;
+    }
+    if (attachmentTypeForNotifications) {
+      message.attachment_type = attachmentTypeForNotifications;
+    }
 
-    // Clear input
+    // Create notifications for recipients (use announcement_type as notification_type for correct icon)
+    await createMessageNotifications(message, recipientType, announcementType);
+
+    // Clear input and pending attachment preview
     messageInput.value = '';
-    
+    if (pendingAttachment?.localUrl) {
+      URL.revokeObjectURL(pendingAttachment.localUrl);
+    }
+    pendingAttachment = null;
+    updateComposeAttachmentPreview();
+
     // Reload messages
     await loadMessages();
     await checkRateLimits();
@@ -445,62 +640,66 @@ async function handleSendMessage() {
   }
 }
 
-// Create notifications for message recipients
-async function createMessageNotifications(message, recipientType) {
+// Extract first URL from text (for link/attachment preview in notifications)
+function extractFirstUrl(text) {
+  if (!text || typeof text !== 'string') return null;
+  const m = text.match(/https?:\/\/[^\s<>"\u201c\u201d]+/i);
+  return m ? m[0].replace(/[.,;:!?)]+$/, '') : null;
+}
+
+// Create notifications for message recipients (notification_type = announcement_type for icon)
+async function createMessageNotifications(message, recipientType, announcementType) {
   if (!supabaseReady || !supabase) return;
+  const type = announcementType || 'information';
 
   try {
+    const { data: session } = await supabase.auth.getSession();
+    let coachName = '';
+    if (session?.session?.user?.id) {
+      const { data: profile } = await supabase.from('profiles').select('first_name, last_name').eq('id', session.session.user.id).maybeSingle();
+      if (profile) coachName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+    }
+
     let recipientIds = [];
     let recipientRole = 'player';
 
     if (recipientType === 'all') {
-      // Get all players and parents
-      const { data: players } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'player');
-      
-      const { data: parents } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'parent');
-
+      const { data: players } = await supabase.from('profiles').select('id').eq('role', 'player');
+      const { data: parents } = await supabase.from('profiles').select('id').eq('role', 'parent');
       recipientIds = [
         ...(players || []).map(p => ({ id: p.id, role: 'player' })),
         ...(parents || []).map(p => ({ id: p.id, role: 'parent' }))
       ];
     } else if (recipientType === 'players') {
-      const { data: players } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'player');
-      
+      const { data: players } = await supabase.from('profiles').select('id').eq('role', 'player');
       recipientIds = (players || []).map(p => ({ id: p.id, role: 'player' }));
     } else if (recipientType === 'parents') {
-      const { data: parents } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'parent');
-      
+      const { data: parents } = await supabase.from('profiles').select('id').eq('role', 'parent');
       recipientIds = (parents || []).map(p => ({ id: p.id, role: 'parent' }));
     } else if (recipientType === 'coaches') {
-      const { data: coaches } = await supabase
-        .from('profiles')
-        .select('id')
-        .in('role', ['coach', 'admin']);
-      
+      const { data: coaches } = await supabase.from('profiles').select('id').in('role', ['coach', 'admin']);
       recipientIds = (coaches || []).map(p => ({ id: p.id, role: 'coach' }));
     }
 
-    // Create notifications
+    const linkUrl = (message.link_url || extractFirstUrl(message.message_text)) || null;
+    const attachmentUrl = message.attachment_url || null;
+    const attachmentType = message.attachment_type || (message.attachment_name && /\.(mp4|webm|mov|avi)(\?|$)/i.test(message.attachment_name) ? 'video' : message.attachment_url ? 'photo' : null) || null;
+
     if (recipientIds.length > 0) {
       const notifications = recipientIds.map(recipient => ({
         recipient_id: recipient.id,
         recipient_role: recipient.role,
-        notification_type: 'announcement',
+        notification_type: type,
         title: 'New Announcement',
         message: message.message_text.substring(0, 100) + (message.message_text.length > 100 ? '...' : ''),
-        data: { message_id: message.id },
+        data: {
+          message_id: message.id,
+          announcement_type: type,
+          attachment_url: attachmentUrl,
+          attachment_type: attachmentType,
+          link_url: linkUrl,
+          coach_name: coachName
+        },
         related_entity_type: 'message',
         related_entity_id: message.id
       }));

@@ -106,17 +106,17 @@
   fill: none;
 }
 
-/* Notification Badge - similar to leaderboard position */
+/* Notification Badge - same as player home */
 .notification-badge {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 22px;
-  height: 22px;
+  top: -1px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 6px;
   border-radius: 50%;
-  background: #ef4444; /* Red color for notifications */
-  border: 2px solid var(--bg);
+  background: #ef4444;
+  border: none;
   color: white;
   font-size: 11px;
   font-weight: 600;
@@ -368,7 +368,7 @@ html[data-theme="light"] .account-switcher-dropdown {
   justify-content: center;
   height: 36px;
   width: 40px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent-solid, var(--border));
   border-radius: 50%;
   background: transparent;
   color: var(--text);
@@ -752,10 +752,31 @@ html[data-theme="light"] .account-switcher-dropdown {
   cursor: grabbing;
 }
 
+.notification-bottom-sheet-header {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px 12px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.notification-bottom-sheet-header .mark-all-read-btn {
+  flex-shrink: 0;
+  order: 1;
+}
+
+.notification-bottom-sheet-header .notification-close-btn {
+  flex-shrink: 0;
+  order: 2;
+  margin-left: auto;
+}
+
 .notification-close-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   background: none;
   border: none;
   border-radius: 50%;
@@ -767,7 +788,8 @@ html[data-theme="light"] .account-switcher-dropdown {
   color: var(--text);
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
-  z-index: 10004;
+  flex-shrink: 0;
+  margin-left: auto;
   opacity: 1;
   pointer-events: auto;
 }
@@ -806,9 +828,6 @@ html:not([data-theme]) .notification-close-btn i {
 }
 
 .mark-all-read-btn {
-  position: absolute;
-  top: 12px;
-  left: 20px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -819,7 +838,7 @@ html:not([data-theme]) .notification-close-btn i {
   justify-content: center;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
-  z-index: 10005;
+  flex-shrink: 0;
   color: var(--text);
 }
 
@@ -832,6 +851,12 @@ html:not([data-theme]) .notification-close-btn i {
   transform: scale(0.95);
 }
 
+.mark-all-read-btn i,
+.mark-all-read-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
 .mark-all-read-btn i {
   font-size: 20px;
 }
@@ -844,7 +869,7 @@ html:not([data-theme]) .notification-close-btn i {
   align-items: flex-start;
   justify-content: flex-start;
   color: var(--text);
-  padding: 60px 16px 16px;
+  padding: 16px 16px 16px;
   overflow-y: auto;
   gap: 12px;
 }
@@ -852,7 +877,7 @@ html:not([data-theme]) .notification-close-btn i {
 .notification-item {
   width: 100%;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.5);
@@ -873,9 +898,36 @@ html:not([data-theme]) .notification-close-btn i {
 
 .notification-icon {
   font-size: 24px;
-  color: var(--accent);
+  color: var(--accent-solid, var(--text));
   flex-shrink: 0;
+  min-width: 28px;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
+.notification-icon i.bx {
+  font-size: 24px;
+  color: inherit;
+  display: block;
+}
+
+/* Type-colored notification icons – set on i.bx with !important to override layout's global i.bx color */
+.notification-icon--information,
+.notification-icon--announcement { color: #EAB308 !important; }
+.notification-icon--information i.bx,
+.notification-icon--announcement i.bx { color: #EAB308 !important; }
+.notification-icon--cancellation { color: #DC2626 !important; }
+.notification-icon--cancellation i.bx { color: #DC2626 !important; }
+.notification-icon--merch { color: #2563EB !important; }
+.notification-icon--merch i.bx { color: #2563EB !important; }
+.notification-icon--popup_session { color: #16A34A !important; }
+.notification-icon--popup_session i.bx { color: #16A34A !important; }
+.notification-icon--time_change { color: #DC2626 !important; }
+.notification-icon--time_change i.bx { color: #DC2626 !important; }
+.notification-icon--veo_link { color: #16A34A !important; }
+.notification-icon--veo_link i.bx { color: #16A34A !important; }
 
 .notification-content-text {
   flex: 1;
@@ -885,21 +937,27 @@ html:not([data-theme]) .notification-close-btn i {
 .notification-title {
   font-weight: 600;
   font-size: 16px;
-  color: var(--text);
+  color: #000;
   margin-bottom: 4px;
+}
+.notification-title--red {
+  color: #DC2626 !important;
 }
 
 .notification-message {
   font-size: 14px;
-  color: var(--muted);
+  color: #000;
   margin-bottom: 8px;
   line-height: 1.4;
 }
 
 .notification-date {
   font-size: 12px;
-  color: var(--muted);
-  opacity: 0.7;
+  color: rgba(0, 0, 0, 0.65);
+  opacity: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
 }
 
 .notification-dot {
@@ -909,6 +967,185 @@ html:not([data-theme]) .notification-close-btn i {
   background: var(--accent);
   flex-shrink: 0;
   margin-top: 4px;
+}
+
+/* Attachment (photo/link/video) on flex-end, vertically centered */
+.notification-attachment {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notification-attachment-img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--bg-alt, rgba(0,0,0,0.04));
+}
+.notification-attachment-video {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-alt, rgba(0,0,0,0.06));
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 24px;
+}
+.notification-attachment-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--bg-alt, rgba(0,0,0,0.06));
+  color: var(--accent);
+  font-size: 22px;
+  text-decoration: none;
+}
+.notification-attachment-link:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+.notification-item:has(.notification-attachment-media) {
+  cursor: pointer;
+}
+.notification-attachment-media {
+  cursor: pointer;
+}
+
+/* Notification media lightbox — hidden by default; JS shows when opening */
+.notification-media-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10010;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.notification-media-lightbox[style*="display: flex"] {
+  display: flex;
+}
+.notification-media-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.notification-media-lightbox-inner {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 1;
+  gap: 16px;
+  overflow-y: auto;
+}
+.notification-media-lightbox-meta {
+  display: none;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  max-width: 90vw;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.notification-media-lightbox-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #fff;
+}
+.notification-media-lightbox-icon.notification-icon--cancellation,
+.notification-media-lightbox-icon.notification-icon--time_change { color: #DC2626 !important; }
+.notification-media-lightbox-icon.notification-icon--cancellation i.bx,
+.notification-media-lightbox-icon.notification-icon--time_change i.bx { color: #DC2626 !important; }
+.notification-media-lightbox-icon.notification-icon--information,
+.notification-media-lightbox-icon.notification-icon--announcement { color: #EAB308 !important; }
+.notification-media-lightbox-icon.notification-icon--information i.bx,
+.notification-media-lightbox-icon.notification-icon--announcement i.bx { color: #EAB308 !important; }
+.notification-media-lightbox-icon.notification-icon--merch { color: #2563EB !important; }
+.notification-media-lightbox-icon.notification-icon--merch i.bx { color: #2563EB !important; }
+.notification-media-lightbox-icon.notification-icon--popup_session,
+.notification-media-lightbox-icon.notification-icon--veo_link { color: #16A34A !important; }
+.notification-media-lightbox-icon.notification-icon--popup_session i.bx,
+.notification-media-lightbox-icon.notification-icon--veo_link i.bx { color: #16A34A !important; }
+.notification-media-lightbox-text {
+  flex: 1;
+  min-width: 0;
+}
+.notification-media-lightbox-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.notification-media-lightbox-title.notification-title--red { color: #DC2626 !important; }
+.notification-media-lightbox-message {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+.notification-media-lightbox-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.notification-media-lightbox-close {
+  position: absolute;
+  top: -44px;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background 0.2s;
+}
+.notification-media-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+.notification-media-lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.notification-media-lightbox-video {
+  max-width: 90vw;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .notification-content-old {
@@ -940,15 +1177,22 @@ html:not([data-theme]) .notification-close-btn i {
     padding: 0 16px 16px;
   }
   
+  .notification-bottom-sheet-header {
+    padding: 8px 10px 10px;
+  }
+  
   .notification-close-btn {
-    top: 10px;
-    right: 10px;
     width: 36px;
     height: 36px;
   }
   
   .notification-close-btn i {
     font-size: 20px;
+  }
+  
+  .mark-all-read-btn {
+    width: 36px;
+    height: 36px;
   }
 }
 

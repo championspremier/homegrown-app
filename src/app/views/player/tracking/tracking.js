@@ -33,6 +33,8 @@ async function init() {
 
     await loadPointsSummary(playerId);
     await loadPointsHistory(playerId, 'current');
+    await loadQuizHistory(playerId);
+    await loadObjectivesHistory(playerId);
     setupQuarterSelector(playerId);
     
     // Listen for account switches
@@ -72,6 +74,8 @@ function setupAccountSwitchListener() {
       console.log(`Account switched to player: ${selectedPlayerId}`);
       await loadPointsSummary(selectedPlayerId);
       await loadPointsHistory(selectedPlayerId, 'current');
+      await loadQuizHistory(selectedPlayerId);
+      await loadObjectivesHistory(selectedPlayerId);
       setupQuarterSelector(selectedPlayerId);
     } else if (role === 'parent') {
       // Switched back to parent - reload as actual player (if logged in as player)
@@ -79,6 +83,8 @@ function setupAccountSwitchListener() {
       if (playerId) {
         await loadPointsSummary(playerId);
         await loadPointsHistory(playerId, 'current');
+        await loadQuizHistory(playerId);
+        await loadObjectivesHistory(playerId);
         setupQuarterSelector(playerId);
       }
     }
@@ -91,6 +97,8 @@ function setupAccountSwitchListener() {
       if (playerId) {
         await loadPointsSummary(playerId);
         await loadPointsHistory(playerId, 'current');
+        await loadQuizHistory(playerId);
+        await loadObjectivesHistory(playerId);
         setupQuarterSelector(playerId);
       }
     }
@@ -278,6 +286,149 @@ async function loadPointsHistory(playerId, view = 'current') {
   } catch (error) {
     console.error('Error loading points history:', error);
     container.innerHTML = '<div class="error-state">Error loading points history</div>';
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text == null ? '' : String(text);
+  return div.innerHTML;
+}
+
+async function loadQuizHistory(playerId) {
+  const container = document.getElementById('quizHistoryContent');
+  if (!container) return;
+
+  container.innerHTML = '<div class="loading-state">Loading quiz history...</div>';
+
+  try {
+    const { data: assignments, error } = await supabase
+      .from('quiz_assignments')
+      .select(`
+        id,
+        status,
+        answered_at,
+        is_correct,
+        points_awarded,
+        selected_answer,
+        quiz_questions (
+          question,
+          options,
+          correct_answer
+        )
+      `)
+      .eq('player_id', playerId)
+      .eq('status', 'answered')
+      .order('answered_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error('Error loading quiz history:', error);
+      container.innerHTML = '<div class="error-state">Error loading quiz history</div>';
+      return;
+    }
+
+    if (!assignments || assignments.length === 0) {
+      container.innerHTML = '<div class="empty-state">No quiz history yet. Answer quizzes on the Home tab to see results here.</div>';
+      return;
+    }
+
+    const items = assignments.map((a) => {
+      const q = Array.isArray(a.quiz_questions) ? a.quiz_questions[0] : a.quiz_questions;
+      const question = (q && q.question) || 'Question';
+      const options = Array.isArray(q?.options) ? q.options : [];
+      const correctIdx = q && typeof q.correct_answer === 'number' ? q.correct_answer : -1;
+      const selectedIdx = a.selected_answer != null ? a.selected_answer : -1;
+      const isCorrect = a.is_correct === true;
+      const pts = parseFloat(a.points_awarded) || 0;
+      const date = a.answered_at
+        ? new Date(a.answered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '';
+      const resultClass = isCorrect ? 'quiz-history-correct' : 'quiz-history-incorrect';
+      const resultText = isCorrect ? 'Correct' : 'Incorrect';
+      const correctText = correctIdx >= 0 && correctIdx < options.length
+        ? escapeHtml(String(options[correctIdx]))
+        : '';
+      return `
+        <div class="quiz-history-item">
+          <div class="quiz-history-question">${escapeHtml(question)}</div>
+          <div class="quiz-history-meta">
+            <span class="${resultClass}">${resultText}</span>
+            ${pts > 0 ? `<span class="quiz-history-points">+${pts.toFixed(1)} pts</span>` : ''}
+            ${date ? `<span class="quiz-history-date">${date}</span>` : ''}
+          </div>
+          ${correctText && !isCorrect ? `<div class="quiz-history-correct-answer">Correct: ${correctText}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `<div class="quiz-history-list">${items}</div>`;
+  } catch (err) {
+    console.error('Error in loadQuizHistory:', err);
+    container.innerHTML = '<div class="error-state">Error loading quiz history</div>';
+  }
+}
+
+async function loadObjectivesHistory(playerId) {
+  const container = document.getElementById('objectivesHistoryContent');
+  if (!container) return;
+
+  container.innerHTML = '<div class="loading-state">Loading objectives history...</div>';
+
+  try {
+    const { data: objectives, error } = await supabase
+      .from('player_objectives')
+      .select(`
+        id,
+        in_possession_objective,
+        out_of_possession_objective,
+        is_active,
+        created_at,
+        coach:coach_id(first_name, last_name)
+      `)
+      .eq('player_id', playerId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Error loading objectives history:', error);
+      container.innerHTML = '<div class="error-state">Error loading objectives history</div>';
+      return;
+    }
+
+    if (!objectives || objectives.length === 0) {
+      container.innerHTML = '<div class="empty-state">No objectives history yet. Your coach will assign objectives from Communicate.</div>';
+      return;
+    }
+
+    const items = objectives.map((obj) => {
+      const coach = obj.coach || obj.coach_id;
+      const coachName = coach ? [coach.first_name, coach.last_name].filter(Boolean).join(' ') || 'Coach' : 'Coach';
+      const dateStr = obj.created_at
+        ? new Date(obj.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '';
+      const inPoss = (obj.in_possession_objective || '').trim() || '—';
+      const outPoss = (obj.out_of_possession_objective || '').trim() || '—';
+      const currentBadge = obj.is_active ? '<span class="objectives-history-current">Current</span>' : '';
+      return `
+        <div class="objectives-history-item">
+          <div class="objectives-history-meta">
+            <span class="objectives-history-coach">${escapeHtml(coachName)}</span>
+            <span class="objectives-history-date">${escapeHtml(dateStr)}</span>
+            ${currentBadge}
+          </div>
+          <div class="objectives-history-detail">
+            <div><strong>In Possession:</strong> ${escapeHtml(inPoss)}</div>
+            <div><strong>Out Of Possession:</strong> ${escapeHtml(outPoss)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `<div class="objectives-history-list">${items}</div>`;
+  } catch (err) {
+    console.error('Error in loadObjectivesHistory:', err);
+    container.innerHTML = '<div class="error-state">Error loading objectives history</div>';
   }
 }
 

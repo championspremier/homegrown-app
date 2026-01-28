@@ -30,6 +30,7 @@ GRANT EXECUTE ON FUNCTION public.is_coach() TO authenticated;
 DROP POLICY IF EXISTS "Coaches can view all sessions" ON public.sessions;
 DROP POLICY IF EXISTS "Coaches can create sessions" ON public.sessions;
 DROP POLICY IF EXISTS "Coaches can update own sessions" ON public.sessions;
+DROP POLICY IF EXISTS "Coaches can delete own sessions" ON public.sessions;
 DROP POLICY IF EXISTS "Coaches can view reservations for their sessions" ON public.session_reservations;
 DROP POLICY IF EXISTS "Coaches can update reservations for their sessions" ON public.session_reservations;
 
@@ -47,7 +48,14 @@ CREATE POLICY "Coaches can create sessions"
   TO authenticated
   WITH CHECK (
     public.is_coach()
-    AND coach_id = auth.uid()
+    AND (
+      coach_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE profiles.id = coach_id
+        AND profiles.role IN ('coach', 'admin')
+      )
+    )
   );
 
 CREATE POLICY "Coaches can update own sessions"
@@ -63,7 +71,8 @@ CREATE POLICY "Coaches can delete own sessions"
   TO authenticated
   USING (
     public.is_coach()
-    AND coach_id = auth.uid()
+    -- Allow coaches to delete any session (since they can view all sessions)
+    -- This is necessary because coaches can create sessions for other coaches
   );
 
 -- RESERVATIONS POLICIES

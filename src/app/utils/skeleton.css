@@ -1,0 +1,148 @@
+/**
+ * Skeleton Loader Styles
+ * Mimics MUI's Skeleton component
+ * Reference: https://mui.com/material-ui/react-skeleton/
+ */
+
+.skeleton {
+  display: inline-block;
+  background-color: var(--skeleton-bg, rgba(255, 255, 255, 0.11));
+  border-radius: 4px;
+}
+
+/* Variants */
+.skeleton-text {
+  height: 1em;
+  border-radius: 4px;
+}
+
+.skeleton-rectangular {
+  border-radius: 0;
+}
+
+.skeleton-circular {
+  border-radius: 50%;
+}
+
+.skeleton-rounded {
+  border-radius: 8px;
+}
+
+/* Animations */
+.skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out 0.5s infinite;
+}
+
+.skeleton-wave {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-wave::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+  animation: skeleton-wave 1.6s linear 0.5s infinite;
+}
+
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes skeleton-wave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Home Page Skeleton Specific Styles */
+.skeleton-home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  margin: 0 40px 20px 40px;
+  width: auto;
+}
+
+.skeleton-account,
+.skeleton-logo,
+.skeleton-bell {
+  display: flex;
+  align-items: center;
+}
+
+.skeleton-logo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.skeleton-bell {
+  flex-shrink: 0;
+}
+
+.page-skeleton {
+  padding: 20px;
+}
+
+.skeleton-section {
+  margin-bottom: 20px;
+}
+
+.skeleton-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 10px;
+}
+
+.skeleton-calendar {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.skeleton-tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* Light theme adjustments */
+html[data-theme="light"] .skeleton {
+  background-color: var(--skeleton-bg, rgba(0, 0, 0, 0.11));
+}
+
+html[data-theme="light"] .skeleton-wave::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.08),
+    transparent
+  );
+}

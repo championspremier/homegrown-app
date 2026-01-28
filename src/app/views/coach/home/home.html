@@ -149,15 +149,37 @@
 <!-- Notification Bottom Sheet -->
 <div class="notification-bottom-sheet" id="notificationBottomSheet" style="display: none;">
   <div class="notification-bottom-sheet-handle"></div>
-  <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
-    <i class="bx bx-x"></i>
-  </button>
-  <div class="notification-bottom-sheet-content">
+  <div class="notification-bottom-sheet-header">
     <button class="mark-all-read-btn" id="markAllReadBtn" title="Mark all as read">
-      <i class="bx bx-book-check"></i>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" size="22" color="currentColor" strokeWidth="1.5" data-lucide="book-check" data-size="22" data-color="currentColor" class="lucide-icon"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"></path><path d="m9 9.5 2 2 4-4"></path></svg>
     </button>
+    <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
+      <i class="bx bx-x"></i>
+    </button>
+  </div>
+  <div class="notification-bottom-sheet-content">
     <div class="notification-content">
       <!-- Notification content will be loaded here -->
     </div>
+  </div>
+</div>
+
+<!-- Notification media lightbox (photo/video + full notification info) -->
+<div class="notification-media-lightbox" id="notificationMediaLightbox" role="dialog" aria-modal="true" aria-label="View attachment" style="display: none;">
+  <div class="notification-media-lightbox-backdrop"></div>
+  <div class="notification-media-lightbox-inner">
+    <button class="notification-media-lightbox-close" type="button" aria-label="Close">
+      <i class="bx bx-x"></i>
+    </button>
+    <div class="notification-media-lightbox-meta">
+      <div class="notification-media-lightbox-icon"></div>
+      <div class="notification-media-lightbox-text">
+        <div class="notification-media-lightbox-title"></div>
+        <div class="notification-media-lightbox-message"></div>
+        <div class="notification-media-lightbox-date"></div>
+      </div>
+    </div>
+    <img class="notification-media-lightbox-img" alt="" />
+    <video class="notification-media-lightbox-video" controls></video>
   </div>
 </div>

@@ -154,6 +154,21 @@ function moveHeaderAboveTopBar() {
         console.log('Removing duplicate header from content-area');
         homeHeaderInContent.remove();
       }
+      // Remove content skeleton and restore hidden content (e.g. after account switch)
+      if (contentArea) {
+        const contentSkeleton = contentArea.querySelector('.page-skeleton');
+        if (contentSkeleton) {
+          contentSkeleton.remove();
+        }
+        const hiddenContent = contentArea.querySelectorAll('[data-skeleton-hidden="true"]');
+        hiddenContent.forEach(element => {
+          element.style.display = '';
+          element.removeAttribute('data-skeleton-hidden');
+        });
+      }
+      if (typeof window.__showLeaderboard === 'function') {
+        window.__showLeaderboard();
+      }
       moveHeaderRetryCount = 0;
       return;
     }
@@ -202,6 +217,10 @@ function moveHeaderAboveTopBar() {
         element.style.display = '';
         element.removeAttribute('data-skeleton-hidden');
       });
+    }
+    
+    if (typeof window.__showLeaderboard === 'function') {
+      window.__showLeaderboard();
     }
     
     moveHeaderRetryCount = 0; // Reset on success
@@ -1755,15 +1774,36 @@ function renderNotifications(notifications) {
     const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const isRead = notif.is_read;
     const icon = getNotificationIcon(notif.notification_type);
+    const d = (typeof notif.data === 'object' && notif.data !== null) ? notif.data : {};
+    const linkUrl = d.link_url && /^https?:\/\//i.test(String(d.link_url)) ? d.link_url : null;
+    const attRaw = d.attachment_url != null ? String(d.attachment_url).trim() : '';
+    const attUrlSafe = attRaw && !/javascript:/i.test(attRaw) && (/^https?:\/\//i.test(attRaw) || attRaw.startsWith('/'));
+    const attUrl = attUrlSafe ? attRaw : null;
+    const attType = (d.attachment_type || 'photo').toLowerCase();
+    let attHtml = '';
+    const attUrlEsc = attUrl ? attUrl.replace(/"/g, '&quot;') : '';
+    if (attUrl && (attType === 'photo' || attType === 'image')) {
+      attHtml = `<div class="notification-attachment notification-attachment-media" data-attachment-url="${attUrlEsc}" data-attachment-type="photo"><img src="${attUrlEsc}" alt="" class="notification-attachment-img" loading="lazy" /></div>`;
+    } else if (attUrl && attType === 'video') {
+      attHtml = `<div class="notification-attachment notification-attachment-media" data-attachment-url="${attUrlEsc}" data-attachment-type="video"><div class="notification-attachment-video" title="Video"><i class="bx bx-video"></i></div></div>`;
+    } else if (linkUrl) {
+      attHtml = `<div class="notification-attachment"><a href="${String(linkUrl)}" target="_blank" rel="noopener noreferrer" class="notification-attachment-link" title="Link"><i class="bx bx-link"></i></a></div>`;
+    }
 
+    const typeClass = (notif.notification_type || 'information').replace(/[^a-z0-9_]/g, '_');
+    const typeTitle = getNotificationTypeTitle(notif.notification_type, notif.title);
+    const titleRed = typeClass === 'cancellation' || typeClass === 'time_change';
+    const coachName = (d.coach_name != null && String(d.coach_name).trim()) ? String(d.coach_name).trim() : '';
+    const dateLine = coachName ? `${escapeHtml(coachName)} · ${dateStr}` : dateStr;
     return `
       <div class="notification-item ${isRead ? 'read' : 'unread'}" data-notification-id="${notif.id}">
-        <div class="notification-icon">${icon}</div>
+        <div class="notification-icon notification-icon--${typeClass}">${icon}</div>
         <div class="notification-content-text">
-          <div class="notification-title">${escapeHtml(notif.title)}</div>
+          <div class="notification-title${titleRed ? ' notification-title--red' : ''}">${escapeHtml(typeTitle)}</div>
           <div class="notification-message">${escapeHtml(notif.message)}</div>
-          <div class="notification-date">${dateStr}</div>
+          <div class="notification-date">${escapeHtml(dateLine)}</div>
         </div>
+        ${attHtml}
         ${!isRead ? '<div class="notification-dot"></div>' : ''}
       </div>
     `;
@@ -1816,7 +1856,21 @@ function renderNotifications(notifications) {
   });
 }
 
-// Get icon for notification type
+// Announcement type → display title (matches coach Communicate dropdown)
+function getNotificationTypeTitle(type, fallbackTitle) {
+  const titles = {
+    information: 'Information',
+    time_change: 'Time change',
+    cancellation: 'Cancellation',
+    popup_session: 'Pro player stories',
+    veo_link: 'Veo Link',
+    merch: 'Merch',
+    announcement: 'Information'
+  };
+  return titles[type] != null ? titles[type] : (fallbackTitle || 'Announcement');
+}
+
+// Get icon for notification type (announcement subtypes: time_change, cancellation, popup_session, information, veo_link, merch)
 function getNotificationIcon(type) {
   const icons = {
     'solo_session_created': '<i class="bx bx-football"></i>',
@@ -1827,7 +1881,12 @@ function getNotificationIcon(type) {
     'milestone_achieved': '<i class="bx bx-star"></i>',
     'schedule_change': '<i class="bx bx-calendar"></i>',
     'field_change': '<i class="bx bx-map"></i>',
-    'cancellation': '<i class="bx bx-x-circle"></i>'
+    'cancellation': '<i class="bx bx-block"></i>',
+    'time_change': '<i class="bx bx-alarm"></i>',
+    'popup_session': '<i class="bx bx-calendar-check"></i>',
+    'information': '<i class="bx bx-info-circle"></i>',
+    'veo_link': '<i class="bx bx-video"></i>',
+    'merch': '<i class="bx bx-purchase-tag"></i>'
   };
   return icons[type] || '<i class="bx bx-bell"></i>';
 }
@@ -1890,15 +1949,123 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Initialize on page load
+// Open notification media lightbox (photo/video + full notification info)
+// data: { url, type, title, message, date, typeClass }
+function openNotificationMediaLightbox(data) {
+  const lb = document.getElementById('notificationMediaLightbox');
+  if (!lb) return;
+  const img = lb.querySelector('.notification-media-lightbox-img');
+  const vid = lb.querySelector('.notification-media-lightbox-video');
+  const meta = lb.querySelector('.notification-media-lightbox-meta');
+  const metaIcon = lb.querySelector('.notification-media-lightbox-icon');
+  const metaTitle = lb.querySelector('.notification-media-lightbox-title');
+  const metaMessage = lb.querySelector('.notification-media-lightbox-message');
+  const metaDate = lb.querySelector('.notification-media-lightbox-date');
+  if (!img || !vid) return;
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  vid.pause();
+  vid.removeAttribute('src');
+  const url = data.url;
+  const type = (data.type || 'photo').toLowerCase();
+  const isVideo = type === 'video';
+  if (isVideo) {
+    vid.src = url;
+    vid.style.display = 'block';
+  } else {
+    img.src = url;
+    img.style.display = 'block';
+  }
+  if (meta && metaIcon && metaTitle && metaMessage && metaDate) {
+    const typeClass = (data.typeClass || 'information').replace(/[^a-z0-9_]/g, '_');
+    metaIcon.className = 'notification-media-lightbox-icon notification-icon notification-icon--' + typeClass;
+    metaIcon.innerHTML = getNotificationIcon(data.typeClass || 'information');
+    metaTitle.textContent = data.title || '';
+    metaTitle.className = 'notification-media-lightbox-title' + (typeClass === 'cancellation' || typeClass === 'time_change' ? ' notification-title--red' : '');
+    metaMessage.textContent = data.message || '';
+    metaDate.textContent = data.date || '';
+    meta.style.display = 'flex';
+  }
+  lb.style.display = 'flex';
+  lb.querySelector('.notification-media-lightbox-close')?.focus();
+}
+
+// Close notification media lightbox
+function closeNotificationMediaLightbox() {
+  const lb = document.getElementById('notificationMediaLightbox');
+  if (!lb) return;
+  lb.style.display = 'none';
+  const img = lb.querySelector('.notification-media-lightbox-img');
+  const vid = lb.querySelector('.notification-media-lightbox-video');
+  const meta = lb.querySelector('.notification-media-lightbox-meta');
+  if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+  if (vid) { vid.pause(); vid.removeAttribute('src'); vid.style.display = 'none'; }
+  if (meta) meta.style.display = 'none';
+}
+
 // Setup Notification Bottom Sheet (opens directly to full height)
 function setupNotificationBottomSheet() {
   const notificationBell = document.getElementById('notificationBell');
   const bottomSheet = document.getElementById('notificationBottomSheet');
   const closeBtn = document.getElementById('notificationCloseBtn');
   const handle = bottomSheet?.querySelector('.notification-bottom-sheet-handle');
-  
+  const content = bottomSheet?.querySelector('.notification-content');
+  const lightbox = document.getElementById('notificationMediaLightbox');
+
   if (!notificationBell || !bottomSheet) return;
+
+  // Ensure mark-all-read is in the header row with close btn (fix cached HTML that had it inside content)
+  const markAllReadBtn = document.getElementById('markAllReadBtn');
+  let header = bottomSheet.querySelector('.notification-bottom-sheet-header');
+  const sheetContent = bottomSheet.querySelector('.notification-bottom-sheet-content');
+  if (markAllReadBtn && sheetContent && sheetContent.contains(markAllReadBtn)) {
+    if (!header) {
+      header = document.createElement('div');
+      header.className = 'notification-bottom-sheet-header';
+      bottomSheet.insertBefore(header, sheetContent);
+      header.appendChild(markAllReadBtn);
+      if (closeBtn) header.appendChild(closeBtn);
+    } else {
+      header.insertBefore(markAllReadBtn, header.firstChild);
+    }
+  }
+
+  // Delegated click: open lightbox when clicking photo/video in notifications (capture so we run before “mark read”)
+  if (content && !content.dataset.mediaLightboxDelegate) {
+    content.dataset.mediaLightboxDelegate = '1';
+    content.addEventListener('click', (e) => {
+      if (e.target.closest('.notification-attachment-link')) return;
+      const item = e.target.closest('.notification-item');
+      if (!item) return;
+      const media = item.querySelector('.notification-attachment-media');
+      if (!media) return;
+      const url = media.dataset.attachmentUrl;
+      const type = (media.dataset.attachmentType || 'photo').toLowerCase();
+      if (!url || !/^(photo|video|image)$/.test(type)) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const iconEl = item.querySelector('.notification-icon[class*="notification-icon--"]');
+      const typeClass = iconEl ? (iconEl.className.match(/notification-icon--([a-z0-9_]+)/) || [])[1] || 'information' : 'information';
+      const titleEl = item.querySelector('.notification-title');
+      const messageEl = item.querySelector('.notification-message');
+      const dateEl = item.querySelector('.notification-date');
+      openNotificationMediaLightbox({
+        url,
+        type,
+        typeClass,
+        title: titleEl ? titleEl.textContent.trim() : '',
+        message: messageEl ? messageEl.textContent.trim() : '',
+        date: dateEl ? dateEl.textContent.trim() : ''
+      });
+    }, true);
+  }
+
+  // Lightbox close: backdrop and close button
+  if (lightbox) {
+    lightbox.querySelector('.notification-media-lightbox-backdrop')?.addEventListener('click', closeNotificationMediaLightbox);
+    lightbox.querySelector('.notification-media-lightbox-close')?.addEventListener('click', closeNotificationMediaLightbox);
+    lightbox.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNotificationMediaLightbox(); });
+  }
   
   // Full height - 70% of viewport
   const FULL_HEIGHT = Math.floor(window.innerHeight * 0.7);

@@ -1,5 +1,459 @@
-<div style="padding: 40px;">
-  <h1>Solo Create</h1>
-  <p>Coach solo creation tools go here</p>
+<div class="solo-create-container">
+  <div class="solo-create-header">
+    <h1>Create Solo Session</h1>
+    <p class="solo-create-subtitle">Create structured solo training sessions for players</p>
+    <div class="header-actions">
+      <button class="btn-secondary" id="manageThumbnailsBtn" type="button">
+        <i class="bx bx-image"></i>
+        <span>Manage Skill Thumbnails</span>
+      </button>
+      <button class="btn-secondary" id="editSessionsBtn" type="button">
+        <i class="bx bx-edit"></i>
+        <span>Edit Sessions</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Skill Thumbnail Management (Hidden Initially) -->
+  <div class="thumbnail-management" id="thumbnailManagement" style="display: none;">
+    <div class="form-header">
+      <button class="back-button" id="backFromThumbnails" type="button">
+        <i class="bx bx-chevron-left"></i>
+        <span>Back</span>
+      </button>
+      <h2>Manage Skill Thumbnails</h2>
+      <p class="form-subtitle">Upload thumbnail images for skills. These will appear on skill cards in the player view.</p>
+    </div>
+
+    <div class="thumbnail-form">
+      <div class="form-section">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="thumbnailCategorySelect">
+          <option value="">Select Category</option>
+          <option value="technical">Technical</option>
+          <option value="physical">Physical</option>
+          <option value="mental">Mental</option>
+          <option value="tactical">Tactical</option>
+        </select>
+      </div>
+
+      <div class="form-section" id="thumbnailPeriodSection" style="display: none;">
+        <label class="form-label">Period</label>
+        <select class="form-select" id="thumbnailPeriodSelect">
+          <option value="">Select Period</option>
+          <option value="build-out">Build-Out</option>
+          <option value="middle-third">Middle Third</option>
+          <option value="final-third">Final Third</option>
+          <option value="wide-play">Wide Play</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+
+      <div class="form-section" id="thumbnailSeasonSection" style="display: none;">
+        <label class="form-label">Season</label>
+        <select class="form-select" id="thumbnailSeasonSelect">
+          <option value="">Select Season</option>
+          <option value="in-season">In-Season</option>
+          <option value="off-season">Off-Season</option>
+        </select>
+      </div>
+
+      <div class="form-section" id="thumbnailSkillSection" style="display: none;">
+        <label class="form-label">Skill</label>
+        <select class="form-select" id="thumbnailSkillSelect">
+          <option value="">Select Skill</option>
+        </select>
+      </div>
+
+      <div class="form-section" id="thumbnailSubSkillSection" style="display: none;">
+        <label class="form-label">Sub-Skill (Optional)</label>
+        <select class="form-select" id="thumbnailSubSkillSelect">
+          <option value="">No Sub-Skill (Skill-level thumbnail)</option>
+        </select>
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">Thumbnail Image</label>
+        <div class="thumbnail-upload-zone" id="thumbnailUploadZone">
+          <div class="thumbnail-upload-content">
+            <i class="bx bx-cloud-upload"></i>
+            <p class="thumbnail-upload-text">Drag & drop your image, GIF, or video here or</p>
+            <button class="btn-choose-thumbnail-file" type="button">Choose Image, GIF, or Video</button>
+            <input type="file" id="skillThumbnailFileInput" accept="image/*,.gif,video/mp4" style="display: none;">
+          </div>
+        </div>
+        <p class="field-hint">Recommended: Square or 16:9 aspect ratio, PNG, JPG, GIF, or MP4 video, max 5MB</p>
+        <div class="thumbnail-preview-container" id="skillThumbnailPreview" style="display: none;">
+          <img id="skillThumbnailPreviewImg" src="" alt="Thumbnail preview" style="display: none;">
+          <video id="skillThumbnailPreviewVideo" autoplay muted loop playsinline style="display: none;">
+            <source id="skillThumbnailPreviewVideoSource" src="" type="video/mp4">
+          </video>
+          <button class="remove-skill-thumbnail" type="button" aria-label="Remove thumbnail">
+            <i class="bx bx-x"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-secondary" id="cancelThumbnail" type="button">Cancel</button>
+        <button class="btn-primary" id="saveThumbnail" type="button" disabled>Upload Thumbnail</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Selection (Initial View) -->
+  <div class="category-selection" id="categorySelection">
+    <div class="category-grid">
+      <button class="category-card" data-category="technical" type="button">
+        <div class="category-icon">
+          <i class="bx bx-football"></i>
+        </div>
+        <h2>Technical</h2>
+        <p>Warm-Up, Main Exercises, Finishing/Passing</p>
+      </button>
+      <button class="category-card" data-category="tactical" type="button">
+        <div class="category-icon">
+          <i class='bx bx-map'></i>
+        </div>
+        <h2>Tactical</h2>
+        <p>Game Situations, Formations, Strategy</p>
+      </button>
+      <button class="category-card" data-category="physical" type="button">
+        <div class="category-icon">
+          <i class="bx bx-dumbbell"></i>
+        </div>
+        <h2>Physical</h2>
+        <p>Strength, Speed, Conditioning</p>
+      </button>
+      <button class="category-card" data-category="mental" type="button">
+        <div class="category-icon">
+          <i class="bx bx-brain"></i>
+        </div>
+        <h2>Mental</h2>
+        <p>Meditation, Breathing, Recovery</p>
+      </button>
+    </div>
+  </div>
+
+  <!-- Session Creation Form (Hidden Initially) -->
+  <div class="session-form" id="sessionForm" style="display: none;">
+    <div class="form-header">
+      <button class="back-button" id="backToCategories" type="button">
+        <i class="bx bx-chevron-left"></i>
+        <span>Back to Categories</span>
+      </button>
+      <h2 id="formTitle">Create Technical Session</h2>
+    </div>
+
+    <!-- Period Selection (for Technical, Mental, Tactical) -->
+    <div class="form-section" id="periodSection">
+      <label class="form-label">Period</label>
+      <select class="form-select" id="periodSelect">
+        <option value="">Select Period</option>
+        <option value="build-out">Build-Out</option>
+        <option value="middle-third">Middle Third</option>
+        <option value="final-third">Final Third</option>
+        <option value="wide-play">Wide Play</option>
+        <option value="all" id="allPeriodOption" style="display: none;">All</option>
+      </select>
+    </div>
+
+    <!-- Season Selection (for Physical only) -->
+    <div class="form-section" id="seasonSection" style="display: none;">
+      <label class="form-label">Season</label>
+      <select class="form-select" id="seasonSelect">
+        <option value="">Select Season</option>
+        <option value="in-season">In-Season</option>
+        <option value="off-season">Off-Season</option>
+      </select>
+    </div>
+
+    <!-- Difficulty Level Selection -->
+    <div class="form-section">
+      <label class="form-label">Difficulty Level</label>
+      <select class="form-select" id="difficultyLevelSelect">
+        <option value="beginner">Beginner</option>
+        <option value="intermediate">Intermediate</option>
+        <option value="advanced">Advanced</option>
+      </select>
+    </div>
+
+    <!-- Technical Session Form -->
+    <div class="technical-form" id="technicalForm" style="display: none;">
+      <!-- Warm-Up Section -->
+      <div class="session-section">
+        <div class="section-header">
+          <h3>Warm-Up</h3>
+          <button class="add-drill-btn" data-section="warm-up" type="button">
+            <i class="bx bx-plus"></i>
+            <span>Add Drill</span>
+          </button>
+        </div>
+        <div class="drills-container" id="warmUpDrills"></div>
+      </div>
+
+      <!-- Main Exercises Section -->
+      <div class="session-section">
+        <div class="section-header">
+          <h3>Main Exercises</h3>
+          <button class="add-drill-btn" data-section="main-exercises" type="button">
+            <i class="bx bx-plus"></i>
+            <span>Add Drill</span>
+          </button>
+        </div>
+        <div class="drills-container" id="mainExercisesDrills"></div>
+      </div>
+
+      <!-- Finishing/Passing Section -->
+      <div class="session-section">
+        <div class="section-header">
+          <h3>Finishing or Passing</h3>
+          <button class="add-drill-btn" data-section="finishing-passing" type="button">
+            <i class="bx bx-plus"></i>
+            <span>Add Drill</span>
+          </button>
+        </div>
+        <div class="drills-container" id="finishingPassingDrills"></div>
+      </div>
+    </div>
+
+    <!-- Physical Form (with Nutrition/Rehab/Sleep tabs) -->
+    <div class="physical-form" id="physicalForm" style="display: none;">
+      <!-- Combined Season/Category Selection -->
+      <div class="form-section" id="physicalSeasonSection">
+        <label class="form-label">Select Season or Category</label>
+        <select class="form-select" id="physicalSeasonSelect">
+          <option value="">Select Season or Category</option>
+          <option value="in-season">In-Season</option>
+          <option value="off-season">Off-Season</option>
+          <option value="nutrition">Nutrition</option>
+          <option value="sleep">Sleep</option>
+          <option value="rehab">Rehab</option>
+        </select>
+      </div>
+      
+      <!-- Physical Content (shows filter buttons and drills) -->
+      <div class="physical-tab-content" id="physicalTabContent">
+        <!-- Content will be dynamically generated based on selected season and skill -->
+      </div>
+    </div>
+
+    <!-- Mental/Tactical Form -->
+    <div class="simple-form" id="simpleForm" style="display: none;">
+      <div class="session-section">
+        <div class="section-header">
+          <h3 id="videosSectionTitle">Drills</h3>
+          <button class="add-drill-btn" data-section="drills" type="button">
+            <i class="bx bx-plus"></i>
+            <span id="addDrillBtnText">Add Drill</span>
+          </button>
+        </div>
+        <p class="section-hint" id="videosSectionHint" style="display: none; color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem;">Videos must be at minimum 1 minute in duration</p>
+        <div class="drills-container" id="simpleDrills"></div>
+      </div>
+    </div>
+
+    <!-- Session Actions -->
+    <div class="form-actions">
+      <button class="btn-secondary" id="cancelSession" type="button">Cancel</button>
+      <button class="btn-primary" id="saveSession" type="button">Save Session</button>
+    </div>
+  </div>
+
+  <!-- Edit Sessions View (Hidden Initially) -->
+  <div class="edit-sessions-view" id="editSessionsView" style="display: none;">
+    <div class="form-header">
+      <button class="back-button" id="backFromEditSessions" type="button">
+        <i class="bx bx-chevron-left"></i>
+        <span>Back</span>
+      </button>
+      <h2>Edit Sessions</h2>
+      <p class="form-subtitle">View and manage all your created sessions</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="edit-filters">
+      <div class="form-section">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="sessionsCategoryFilter">
+          <option value="">All Categories</option>
+          <option value="technical">Technical</option>
+          <option value="physical">Physical</option>
+          <option value="mental">Mental</option>
+          <option value="tactical">Tactical</option>
+        </select>
+      </div>
+
+      <div class="form-section" id="sessionsPeriodFilterSection">
+        <label class="form-label">Period/Season</label>
+        <select class="form-select" id="sessionsPeriodFilter">
+          <option value="">All Periods</option>
+          <option value="build-out">Build-Out</option>
+          <option value="middle-third">Middle Third</option>
+          <option value="final-third">Final Third</option>
+          <option value="wide-play">Wide Play</option>
+          <option value="all">All</option>
+          <option value="in-season">In-Season</option>
+          <option value="off-season">Off-Season</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Sessions List -->
+    <div class="sessions-list-container">
+      <div id="loadingSessions" style="display: none; text-align: center; padding: 40px;">
+        <p>Loading sessions...</p>
+      </div>
+      <div id="noSessions" style="display: none; text-align: center; padding: 40px; color: var(--muted);">
+        <p>No sessions found. Create your first session to get started!</p>
+      </div>
+      <div id="sessionsList" class="sessions-list">
+        <!-- Sessions will be dynamically loaded here -->
+      </div>
+    </div>
+  </div>
 </div>
 
+<!-- Video Upload Modal Template -->
+<template id="videoUploadModal">
+  <div class="upload-modal-overlay" id="uploadModal">
+    <div class="upload-modal">
+      <div class="upload-modal-header">
+        <h3>Upload Video</h3>
+        <button class="close-modal" type="button" aria-label="Close">
+          <i class="bx bx-x"></i>
+        </button>
+      </div>
+
+      <div class="upload-modal-content">
+        <!-- Drag & Drop Zone -->
+        <div class="upload-dropzone" id="uploadDropzone">
+          <div class="dropzone-content">
+            <i class="bx bx-cloud-upload"></i>
+            <p class="dropzone-text">Drag & drop your video here or</p>
+            <button class="btn-choose-files" type="button">Choose files</button>
+            <input type="file" id="videoFileInput" accept="video/*" style="display: none;">
+          </div>
+        </div>
+
+        <!-- Uploaded Files List -->
+        <div class="uploaded-files" id="uploadedFilesList" style="display: none;">
+          <h4>Uploaded Files</h4>
+          <div class="files-list" id="filesList"></div>
+        </div>
+
+        <p class="upload-hint" id="uploadHint">Only .mp4, .mov, .webm files. 100MB max file size.</p>
+
+        <!-- Folder Selection -->
+        <div class="upload-form-fields">
+          <div class="form-field">
+            <label class="form-label">Skill</label>
+            <div class="skill-filter-buttons" id="skillFilterButtons" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+              <!-- Filter buttons will be populated here -->
+            </div>
+          </div>
+
+                  <!-- Existing Drills Section -->
+        <div class="existing-drills-section" id="existingDrillsSection" style="display: none;">
+          <div class="form-field">
+            <label class="form-label">Or Select Existing Drill</label>
+            <div class="existing-drills-list" id="existingDrillsList">
+              <!-- Existing drills will be loaded here -->
+            </div>
+          </div>
+        </div>
+
+          <div class="form-field" id="subSkillField" style="display: none;">
+            <label class="form-label">Sub-Skill</label>
+            <select class="form-select" id="subSkillSelect">
+              <option value="">Select Sub-Skill</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Custom Name</label>
+            <input type="text" class="form-input" id="customNameInput" placeholder="e.g., quick-feet-warmup">
+            <p class="field-hint">This will be the filename: period-category-skill-custom-name.mp4</p>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Coaching Points</label>
+            <textarea class="form-textarea" id="coachingPointsInput" rows="4" placeholder="Enter coaching points for this video..."></textarea>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Keywords</label>
+            <div class="keywords-container" id="keywordsContainer">
+              <p class="keywords-hint">Predefined keywords will appear here</p>
+              <!-- Keywords will be added dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Thumbnail Upload -->
+        <div class="form-field">
+          <label class="form-label">Thumbnail Image (Optional)</label>
+          <div class="thumbnail-upload-container">
+            <input type="file" id="thumbnailFileInput" accept="image/*" style="display: none;">
+            <button class="btn-choose-thumbnail" type="button">
+              <i class="bx bx-image"></i>
+              <span>Choose Thumbnail</span>
+            </button>
+            <div class="thumbnail-preview" id="thumbnailPreview" style="display: none;">
+              <img id="thumbnailPreviewImg" src="" alt="Thumbnail preview">
+              <button class="remove-thumbnail" type="button" aria-label="Remove thumbnail">
+                <i class="bx bx-x"></i>
+              </button>
+            </div>
+          </div>
+          <p class="field-hint">Upload a PNG image for the drill thumbnail (recommended: 16:9 aspect ratio)</p>
+        </div>
+      </div>
+
+      <div class="upload-modal-footer">
+        <button class="btn-secondary" id="cancelUpload" type="button">Cancel</button>
+        <button class="btn-primary" id="confirmUpload" type="button" disabled>Add Drill</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Drill Item Template -->
+<template id="drillItemTemplate">
+  <div class="drill-item">
+    <div class="drill-header">
+      <div class="drill-info">
+        <i class="bx bx-video"></i>
+        <span class="drill-name"></span>
+      </div>
+      <div class="drill-actions">
+        <button class="drill-edit" type="button" aria-label="Edit" title="Edit drill details">
+          <i class="bx bx-edit"></i>
+        </button>
+        <button class="drill-remove" type="button" aria-label="Remove">
+          <i class="bx bx-trash"></i>
+        </button>
+      </div>
+    </div>
+    <div class="drill-details">
+      <span class="drill-path"></span>
+    </div>
+    
+    <!-- Drill Parameters Section -->
+    <div class="drill-parameters">
+      <div class="parameter-field">
+        <label>Rest Time (min)</label>
+        <input type="number" class="drill-rest-input" placeholder="1" min="0" step="0.5">
+      </div>
+      <div class="parameter-field">
+        <label>Reps</label>
+        <input type="number" class="drill-reps-input" placeholder="10" min="1">
+      </div>
+      <div class="parameter-field">
+        <label>Sets</label>
+        <input type="number" class="drill-sets-input" placeholder="3" min="1">
+      </div>
+    </div>
+  </div>
+</template>

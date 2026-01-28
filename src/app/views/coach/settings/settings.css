@@ -86,6 +86,33 @@
 
 .logout-btn i {
   font-size: 18px;
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in logout button use correct color */
+.logout-btn svg,
+.logout-btn .lucide-icon {
+  color: var(--text);
+}
+
+.logout-btn svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+.theme-toggle i {
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in theme toggle use correct color */
+.theme-toggle svg,
+.theme-toggle .lucide-icon {
+  color: var(--text);
+}
+
+.theme-toggle svg path {
+  stroke: currentColor;
+  fill: none;
 }
 
 /* Disable all animations and transforms on bx icons */

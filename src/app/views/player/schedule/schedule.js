@@ -19,11 +19,63 @@ async function init() {
   if (supabase) {
     supabaseReady = true;
     setupEventListeners();
-    updateCalendarHeaders();
+    
+    // Wait for layout to be ready before updating calendar headers
+    // This ensures container widths are properly calculated on mobile
+    // Use multiple requestAnimationFrame calls to ensure layout is fully ready
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Force layout calculation by checking if calendars exist and accessing their dimensions
+        const onFieldCalendar = document.getElementById('onFieldCalendarHeader');
+        const virtualCalendar = document.getElementById('virtualCalendarHeader');
+        if (onFieldCalendar) void onFieldCalendar.offsetWidth;
+        if (virtualCalendar) void virtualCalendar.offsetWidth;
+        
+        setTimeout(() => {
+          updateCalendarHeaders();
+        }, 100);
+      });
+    });
+    
     setupRealtimeSubscriptions();
     
     // Listen for account switching to refresh timeslots
     setupAccountSwitchListener();
+    
+    // Recalculate calendar when page becomes visible (e.g., when switching back to this page)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        // Page became visible, recalculate calendar after a short delay
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Force layout calculation
+            const onFieldCalendar = document.getElementById('onFieldCalendarHeader');
+            const virtualCalendar = document.getElementById('virtualCalendarHeader');
+            if (onFieldCalendar) void onFieldCalendar.offsetWidth;
+            if (virtualCalendar) void virtualCalendar.offsetWidth;
+            setTimeout(() => {
+              updateCalendarHeaders();
+            }, 150);
+          });
+        });
+      }
+    });
+    
+    // Also recalculate when window gains focus (handles tab switching)
+    window.addEventListener('focus', () => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Force layout calculation
+          const onFieldCalendar = document.getElementById('onFieldCalendarHeader');
+          const virtualCalendar = document.getElementById('virtualCalendarHeader');
+          if (onFieldCalendar) void onFieldCalendar.offsetWidth;
+          if (virtualCalendar) void virtualCalendar.offsetWidth;
+          setTimeout(() => {
+            updateCalendarHeaders();
+          }, 150);
+        });
+      });
+    });
   } else {
     console.error('Failed to initialize Supabase');
   }
@@ -87,6 +139,12 @@ function setupEventListeners() {
   const virtualToggle = document.getElementById('virtualToggle');
   const virtualHiddenSchedule = document.getElementById('virtualHiddenSchedule');
 
+  // Import chevron toggle function
+  let toggleChevronIcon;
+  import('../../../utils/lucide-icons.js').then(module => {
+    toggleChevronIcon = module.toggleChevronIcon;
+  });
+
   // Toggle On-Field dropdown
   if (onFieldToggle && onFieldHiddenSchedule) {
     onFieldToggle.addEventListener('click', async (e) => {
@@ -97,8 +155,12 @@ function setupEventListeners() {
       if (virtualHiddenSchedule && virtualHiddenSchedule.classList.contains('is-open')) {
         virtualHiddenSchedule.classList.remove('is-open');
         virtualToggle.setAttribute('aria-expanded', 'false');
-        virtualToggle.querySelector('i').classList.remove('bx-chevron-up');
-        virtualToggle.querySelector('i').classList.add('bx-chevron-down');
+        if (toggleChevronIcon) {
+          toggleChevronIcon(virtualToggle, false);
+        } else {
+          const { toggleChevronIcon: toggleFn } = await import('../../../utils/lucide-icons.js');
+          toggleFn(virtualToggle, false);
+        }
         currentLocationType = null;
         // Clean up virtual content when switching away
         cleanupVirtualContent();
@@ -108,15 +170,23 @@ function setupEventListeners() {
       if (isOpen) {
         onFieldHiddenSchedule.classList.remove('is-open');
         onFieldToggle.setAttribute('aria-expanded', 'false');
-        onFieldToggle.querySelector('i').classList.remove('bx-chevron-up');
-        onFieldToggle.querySelector('i').classList.add('bx-chevron-down');
+        if (toggleChevronIcon) {
+          toggleChevronIcon(onFieldToggle, false);
+        } else {
+          const { toggleChevronIcon: toggleFn } = await import('../../../utils/lucide-icons.js');
+          toggleFn(onFieldToggle, false);
+        }
         currentLocationType = null;
         currentFilterType = null;
       } else {
         onFieldHiddenSchedule.classList.add('is-open');
         onFieldToggle.setAttribute('aria-expanded', 'true');
-        onFieldToggle.querySelector('i').classList.remove('bx-chevron-down');
-        onFieldToggle.querySelector('i').classList.add('bx-chevron-up');
+        if (toggleChevronIcon) {
+          toggleChevronIcon(onFieldToggle, true);
+        } else {
+          const { toggleChevronIcon: toggleFn } = await import('../../../utils/lucide-icons.js');
+          toggleFn(onFieldToggle, true);
+        }
         currentLocationType = 'on-field';
         currentSelectedDate = new Date(); // Reset to today
         currentFilterType = null;
@@ -126,10 +196,23 @@ function setupEventListeners() {
         const sessionsList = document.getElementById('onFieldSessionsList');
         const upcomingList = document.getElementById('onFieldUpcomingSessions');
         if (filters) filters.style.display = 'flex';
-        if (calendar) calendar.style.display = 'block';
+        if (calendar) {
+          calendar.style.display = 'block';
+          // Recalculate calendar after it becomes visible to ensure proper sizing on mobile
+          // Use multiple requestAnimationFrame calls to ensure layout is fully ready
+          // Also force a layout recalculation by accessing offsetWidth
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              // Force layout calculation
+              void calendar.offsetWidth;
+              setTimeout(() => {
+                updateCalendarHeaders();
+              }, 100);
+            });
+          });
+        }
         if (sessionsList) sessionsList.style.display = 'none';
         if (upcomingList) upcomingList.style.display = 'none';
-        updateCalendarHeaders();
         await loadAndDisplaySessions('on-field');
       }
     });
@@ -145,8 +228,12 @@ function setupEventListeners() {
       if (onFieldHiddenSchedule && onFieldHiddenSchedule.classList.contains('is-open')) {
         onFieldHiddenSchedule.classList.remove('is-open');
         onFieldToggle.setAttribute('aria-expanded', 'false');
-        onFieldToggle.querySelector('i').classList.remove('bx-chevron-up');
-        onFieldToggle.querySelector('i').classList.add('bx-chevron-down');
+        if (toggleChevronIcon) {
+          toggleChevronIcon(onFieldToggle, false);
+        } else {
+          const { toggleChevronIcon: toggleFn } = await import('../../../utils/lucide-icons.js');
+          toggleFn(onFieldToggle, false);
+        }
         currentLocationType = null;
       }
       
@@ -154,8 +241,12 @@ function setupEventListeners() {
       if (isOpen) {
         virtualHiddenSchedule.classList.remove('is-open');
         virtualToggle.setAttribute('aria-expanded', 'false');
-        virtualToggle.querySelector('i').classList.remove('bx-chevron-up');
-        virtualToggle.querySelector('i').classList.add('bx-chevron-down');
+        if (toggleChevronIcon) {
+          toggleChevronIcon(virtualToggle, false);
+        } else {
+          const { toggleChevronIcon: toggleFn } = await import('../../../utils/lucide-icons.js');
+          toggleFn(virtualToggle, false);
+        }
         currentLocationType = null;
         currentFilterType = null;
         // Clean up virtual content when closing
@@ -163,8 +254,12 @@ function setupEventListeners() {
       } else {
         virtualHiddenSchedule.classList.add('is-open');
         virtualToggle.setAttribute('aria-expanded', 'true');
-        virtualToggle.querySelector('i').classList.remove('bx-chevron-down');
-        virtualToggle.querySelector('i').classList.add('bx-chevron-up');
+        if (toggleChevronIcon) {
+          toggleChevronIcon(virtualToggle, true);
+        } else {
+          const { toggleChevronIcon: toggleFn } = await import('../../../utils/lucide-icons.js');
+          toggleFn(virtualToggle, true);
+        }
         currentLocationType = 'virtual';
         currentSelectedDate = new Date(); // Reset to today
         currentFilterType = null;
@@ -235,6 +330,7 @@ function cleanupVirtualContent() {
   
   // Reset selected coach
   selectedCoachId = null;
+  selectedCoachRole = null;
   currentIndividualSessionType = null;
 }
 
@@ -430,12 +526,23 @@ function updateSingleCalendarHeader(headerId, weekStart) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  // Check if mobile (iPhone size)
-  const isMobile = window.innerWidth <= 428;
-  const dayLabels = isMobile 
-    ? ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'S']  // Shortened for mobile
-    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];  // Full for desktop
+  // Use same day labels as home page calendar (no mobile shortening)
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   
+  // Get the week row container
+  const weekRow = header.querySelector('.calendar-week-row');
+  if (!weekRow) return;
+  
+  // Force layout recalculation before updating
+  // Access multiple elements to ensure all dimensions are calculated
+  void header.offsetWidth;
+  const navigation = header.querySelector('.calendar-navigation');
+  if (navigation) {
+    void navigation.offsetWidth;
+  }
+  void weekRow.offsetWidth;
+  
+  // Update existing day elements (same approach as home page but without rebuilding)
   const dayElements = header.querySelectorAll('.calendar-day');
   dayElements.forEach((dayEl, index) => {
     const date = new Date(weekStart);
@@ -453,7 +560,7 @@ function updateSingleCalendarHeader(headerId, weekStart) {
       dayNumberEl.textContent = dayNumber;
     }
     
-    // Style past dates - add past class to day-number (matching parent)
+    // Style past dates - add past class to day-number (matching home page)
     if (date < today) {
       dayEl.classList.remove('past');
       if (dayNumberEl) {
@@ -466,7 +573,7 @@ function updateSingleCalendarHeader(headerId, weekStart) {
       }
     }
     
-    // Highlight today - add today class to day-number (matching parent)
+    // Highlight today - add today class to day-number (matching home page)
     if (date.toDateString() === today.toDateString()) {
       dayEl.classList.remove('today');
       if (dayNumberEl) {
@@ -483,6 +590,9 @@ function updateSingleCalendarHeader(headerId, weekStart) {
       }
     }
   });
+  
+  // Force another layout recalculation after updates
+  void weekRow.offsetWidth;
 }
 
 // Update selected day highlight
@@ -608,6 +718,17 @@ async function displaySessions(sessions, containerId, dateDisplayId, selectedDat
   );
   
   sessionElements.forEach(sessionEl => {
+    // Safety check: ensure we're not appending to top-bar or leaderboard
+    const isTopBar = container?.closest('.top-bar') || container?.closest('.leaderboard-container');
+    if (isTopBar) {
+      console.error('Attempted to append session to top-bar or leaderboard. Skipping.');
+      return;
+    }
+    // Also ensure container is within schedule-container
+    const isInSchedule = container?.closest('.schedule-container');
+    if (!isInSchedule && container?.id?.includes('Session')) {
+      console.warn('Session container not within schedule-container. This may cause layout issues.');
+    }
     container.appendChild(sessionEl);
   });
 }
@@ -913,8 +1034,10 @@ async function showSessionDetails(session) {
     hour12: true 
   });
   
-  // Format date
-  const sessionDate = new Date(session.session_date);
+  // Format date - parse in local timezone to avoid date shifts
+  // session_date is a DATE string like "2026-01-09", parse it as local time
+  const [year, month, day] = session.session_date.split('-').map(Number);
+  const sessionDate = new Date(year, month - 1, day); // month is 0-indexed
   const dateString = sessionDate.toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
@@ -925,6 +1048,31 @@ async function showSessionDetails(session) {
   let coachName = 'Coach';
   if (session.coach_id) {
     coachName = await fetchCoachName(session.coach_id);
+  }
+  
+  // Get goalkeeper coach names if applicable
+  let goalkeeperCoachesHTML = '';
+  if (session.goalkeeper_coaches && session.goalkeeper_coaches.length > 0) {
+    const gkCoachNames = await Promise.all(
+      session.goalkeeper_coaches.map(async (gkCoachId) => {
+        const gkCoachName = await fetchCoachName(gkCoachId);
+        const initials = gkCoachName.split(' ').map(n => n[0]).join('').toUpperCase();
+        return `
+          <div class="coach-info-item">
+            <div class="coach-avatar">${initials}</div>
+            <span>${gkCoachName}</span>
+          </div>
+        `;
+      })
+    );
+    goalkeeperCoachesHTML = `
+      <div class="coach-item">
+        <div class="coach-label">Goalkeeper Coach</div>
+        <div class="coach-info">
+          ${gkCoachNames.join('')}
+        </div>
+      </div>
+    `;
   }
   
   // Calculate spots left
@@ -978,6 +1126,7 @@ async function showSessionDetails(session) {
           <span>${coachName}</span>
         </div>
       </div>
+      ${goalkeeperCoachesHTML}
     </div>
     
     <div class="session-detail-policies">
@@ -1395,7 +1544,18 @@ async function showGroupSessionSchedule(locationType, sessionType, filtersContai
   // Show existing calendar header
   if (calendar) {
     calendar.style.display = 'block';
-    updateCalendarHeaders('virtualCalendarHeader');
+    // Recalculate calendar after it becomes visible to ensure proper sizing on mobile
+    // Use multiple requestAnimationFrame calls to ensure layout is fully ready
+    // Also force a layout recalculation by accessing offsetWidth
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Force layout calculation
+        void calendar.offsetWidth;
+        setTimeout(() => {
+          updateCalendarHeaders();
+        }, 100);
+      });
+    });
   }
   
   // Show existing sessions list
@@ -1411,6 +1571,7 @@ async function showGroupSessionSchedule(locationType, sessionType, filtersContai
 async function showIndividualSessionBooking(sessionType, filtersContainer) {
   // Reset selected coach when switching sessions
   selectedCoachId = null;
+  selectedCoachRole = null;
   
   // Hide existing calendar and sessions list (only used for group sessions)
   const calendar = document.getElementById('virtualCalendarHeader');
@@ -1500,6 +1661,7 @@ function setupIndividualBookingListeners(sessionType) {
 
 // Store selected coach and session type for booking
 let selectedCoachId = null;
+let selectedCoachRole = null; // "Coach", "Current Pro", etc. for booking summary
 let currentIndividualSessionType = null;
 
 // Load individual session availability
@@ -1541,7 +1703,10 @@ async function loadIndividualSessionAvailability(sessionType) {
         coach:profiles!coach_individual_availability_coach_id_fkey(
           id,
           first_name,
-          last_name
+          last_name,
+          coach_role,
+          profile_photo_url,
+          team_logos
         )
       `)
       .eq('session_type_id', sessionTypeData.id)
@@ -2391,34 +2556,32 @@ function updateBookingSummary() {
     parseInt(selectedTime.split(':')[1])
   );
   
-  let coachName = 'Any available';
+  let staffLine = 'Any available';
   if (selectedCoachId) {
-    // Get coach name from the staff selector or coach option
+    let coachName = '';
     const coachElement = document.querySelector(`[data-coach-id="${selectedCoachId}"]`);
     if (coachElement) {
-      // Try to get the span text (for staff tags) or the text content without the remove button
       const span = coachElement.querySelector('span');
       if (span) {
         coachName = span.textContent.trim();
       } else {
-        // Fallback to textContent but remove any button text
-        coachName = coachElement.textContent.trim();
-        // Remove common button characters
-        coachName = coachName.replace(/[×✕✖]/g, '').trim();
+        coachName = coachElement.textContent.trim().replace(/[×✕✖]/g, '').trim();
       }
-    } else {
-      // Try to get from coach availability data
+    }
+    if (!coachName) {
       const coach = currentCoachAvailability?.find(c => c.coach_id === selectedCoachId);
       if (coach && coach.coach) {
         coachName = `${coach.coach.first_name || ''} ${coach.coach.last_name || ''}`.trim();
       }
     }
+    const role = selectedCoachRole || 'Coach';
+    staffLine = coachName ? `${role} ${coachName}` : 'Any available';
   }
   
   summary.innerHTML = `
     <div><strong>${currentIndividualSessionType}</strong></div>
     <div>${dateDisplayStr} at ${timeStr}</div>
-    <div>With ${coachName}</div>
+    <div>${staffLine}</div>
   `;
   
   footer.style.display = 'flex';
@@ -2442,6 +2605,7 @@ async function showCoachSelectionModal(sessionType) {
     }
     
     // Load available coaches with actual availability data
+    // TODO: Add coach_role, profile_photo_url, team_logos fields to profiles table
     const { data: coachAvailability, error: coachError } = await supabase
       .from('coach_individual_availability')
       .select(`
@@ -2451,7 +2615,10 @@ async function showCoachSelectionModal(sessionType) {
         coach:profiles!coach_individual_availability_coach_id_fkey(
           id,
           first_name,
-          last_name
+          last_name,
+          coach_role,
+          profile_photo_url,
+          team_logos
         )
       `)
       .eq('session_type_id', sessionTypeData.id)
@@ -2492,27 +2659,69 @@ async function showCoachSelectionModal(sessionType) {
       document.body.appendChild(modal);
     }
     
-    // Render modal content
+    // Render modal content with card layout
     const coaches = coachesWithAvailability || [];
     modal.innerHTML = `
       <div class="coach-modal-overlay"></div>
       <div class="coach-modal-content">
-        <div class="coach-option ${!selectedCoachId ? 'selected' : ''}" data-coach-id="">
-          <i class="bx bx-user"></i>
-          <span>Any available</span>
-          <div class="radio-btn ${!selectedCoachId ? 'checked' : ''}"></div>
+        <div class="coach-modal-header">
+          <h2>Select a Coach</h2>
+          <div class="coach-modal-filter">
+            <select id="coachRoleFilter" class="coach-role-filter-select">
+              <option value="all">All Coaches</option>
+              <option value="Coach">Coach</option>
+              <option value="Current Pro">Current Pro</option>
+              <option value="Ex-Pro">Ex-Pro</option>
+              <option value="GK Current Pro">GK Current Pro</option>
+              <option value="GK Ex-Pro">GK Ex-Pro</option>
+            </select>
+          </div>
         </div>
-        ${coaches.map(coach => {
-          const coachName = `${coach.coach?.first_name || ''} ${coach.coach?.last_name || ''}`.trim();
-          const isSelected = selectedCoachId === coach.coach_id;
-          return `
-            <div class="coach-option ${isSelected ? 'selected' : ''}" data-coach-id="${coach.coach_id}">
-              <div class="coach-avatar">${coachName.charAt(0).toUpperCase()}</div>
-              <span>${coachName}</span>
-              <div class="radio-btn ${isSelected ? 'checked' : ''}"></div>
+        <div class="coach-cards-container">
+          <div class="coach-card ${!selectedCoachId ? 'selected' : ''}" data-coach-id="">
+            <div class="coach-card-avatar">
+              <i class="bx bx-user"></i>
             </div>
-          `;
-        }).join('')}
+            <div class="coach-card-name">Any available</div>
+            <div class="coach-card-role">Any Coach</div>
+            <div class="coach-card-selected-indicator ${!selectedCoachId ? 'visible' : ''}">
+              <i class="bx bx-check-circle"></i>
+            </div>
+          </div>
+          ${coaches.map(coach => {
+            const coachName = `${coach.coach?.first_name || ''} ${coach.coach?.last_name || ''}`.trim();
+            const initials = coachName.split(' ').map(n => n.charAt(0)).join('').toUpperCase() || 'C';
+            const isSelected = selectedCoachId === coach.coach_id;
+            const coachRole = coach.coach?.coach_role || 'Coach';
+            const profilePhotoUrl = coach.coach?.profile_photo_url;
+            const teamLogos = coach.coach?.team_logos || [];
+            const isCurrentPro = coachRole === 'Current Pro' || coachRole === 'GK Current Pro';
+            
+            return `
+              <div class="coach-card ${isSelected ? 'selected' : ''}" data-coach-id="${coach.coach_id}">
+                ${profilePhotoUrl 
+                  ? `<img src="${profilePhotoUrl}" alt="${coachName}" class="coach-card-photo" />`
+                  : `<div class="coach-card-avatar">${initials}</div>`
+                }
+                <div class="coach-card-name">
+                  ${coachName}
+                  ${isCurrentPro ? '<i class="bx bx-check-circle coach-verified-badge"></i>' : ''}
+                </div>
+                <div class="coach-card-role">${coachRole}</div>
+                ${teamLogos.length > 0 ? `
+                  <div class="coach-card-teams">
+                    ${teamLogos.map(logo => `
+                      <img src="${logo}" alt="Team logo" class="team-logo" />
+                    `).join('')}
+                  </div>
+                ` : ''}
+                <div class="coach-card-selected-indicator ${isSelected ? 'visible' : ''}">
+                  <i class="bx bx-check-circle"></i>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
       </div>
     `;
     
@@ -2520,28 +2729,98 @@ async function showCoachSelectionModal(sessionType) {
     
     // Setup event listeners
     const overlay = modal.querySelector('.coach-modal-overlay');
-    const coachOptions = modal.querySelectorAll('.coach-option');
+    const coachCards = modal.querySelectorAll('.coach-card');
+    const roleFilter = modal.querySelector('#coachRoleFilter');
     
     overlay.addEventListener('click', () => {
       modal.style.display = 'none';
     });
     
-    coachOptions.forEach(option => {
-      option.addEventListener('click', async () => {
-        const coachId = option.dataset.coachId || null;
+    // Setup role filter
+    if (roleFilter) {
+      roleFilter.addEventListener('change', (e) => {
+        const selectedRole = e.target.value;
+        filterCoachesByRole(selectedRole, coachCards);
+      });
+    }
+    
+    coachCards.forEach(card => {
+      card.addEventListener('click', async () => {
+        const coachId = card.dataset.coachId || null;
         selectedCoachId = coachId;
+        const roleEl = card.querySelector('.coach-card-role');
+        selectedCoachRole = roleEl ? roleEl.textContent.trim() || null : null;
+        if (!coachId) selectedCoachRole = null;
+        
+        // Update selected state
+        coachCards.forEach(c => {
+          c.classList.remove('selected');
+          const indicator = c.querySelector('.coach-card-selected-indicator');
+          if (indicator) indicator.classList.remove('visible');
+        });
+        card.classList.add('selected');
+        const indicator = card.querySelector('.coach-card-selected-indicator');
+        if (indicator) indicator.classList.add('visible');
         
         // Update staff selector display
         const staffSelector = document.getElementById('staffSelector');
         if (staffSelector) {
+          const icon = staffSelector.querySelector('i:first-child');
           const span = staffSelector.querySelector('span');
-          if (span) {
-            if (coachId) {
-              const coachName = option.querySelector('span').textContent;
-              span.textContent = coachName;
-            } else {
-              span.textContent = 'Any available';
+          const existingPhoto = staffSelector.querySelector('img.staff-photo');
+          const existingAvatar = staffSelector.querySelector('.staff-avatar');
+          
+          if (coachId) {
+            // Get coach photo or avatar from card
+            const coachPhoto = card.querySelector('.coach-card-photo');
+            const coachAvatar = card.querySelector('.coach-card-avatar');
+            const coachNameEl = card.querySelector('.coach-card-name');
+            const coachName = coachNameEl ? coachNameEl.textContent.replace(/\s*✓\s*/g, '').trim() : 'Coach';
+            
+            // Remove existing photo/avatar if any
+            if (existingPhoto) existingPhoto.remove();
+            if (existingAvatar) existingAvatar.remove();
+            
+            // Hide the default icon
+            if (icon) icon.style.display = 'none';
+            
+            // Add photo or avatar
+            if (coachPhoto) {
+              const photo = coachPhoto.cloneNode(true);
+              photo.className = 'staff-photo';
+              photo.style.width = '22px';
+              photo.style.height = '22px';
+              photo.style.borderRadius = '50%';
+              photo.style.objectFit = 'cover';
+              staffSelector.insertBefore(photo, span);
+            } else if (coachAvatar) {
+              const avatar = coachAvatar.cloneNode(true);
+              avatar.className = 'staff-avatar';
+              avatar.style.width = '22px';
+              avatar.style.height = '22px';
+              avatar.style.borderRadius = '50%';
+              avatar.style.display = 'flex';
+              avatar.style.alignItems = 'center';
+              avatar.style.justifyContent = 'center';
+              avatar.style.fontSize = '10px';
+              avatar.style.background = 'var(--accent)';
+              avatar.style.color = 'var(--text)';
+              staffSelector.insertBefore(avatar, span);
             }
+            
+            // Update name
+            if (span) span.textContent = coachName;
+          } else {
+            // Reset to "Any available"
+            // Remove existing photo/avatar
+            if (existingPhoto) existingPhoto.remove();
+            if (existingAvatar) existingAvatar.remove();
+            
+            // Show the default icon
+            if (icon) icon.style.display = 'block';
+            
+            // Update name
+            if (span) span.textContent = 'Any available';
           }
         }
         
@@ -2578,12 +2857,16 @@ async function showCoachSelectionModal(sessionType) {
         }
         
         console.log('🔄 Reloading time slots for coach:', coachId || 'Any available', 'on date:', selectedDate);
+        const prevSelectedTime = document.querySelector('.time-slot-btn.selected')?.dataset?.time;
         await reloadTimeSlotsForCoach(selectedDate, sessionType);
         
-        // If a time slot was already selected, update the booking summary
-        const selectedSlot = document.querySelector('.time-slot-btn.selected');
-        if (selectedSlot) {
-          updateBookingSummary();
+        // Re-apply time selection and show footer if we had one before regenerate
+        if (prevSelectedTime) {
+          const btn = document.querySelector(`.time-slot-btn[data-time="${prevSelectedTime}"]:not(.booked)`);
+          if (btn) {
+            btn.classList.add('selected');
+            updateBookingSummary();
+          }
         }
         
         // Close modal
@@ -2594,6 +2877,28 @@ async function showCoachSelectionModal(sessionType) {
   } catch (error) {
     console.error('Error showing coach selection modal:', error);
   }
+}
+
+// Filter coaches by role
+function filterCoachesByRole(selectedRole, coachCards) {
+  coachCards.forEach(card => {
+    // Always show "Any available" option
+    if (!card.dataset.coachId) {
+      card.style.display = 'flex';
+      return;
+    }
+    
+    // For other coaches, check their role
+    const roleElement = card.querySelector('.coach-card-role');
+    if (roleElement) {
+      const coachRole = roleElement.textContent.trim();
+      if (selectedRole === 'all' || coachRole === selectedRole) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    }
+  });
 }
 
 // Reload time slots when coach selection changes (simplified version)
@@ -2689,7 +2994,10 @@ async function reloadTimeSlotsForSelectedCoach(sessionType, sessionTypeId, selec
         coach:profiles!coach_individual_availability_coach_id_fkey(
           id,
           first_name,
-          last_name
+          last_name,
+          coach_role,
+          profile_photo_url,
+          team_logos
         )
       `)
       .eq('session_type_id', sessionTypeId)
@@ -2749,8 +3057,8 @@ async function handleIndividualBookingConfirmation(sessionType) {
       return;
     }
     
-    const selectedPlayerId = localStorage.getItem('selectedPlayerId');
-    
+      const selectedPlayerId = localStorage.getItem('selectedPlayerId');
+      
     // Determine the correct player ID based on account switcher state
     if (profile && profile.role === 'parent' && currentRole === 'player') {
       // Parent is viewing as a player - get the selected player ID
@@ -3205,3 +3513,25 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+// Also recalculate calendar when page is shown (handles page navigation)
+// This ensures calendar is recalculated when switching back to schedule page
+window.addEventListener('pageshow', (event) => {
+  // Only recalculate if we're on the schedule page and calendar exists
+  if (event.persisted || document.visibilityState === 'visible') {
+    const onFieldCalendar = document.getElementById('onFieldCalendarHeader');
+    const virtualCalendar = document.getElementById('virtualCalendarHeader');
+    if (onFieldCalendar || virtualCalendar) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Force layout calculation
+          if (onFieldCalendar) void onFieldCalendar.offsetWidth;
+          if (virtualCalendar) void virtualCalendar.offsetWidth;
+          setTimeout(() => {
+            updateCalendarHeaders();
+          }, 150);
+        });
+      });
+    }
+  }
+});

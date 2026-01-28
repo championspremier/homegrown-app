@@ -178,13 +178,18 @@ async function loadLinkedPlayers(parentId) {
 
     // Show player selector if multiple players
     if (linkedPlayers.length > 1) {
-      document.getElementById('playerSelectorSection').style.display = 'block';
+      const playerSelectorSection = document.getElementById('playerSelectorSection');
+      if (playerSelectorSection) {
+        playerSelectorSection.style.display = 'block';
+      }
       const select = document.getElementById('playerSelect');
-      select.innerHTML = '<option value="">Select a player...</option>' +
+      if (select) {
+        select.innerHTML = '<option value="">Select a player...</option>' +
         linkedPlayers.map(p => {
           const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Player';
           return `<option value="${p.id}">${name}</option>`;
         }).join('');
+      }
     } else if (linkedPlayers.length === 1) {
       // Auto-select single player
       loadPlayerData(linkedPlayers[0].id);

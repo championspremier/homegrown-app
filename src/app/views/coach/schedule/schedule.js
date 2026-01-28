@@ -23,11 +23,23 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
 let supabase;
 let supabaseReady = false;
 
+// Initialize Supabase and schedule
 initSupabase().then(client => {
   if (client) {
     supabase = client;
     supabaseReady = true;
-    initializeSchedule();
+    
+    // Wait a bit to ensure DOM is ready (page is loaded dynamically)
+    // Use requestAnimationFrame to ensure DOM is fully rendered
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        try {
+          initializeSchedule();
+        } catch (error) {
+          console.error('❌ Error initializing schedule:', error);
+        }
+      }, 100);
+    });
   } else {
     console.error('❌ Supabase client is null');
   }
@@ -49,13 +61,35 @@ const INDIVIDUAL_SESSION_TYPES = [
   'Free Nutrition Consultation'
 ];
 
+// Store existing individual session type names to filter from dropdown
+let existingIndividualSessionTypeNames = new Set();
+
 // Initialize the schedule page
 function initializeSchedule() {
-  setupEventListeners();
-  renderCalendar();
-  loadSessions();
-  loadIndividualSessionTypes();
-  setupRealtimeSubscriptions();
+  try {
+    // Check if required DOM elements exist
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) {
+      console.error('❌ Calendar grid not found. DOM may not be ready yet.');
+      // Retry after a short delay
+      setTimeout(() => {
+        if (document.getElementById('calendarGrid')) {
+          initializeSchedule();
+        } else {
+          console.error('❌ Calendar grid still not found after retry.');
+        }
+      }, 500);
+      return;
+    }
+    
+    setupEventListeners();
+    renderCalendar();
+    loadSessions();
+    loadIndividualSessionTypes();
+    setupRealtimeSubscriptions();
+  } catch (error) {
+    console.error('❌ Error in initializeSchedule:', error);
+  }
 }
 
 // Set current week to start on Sunday
@@ -143,9 +177,6 @@ function renderCalendar() {
         if (e.target.closest('.session-block')) {
           return;
         }
-        
-        // Highlight the corresponding day button in sidebar
-        highlightDayButton(dayDate.getDay());
         
         openSessionSidebar('on-field', dayDate, slot.time);
       });
@@ -260,10 +291,24 @@ function renderSessionsOnCalendar() {
     if (timeSlots[startSlotIndex]) {
       const slot = timeSlots[startSlotIndex];
       
-      // Calculate position and height
+      // Calculate position and height based on duration
       const minutesFromStart = startMinute;
       const topOffset = (minutesFromStart / 60) * 60; // 60px per hour
-      const height = Math.max((duration / 60) * 60, 40); // Minimum height of 40px
+      
+      // Calculate height: 1/3 for 20min, 1/2 for 30min, full for 60+
+      // Each hour slot is 60px, so:
+      // - 20 min = 1/3 of hour = 20px
+      // - 30 min = 1/2 of hour = 30px
+      // - 60+ min = full duration in pixels
+      let height;
+      if (duration <= 20) {
+        height = 20; // 1/3 of hour slot (60px / 3 = 20px)
+      } else if (duration <= 30) {
+        height = 30; // 1/2 of hour slot (60px / 2 = 30px)
+      } else {
+        height = (duration / 60) * 60; // Full duration (60px per hour)
+      }
+      height = Math.max(height, 20); // Minimum height of 20px
       
       // Format time for display (e.g., "9:00 AM")
       const timeDate = new Date(`2000-01-01T${session.session_time}`);
@@ -278,13 +323,26 @@ function renderSessionsOnCalendar() {
         ? `${session.coach.first_name || ''} ${session.coach.last_name || ''}`.trim() || 'Coach'
         : 'Coach';
 
-      // Use abbreviated name for individual sessions, full name for group sessions
-      const displayType = session.is_individual && session.session_type_abbrev 
-        ? session.session_type_abbrev 
-        : session.session_type;
+      // Abbreviate coach name if needed (first name initial + last name, or just last name)
+      const abbreviatedCoachName = abbreviateCoachName(coachName);
 
-      // Get color for individual sessions
-      const sessionColor = session.is_individual && session.color ? session.color : null;
+      // Get display type and abbreviation for group sessions
+      let displayType, displayTypeAbbrev;
+      if (session.is_individual && session.session_type_abbrev) {
+        displayType = session.session_type_abbrev;
+        displayTypeAbbrev = session.session_type_abbrev;
+      } else {
+        displayType = session.session_type;
+        displayTypeAbbrev = getGroupSessionAbbreviation(session.session_type);
+      }
+
+      // Get color for sessions
+      let sessionColor = null;
+      if (session.is_individual && session.color) {
+        sessionColor = session.color;
+      } else if (!session.is_individual) {
+        sessionColor = getGroupSessionColor(session.session_type);
+      }
 
       const sessionBlock = document.createElement('div');
       sessionBlock.className = 'session-block';
@@ -296,21 +354,89 @@ function renderSessionsOnCalendar() {
       sessionBlock.dataset.sessionTime = session.session_time;
       sessionBlock.dataset.isIndividual = session.is_individual ? 'true' : 'false';
       
-      // Apply color for individual sessions
+      // Apply color - always set a color, never rely on CSS default
       if (sessionColor) {
         sessionBlock.style.backgroundColor = sessionColor;
         sessionBlock.style.borderLeftColor = sessionColor;
+        
         // Ensure text is readable (use white text on dark colors, dark on light)
-        const rgb = hexToRgb(sessionColor);
+        // Handle CSS variables by getting computed value
+        let colorForBrightness = sessionColor;
+        if (sessionColor.startsWith('var(')) {
+          // For CSS variables, we'll use a fallback or get computed value
+          const tempEl = document.createElement('div');
+          document.body.appendChild(tempEl);
+          tempEl.style.backgroundColor = sessionColor;
+          const computedColor = window.getComputedStyle(tempEl).backgroundColor;
+          document.body.removeChild(tempEl);
+          colorForBrightness = computedColor;
+          
+          // If computed color is transparent or invalid, use a fallback
+          if (!computedColor || computedColor === 'rgba(0, 0, 0, 0)' || computedColor === 'transparent') {
+            console.warn(`CSS variable ${sessionColor} resolved to transparent, using fallback color`);
+            // Extract variable name and use a sensible fallback
+            if (sessionColor.includes('--accent')) {
+              sessionColor = '#7bb4d4'; // Default blue fallback for accent
+              sessionBlock.style.backgroundColor = sessionColor;
+              sessionBlock.style.borderLeftColor = sessionColor;
+              colorForBrightness = sessionColor;
+            }
+          }
+        }
+        
+        // Convert to RGB for brightness calculation
+        let rgb;
+        if (colorForBrightness.startsWith('rgb')) {
+          const match = colorForBrightness.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+          if (match) {
+            rgb = {
+              r: parseInt(match[1]),
+              g: parseInt(match[2]),
+              b: parseInt(match[3])
+            };
+          } else {
+            rgb = { r: 128, g: 128, b: 128 }; // Default to medium gray
+          }
+        } else {
+          rgb = hexToRgb(colorForBrightness);
+        }
+        
         const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
         sessionBlock.style.color = brightness > 128 ? '#000' : '#fff';
+      } else {
+        // Fallback: if no color is provided, use a default (shouldn't happen, but just in case)
+        console.warn('No color provided for session block, using fallback');
+        sessionBlock.style.backgroundColor = '#7bb4d4'; // Default blue
+        sessionBlock.style.borderLeftColor = '#7bb4d4';
+        sessionBlock.style.color = '#fff';
       }
       
-      sessionBlock.innerHTML = `
-        <div class="session-block-type">${displayType}</div>
-        <div class="session-block-time">${timeString}</div>
-        <div class="session-block-coach">${coachName}</div>
-      `;
+      // Build content based on duration
+      let contentHTML = '';
+      if (duration <= 20) {
+        // 20 min: Just name (abbreviated) and time side by side
+        contentHTML = `
+          <div class="session-block-content-row">
+            <div class="session-block-type">${displayTypeAbbrev}</div>
+            <div class="session-block-time">${timeString}</div>
+          </div>
+        `;
+      } else if (duration <= 30) {
+        // 30 min: Name and time
+        contentHTML = `
+          <div class="session-block-type">${displayType}</div>
+          <div class="session-block-time">${timeString}</div>
+        `;
+      } else {
+        // 60+ min: Name (full name since there's space), time, and coach (abbreviated)
+        contentHTML = `
+          <div class="session-block-type">${displayType}</div>
+          <div class="session-block-time">${timeString}</div>
+          <div class="session-block-coach">${abbreviatedCoachName}</div>
+        `;
+      }
+      
+      sessionBlock.innerHTML = contentHTML;
       
       // Click handler for editing (group sessions) or viewing details (individual sessions)
       if (!session.is_individual) {
@@ -640,15 +766,93 @@ function setupEventListeners() {
     }
   });
 
-  // Day selector
-  document.querySelectorAll('.day-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      // Toggle selection
-      btn.classList.toggle('selected');
-    });
+  // Update day name display when session date changes
+  const sessionDateInput = document.getElementById('sessionDate');
+  const sessionStartTimeInput = document.getElementById('sessionStartTime');
+  const sessionEndTimeInput = document.getElementById('sessionEndTime');
+  const sessionTypeSelectEl = document.getElementById('sessionType');
+  
+  // Function to validate duration and show warning (exposed globally for use in other functions)
+  window.validateSessionDuration = function validateDuration() {
+    if (!sessionStartTimeInput || !sessionEndTimeInput || !sessionTypeSelectEl) return;
+    
+    const startTime = sessionStartTimeInput.value;
+    const endTime = sessionEndTimeInput.value;
+    
+    if (!startTime || !endTime) return;
+    
+    // Calculate duration
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    const startTotal = startHours * 60 + startMinutes;
+    const endTotal = endHours * 60 + endMinutes;
+    let duration = endTotal - startTotal;
+    if (duration < 0) duration += 24 * 60; // Handle next day
+    
+    // Check if it's an individual session
+    const sessionType = sessionTypeSelectEl.value;
+    const isIndividual = selectedLocationType === 'virtual' && INDIVIDUAL_SESSION_TYPES.includes(sessionType);
+    
+    // Remove any existing error styling
+    sessionStartTimeInput.style.borderColor = '';
+    sessionEndTimeInput.style.borderColor = '';
+    
+    // Remove any existing error message
+    const existingError = document.getElementById('durationError');
+    if (existingError) {
+      existingError.remove();
+    }
+    
+    // Validate and show error
+    if (isIndividual && duration > 60) {
+      sessionStartTimeInput.style.borderColor = 'var(--error, #e74c3c)';
+      sessionEndTimeInput.style.borderColor = 'var(--error, #e74c3c)';
+      
+      const errorMsg = document.createElement('p');
+      errorMsg.id = 'durationError';
+      errorMsg.style.color = 'var(--error, #e74c3c)';
+      errorMsg.style.fontSize = '0.875rem';
+      errorMsg.style.marginTop = '4px';
+      errorMsg.textContent = 'Individual sessions cannot exceed 1 hour (60 minutes).';
+      sessionEndTimeInput.parentElement.appendChild(errorMsg);
+    } else if (!isIndividual && duration > 120) {
+      sessionStartTimeInput.style.borderColor = 'var(--error, #e74c3c)';
+      sessionEndTimeInput.style.borderColor = 'var(--error, #e74c3c)';
+      
+      const errorMsg = document.createElement('p');
+      errorMsg.id = 'durationError';
+      errorMsg.style.color = 'var(--error, #e74c3c)';
+      errorMsg.style.fontSize = '0.875rem';
+      errorMsg.style.marginTop = '4px';
+      errorMsg.textContent = 'Group sessions cannot exceed 2 hours (120 minutes).';
+      sessionEndTimeInput.parentElement.appendChild(errorMsg);
+    }
+  };
+  
+  sessionDateInput?.addEventListener('change', (e) => {
+    updateDayNameDisplay(e.target.value);
   });
   
-  // Also highlight day when clicking on day header in calendar
+  // Validate duration when times change
+  sessionStartTimeInput?.addEventListener('change', () => {
+    if (window.validateSessionDuration) {
+      window.validateSessionDuration();
+    }
+  });
+  sessionEndTimeInput?.addEventListener('change', () => {
+    if (window.validateSessionDuration) {
+      window.validateSessionDuration();
+    }
+  });
+  
+  // Validate duration when session type or location type changes
+  sessionTypeSelectEl?.addEventListener('change', () => {
+    if (window.validateSessionDuration) {
+      window.validateSessionDuration();
+    }
+  });
+  
+  // Also update day name when clicking on day header in calendar
   document.querySelectorAll('.day-header').forEach(header => {
     header.addEventListener('click', () => {
       const dayNumber = header.querySelector('.day-number')?.textContent;
@@ -659,7 +863,11 @@ function setupEventListeners() {
         const dayIndex = Array.from(header.parentElement.parentElement.children).indexOf(header.parentElement) - 1; // -1 for time column
         if (dayIndex >= 0 && dayIndex < 7) {
           headerDate.setDate(weekStart.getDate() + dayIndex);
-          highlightDayButton(headerDate.getDay());
+          const dateString = headerDate.toISOString().split('T')[0];
+          if (sessionDateInput) {
+            sessionDateInput.value = dateString;
+            updateDayNameDisplay(dateString);
+          }
         }
       }
     });
@@ -701,10 +909,14 @@ function setupEventListeners() {
   });
 
   // Session type change handler - detect individual sessions
-  const sessionTypeSelect = document.getElementById('sessionType');
-  sessionTypeSelect?.addEventListener('change', (e) => {
+  const sessionTypeSelectHandler = document.getElementById('sessionType');
+  sessionTypeSelectHandler?.addEventListener('change', (e) => {
     const selectedType = e.target.value;
     handleSessionTypeChange(selectedType);
+    // Also validate duration when session type changes
+    if (window.validateSessionDuration) {
+      window.validateSessionDuration();
+    }
   });
 
   // View toggle buttons
@@ -771,17 +983,17 @@ function setupEventListeners() {
   });
 }
 
-// Highlight day button based on day of week (0 = Sunday, 6 = Saturday)
-function highlightDayButton(dayOfWeek) {
-  // Clear all day button selections
-  document.querySelectorAll('.day-btn').forEach(btn => {
-    btn.classList.remove('selected');
-  });
-  
-  // Highlight the corresponding day button
-  const dayBtn = document.querySelector(`.day-btn[data-day="${dayOfWeek}"]`);
-  if (dayBtn) {
-    dayBtn.classList.add('selected');
+// Update day name display based on date
+function updateDayNameDisplay(dateValue) {
+  const dayNameDisplay = document.getElementById('dayNameDisplay');
+  if (dayNameDisplay && dateValue) {
+    // Parse date as local time to avoid timezone issues
+    const [year, month, day] = dateValue.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    dayNameDisplay.textContent = dayNames[date.getDay()];
+  } else if (dayNameDisplay) {
+    dayNameDisplay.textContent = '';
   }
 }
 
@@ -797,9 +1009,22 @@ async function openSessionSidebar(locationType, date = null, time = null) {
   // Hide delete button (only show when editing)
   document.getElementById('sidebarDelete').style.display = 'none';
   
-  // Highlight day button if date is provided
+  // Reset repeats select to default
+  const repeatsSelect = document.getElementById('repeatsSelect');
+  if (repeatsSelect) {
+    repeatsSelect.value = 'weekly'; // Default to weekly
+  }
+  
+  // Update day name display if date is provided
   if (date) {
-    highlightDayButton(date.getDay());
+    const dateString = date.toISOString().split('T')[0];
+    updateDayNameDisplay(dateString);
+  }
+  
+  // Also update day name if date input already has a value
+  const sessionDateInput = document.getElementById('sessionDate');
+  if (sessionDateInput && sessionDateInput.value) {
+    updateDayNameDisplay(sessionDateInput.value);
   }
   
   // Reset repeats forever settings and button text
@@ -820,12 +1045,17 @@ async function openSessionSidebar(locationType, date = null, time = null) {
   await loadCoachesIntoDropdowns();
   
   // Set default values if provided
+  const sessionDateInputEl = document.getElementById('sessionDate');
   if (date) {
-    document.getElementById('sessionDate').value = date.toISOString().split('T')[0];
+    const dateString = date.toISOString().split('T')[0];
+    sessionDateInputEl.value = dateString;
+    updateDayNameDisplay(dateString);
   } else {
     // Default to today
     const today = new Date();
-    document.getElementById('sessionDate').value = today.toISOString().split('T')[0];
+    const todayString = today.toISOString().split('T')[0];
+    sessionDateInputEl.value = todayString;
+    updateDayNameDisplay(todayString);
   }
   
   if (time) {
@@ -864,6 +1094,12 @@ function closeSessionSidebar() {
   document.getElementById('sessionForm').removeAttribute('data-session-id');
   document.getElementById('sidebarTitle').textContent = 'Create Session';
   selectedLocationType = null;
+  
+  // Clear additional coaches container
+  const additionalCoachesContainer = document.getElementById('additionalCoachesContainer');
+  if (additionalCoachesContainer) {
+    additionalCoachesContainer.innerHTML = '';
+  }
 }
 
 // Switch tabs
@@ -893,6 +1129,11 @@ function updateLocationFields(locationType) {
     document.getElementById('sessionLocation').required = false;
     document.getElementById('sessionZoomLink').required = true;
     document.getElementById('sessionLocation').value = '';
+  }
+  
+  // Trigger duration validation when location type changes
+  if (window.validateSessionDuration) {
+    setTimeout(() => window.validateSessionDuration(), 100);
   }
 }
 
@@ -928,34 +1169,181 @@ async function loadCoachesIntoDropdowns() {
     
     // Get dropdown elements
     const mainCoachSelect = document.getElementById('mainCoach');
-    const assistantCoachSelect = document.getElementById('assistantCoach');
-    const goalkeeperCoachSelect = document.getElementById('goalkeeperCoach');
     
     // Clear existing options (except the first placeholder)
     if (mainCoachSelect) {
       mainCoachSelect.innerHTML = '<option value="">— Select Coach —</option>';
     }
-    if (assistantCoachSelect) {
-      assistantCoachSelect.innerHTML = '<option value="">— Assistant coach (optional) —</option>';
-    }
-    if (goalkeeperCoachSelect) {
-      goalkeeperCoachSelect.innerHTML = '<option value="">— Goalkeeper coach (optional) —</option>';
-    }
     
-    // Populate dropdowns with coaches
+    // Store coaches globally for use in dynamic dropdowns
+    window.availableCoaches = coaches || [];
+    
+    // Populate main coach dropdown
     coaches?.forEach(coach => {
       const coachName = `${coach.first_name || ''} ${coach.last_name || ''}`.trim() || 'Coach';
       const option = document.createElement('option');
       option.value = coach.id;
       option.textContent = coachName;
       
-      if (mainCoachSelect) mainCoachSelect.appendChild(option.cloneNode(true));
-      if (assistantCoachSelect) assistantCoachSelect.appendChild(option.cloneNode(true));
-      if (goalkeeperCoachSelect) goalkeeperCoachSelect.appendChild(option.cloneNode(true));
+      if (mainCoachSelect) mainCoachSelect.appendChild(option);
     });
+    
+    // Setup add coach button
+    setupAddCoachButton();
   } catch (error) {
     console.error('Error loading coaches:', error);
   }
+}
+
+// Setup add coach button functionality
+function setupAddCoachButton() {
+  const addCoachBtn = document.getElementById('addCoachBtn');
+  if (!addCoachBtn) return;
+  
+  // Remove existing listener if any
+  const newBtn = addCoachBtn.cloneNode(true);
+  addCoachBtn.parentNode.replaceChild(newBtn, addCoachBtn);
+  
+  newBtn.addEventListener('click', () => {
+    addCoachDropdown();
+  });
+}
+
+// Add a new coach dropdown (type selection + coach selection)
+function addCoachDropdown() {
+  const container = document.getElementById('additionalCoachesContainer');
+  if (!container) return;
+  
+  // Create wrapper div for this coach selection
+  const coachWrapper = document.createElement('div');
+  coachWrapper.className = 'additional-coach-wrapper';
+  coachWrapper.dataset.coachIndex = Date.now(); // Unique ID
+  
+  // Create type selection dropdown
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'coach-type-select';
+  typeSelect.innerHTML = `
+    <option value="">— Select Coach Type —</option>
+    <option value="assistant">Assistant Coach</option>
+    <option value="goalkeeper">Goalkeeper Coach</option>
+    <option value="goalkeeper-assistant">Goalkeeper Assistant Coach</option>
+  `;
+  
+  // Create coach selection dropdown (initially hidden)
+  const coachSelect = document.createElement('select');
+  coachSelect.className = 'coach-select';
+  coachSelect.style.display = 'none';
+  coachSelect.innerHTML = '<option value="">— Select Coach —</option>';
+  
+  // Populate coach dropdown
+  if (window.availableCoaches) {
+    window.availableCoaches.forEach(coach => {
+      const coachName = `${coach.first_name || ''} ${coach.last_name || ''}`.trim() || 'Coach';
+      const option = document.createElement('option');
+      option.value = coach.id;
+      option.textContent = coachName;
+      coachSelect.appendChild(option);
+    });
+  }
+  
+  // Create remove button
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn-remove-coach';
+  removeBtn.innerHTML = '<i class="bx bx-x"></i>';
+  removeBtn.addEventListener('click', () => {
+    coachWrapper.remove();
+  });
+  
+  // Show coach dropdown when type is selected
+  typeSelect.addEventListener('change', () => {
+    if (typeSelect.value) {
+      coachSelect.style.display = 'block';
+      coachSelect.required = true;
+    } else {
+      coachSelect.style.display = 'none';
+      coachSelect.required = false;
+      coachSelect.value = '';
+    }
+  });
+  
+  // Assemble the wrapper
+  coachWrapper.appendChild(typeSelect);
+  coachWrapper.appendChild(coachSelect);
+  coachWrapper.appendChild(removeBtn);
+  
+  container.appendChild(coachWrapper);
+}
+
+// Add coach dropdown with pre-selected values (for editing)
+function addCoachDropdownWithValues(coachType, coachId) {
+  const container = document.getElementById('additionalCoachesContainer');
+  if (!container) return;
+  
+  // Create wrapper div for this coach selection
+  const coachWrapper = document.createElement('div');
+  coachWrapper.className = 'additional-coach-wrapper';
+  coachWrapper.dataset.coachIndex = Date.now(); // Unique ID
+  
+  // Create type selection dropdown
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'coach-type-select';
+  typeSelect.innerHTML = `
+    <option value="">— Select Coach Type —</option>
+    <option value="assistant">Assistant Coach</option>
+    <option value="goalkeeper">Goalkeeper Coach</option>
+    <option value="goalkeeper-assistant">Goalkeeper Assistant Coach</option>
+  `;
+  typeSelect.value = coachType === 'goalkeeper-assistant' ? 'goalkeeper-assistant' : coachType;
+  
+  // Create coach selection dropdown
+  const coachSelect = document.createElement('select');
+  coachSelect.className = 'coach-select';
+  coachSelect.innerHTML = '<option value="">— Select Coach —</option>';
+  coachSelect.style.display = 'block';
+  coachSelect.required = true;
+  
+  // Populate coach dropdown
+  if (window.availableCoaches) {
+    window.availableCoaches.forEach(coach => {
+      const coachName = `${coach.first_name || ''} ${coach.last_name || ''}`.trim() || 'Coach';
+      const option = document.createElement('option');
+      option.value = coach.id;
+      option.textContent = coachName;
+      coachSelect.appendChild(option);
+    });
+  }
+  
+  // Set selected coach
+  coachSelect.value = coachId;
+  
+  // Create remove button
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn-remove-coach';
+  removeBtn.innerHTML = '<i class="bx bx-x"></i>';
+  removeBtn.addEventListener('click', () => {
+    coachWrapper.remove();
+  });
+  
+  // Show coach dropdown when type is selected
+  typeSelect.addEventListener('change', () => {
+    if (typeSelect.value) {
+      coachSelect.style.display = 'block';
+      coachSelect.required = true;
+    } else {
+      coachSelect.style.display = 'none';
+      coachSelect.required = false;
+      coachSelect.value = '';
+    }
+  });
+  
+  // Assemble the wrapper
+  coachWrapper.appendChild(typeSelect);
+  coachWrapper.appendChild(coachSelect);
+  coachWrapper.appendChild(removeBtn);
+  
+  container.appendChild(coachWrapper);
 }
 
 // Update session type options based on location type
@@ -975,7 +1363,29 @@ function updateSessionTypeOptions(locationType) {
   sessionTypeSelect.innerHTML = '<option value="">Select type</option>';
   
   // Add options based on location type
-  const options = locationType === 'on-field' ? onFieldOptions : virtualOptions;
+  let options = locationType === 'on-field' ? onFieldOptions : virtualOptions;
+  
+  // Filter out individual session types that already exist in the database
+  if (locationType === 'virtual') {
+    options = options.filter(option => {
+      // Only filter individual session types (not group sessions)
+      const isIndividualType = INDIVIDUAL_SESSION_TYPES.includes(option);
+      if (isIndividualType) {
+        // Check if this type already exists (check both name and display_name)
+        const exists = existingIndividualSessionTypeNames.has(option);
+        if (exists) {
+          console.log(`Filtering out existing individual session type: ${option}`);
+          console.log('Current set contents:', Array.from(existingIndividualSessionTypeNames));
+        } else {
+          console.log(`✓ Keeping individual session type (not in database): ${option}`);
+        }
+        return !exists;
+      }
+      // Keep all non-individual types (group sessions)
+      return true;
+    });
+  }
+  
   options.forEach(option => {
     const opt = document.createElement('option');
     opt.value = option;
@@ -1012,9 +1422,19 @@ async function handleFormSubmit(e) {
     let duration = endTotal - startTotal;
     if (duration < 0) duration += 24 * 60; // Handle next day
 
-    // Get selected days for recurring sessions
-    const selectedDays = Array.from(document.querySelectorAll('.day-btn.selected'))
-      .map(btn => parseInt(btn.dataset.day));
+    // Validate duration based on session type
+    const sessionType = formData.get('sessionType');
+    const isIndividual = selectedLocationType === 'virtual' && INDIVIDUAL_SESSION_TYPES.includes(sessionType);
+    
+    if (isIndividual && duration > 60) {
+      alert('Individual sessions cannot exceed 1 hour (60 minutes). Please adjust the start and end times.');
+      return;
+    }
+    
+    if (!isIndividual && duration > 120) {
+      alert('Group sessions cannot exceed 2 hours (120 minutes). Please adjust the start and end times.');
+      return;
+    }
 
     // Get selected coaches from dropdowns
     const mainCoachId = formData.get('mainCoach');
@@ -1024,11 +1444,30 @@ async function handleFormSubmit(e) {
       return;
     }
     
-    const assistantCoachId = formData.get('assistantCoach');
-    const goalkeeperCoachId = formData.get('goalkeeperCoach');
+    // Collect additional coaches from dynamic dropdowns
+    const assistantCoaches = [];
+    const goalkeeperCoaches = [];
     
-    const assistantCoaches = assistantCoachId ? [assistantCoachId] : [];
-    const goalkeeperCoaches = goalkeeperCoachId ? [goalkeeperCoachId] : [];
+    const additionalCoachesContainer = document.getElementById('additionalCoachesContainer');
+    if (additionalCoachesContainer) {
+      const coachWrappers = additionalCoachesContainer.querySelectorAll('.additional-coach-wrapper');
+      coachWrappers.forEach(wrapper => {
+        const typeSelect = wrapper.querySelector('.coach-type-select');
+        const coachSelect = wrapper.querySelector('.coach-select');
+        
+        if (typeSelect && coachSelect && typeSelect.value && coachSelect.value) {
+          const coachId = coachSelect.value;
+          const coachType = typeSelect.value;
+          
+          if (coachType === 'assistant') {
+            assistantCoaches.push(coachId);
+          } else if (coachType === 'goalkeeper' || coachType === 'goalkeeper-assistant') {
+            // Both goalkeeper coach and goalkeeper assistant go into goalkeeper_coaches
+            goalkeeperCoaches.push(coachId);
+          }
+        }
+      });
+    }
 
     // Get attendance limit - ensure it's a valid number > 0
     const attendanceLimitInput = formData.get('attendanceLimit');
@@ -1101,9 +1540,11 @@ async function handleFormSubmit(e) {
 
     // Handle recurring sessions (only for new sessions)
     const repeats = formData.get('repeats');
-    if (!isEdit && (repeats === 'weekly' || repeats === 'daily' || repeats === 'monthly') && selectedDays.length > 0) {
-      // Create multiple sessions for selected days
-      const baseDate = new Date(sessionData.session_date);
+    if (!isEdit && (repeats === 'weekly' || repeats === 'daily' || repeats === 'monthly')) {
+      // Create multiple sessions based on repeat pattern
+      // Parse the base date as local time to avoid timezone issues
+      const [year, month, day] = sessionData.session_date.split('-').map(Number);
+      const baseDate = new Date(year, month - 1, day);
       const sessionsToCreate = [];
       
       // Determine how many sessions to create based on repeats forever settings
@@ -1113,7 +1554,7 @@ async function handleFormSubmit(e) {
       if (repeatsEndSettings.type === 'on-date' && repeatsEndSettings.endDate) {
         endDate = new Date(repeatsEndSettings.endDate);
       } else if (repeatsEndSettings.type === 'after' && repeatsEndSettings.occurrences) {
-        maxWeeks = Math.ceil(repeatsEndSettings.occurrences / selectedDays.length);
+        maxWeeks = repeatsEndSettings.occurrences; // For weekly, this is the number of weeks
       } else if (repeatsEndSettings.type === 'never') {
         maxWeeks = 52; // One year for "never"
       }
@@ -1124,26 +1565,22 @@ async function handleFormSubmit(e) {
         : null;
       
       // Create sessions based on repeat pattern
-      for (let week = 0; week < maxWeeks; week++) {
-        selectedDays.forEach(day => {
+      if (repeats === 'weekly') {
+        // Create sessions on the same day of week as the base date
+        const baseDayOfWeek = baseDate.getDay();
+        
+        for (let week = 0; week < maxWeeks; week++) {
           // Check if we've reached the max occurrences
           if (maxSessions && sessionCount >= maxSessions) {
-            return;
+            break;
           }
           
           const sessionDate = new Date(baseDate);
-          if (repeats === 'weekly') {
-            sessionDate.setDate(baseDate.getDate() + (week * 7) + (day - baseDate.getDay()));
-          } else if (repeats === 'daily') {
-            sessionDate.setDate(baseDate.getDate() + (week * 7) + day);
-          } else if (repeats === 'monthly') {
-            sessionDate.setMonth(baseDate.getMonth() + week);
-            sessionDate.setDate(day + 1); // Adjust for day of week
-          }
+          sessionDate.setDate(baseDate.getDate() + (week * 7));
           
           // Check if we've passed the end date
           if (endDate && sessionDate > endDate) {
-            return;
+            break;
           }
           
           sessionsToCreate.push({
@@ -1152,14 +1589,54 @@ async function handleFormSubmit(e) {
           });
           
           sessionCount++;
-        });
-        
-        // Break if we've reached max sessions or passed end date
-        if (maxSessions && sessionCount >= maxSessions) {
-          break;
         }
-        if (endDate && new Date(baseDate.getTime() + (week + 1) * 7 * 24 * 60 * 60 * 1000) > endDate) {
-          break;
+      } else if (repeats === 'daily') {
+        // Create sessions every day
+        for (let day = 0; day < maxWeeks * 7; day++) {
+          if (maxSessions && sessionCount >= maxSessions) {
+            break;
+          }
+          
+          const sessionDate = new Date(baseDate);
+          sessionDate.setDate(baseDate.getDate() + day);
+          
+          if (endDate && sessionDate > endDate) {
+            break;
+          }
+          
+          sessionsToCreate.push({
+            ...sessionData,
+            session_date: sessionDate.toISOString().split('T')[0]
+          });
+          
+          sessionCount++;
+        }
+      } else if (repeats === 'monthly') {
+        // Create sessions on the same day of the month
+        const baseDayOfMonth = baseDate.getDate();
+        
+        for (let month = 0; month < maxWeeks; month++) {
+          if (maxSessions && sessionCount >= maxSessions) {
+            break;
+          }
+          
+          const sessionDate = new Date(baseDate);
+          sessionDate.setMonth(baseDate.getMonth() + month);
+          
+          // Handle months with fewer days (e.g., Jan 31 -> Feb 28)
+          const daysInMonth = new Date(sessionDate.getFullYear(), sessionDate.getMonth() + 1, 0).getDate();
+          sessionDate.setDate(Math.min(baseDayOfMonth, daysInMonth));
+          
+          if (endDate && sessionDate > endDate) {
+            break;
+          }
+          
+          sessionsToCreate.push({
+            ...sessionData,
+            session_date: sessionDate.toISOString().split('T')[0]
+          });
+          
+          sessionCount++;
         }
       }
       
@@ -1407,6 +1884,39 @@ async function saveEditSession() {
       if (selectedScope === 'this-session') {
         // Delete only this session
         console.log('Deleting session:', pendingEditSessionId);
+        
+        // First, verify the session exists and get its details
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        const { data: sessionToDelete, error: fetchError } = await supabase
+          .from('sessions')
+          .select('id, coach_id, session_type, session_date, session_time')
+          .eq('id', pendingEditSessionId)
+          .single();
+        
+        if (fetchError) {
+          console.error('Error fetching session to delete:', fetchError);
+          alert(`Error: Could not find session to delete. ${fetchError.message}`);
+          return;
+        }
+        
+        if (!sessionToDelete) {
+          console.error('Session not found:', pendingEditSessionId);
+          alert('Session not found. It may have already been deleted.');
+          // Still try to refresh the UI
+          await loadSessions();
+          renderSessionsOnCalendar();
+          return;
+        }
+        
+        console.log('Session to delete:', {
+          id: sessionToDelete.id,
+          coach_id: sessionToDelete.coach_id,
+          current_user_id: authSession?.user?.id,
+          session_type: sessionToDelete.session_type,
+          session_date: sessionToDelete.session_date
+        });
+        
+        // Now attempt to delete
         const { data, error } = await supabase
           .from('sessions')
           .delete()
@@ -1415,73 +1925,112 @@ async function saveEditSession() {
         
         if (error) {
           console.error('Delete error:', error);
-          alert(`Error deleting session: ${error.message}`);
+          console.error('Delete error details:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          alert(`Error deleting session: ${error.message}. ${error.hint || ''}\n\nThis is likely an RLS policy issue. Please run the updated fix-sessions-rls-policies.sql migration.`);
           throw error;
         }
         
         console.log('Delete result:', data);
-        alert('Session deleted successfully!');
+        if (!data || data.length === 0) {
+          console.warn('Delete returned no data - session may not exist or RLS blocked deletion');
+          alert('Session may have already been deleted or you do not have permission to delete it.\n\nPlease run the updated fix-sessions-rls-policies.sql migration to allow coaches to delete any session.');
+        } else {
+          console.log('✅ Session deleted successfully:', data[0]);
+          alert('Session deleted successfully!');
+        }
       } else if (selectedScope === 'all-day-sessions') {
         // Delete this session and all sessions on the same day of week
-        const { data: { session } } = await supabase.auth.getSession();
-        const sessionToDelete = currentEditingSession || sessions.find(s => s.id === pendingEditSessionId);
+        const { data: { session: authSession } } = await supabase.auth.getSession();
         
-        if (!sessionToDelete) {
-          console.error('Session not found for delete');
-          throw new Error('Session not found');
+        // First, fetch the session to delete to get its coach_id
+        const { data: sessionToDelete, error: fetchSessionError } = await supabase
+          .from('sessions')
+          .select('id, coach_id, session_date, session_time, session_type')
+          .eq('id', pendingEditSessionId)
+          .single();
+        
+        if (fetchSessionError || !sessionToDelete) {
+          console.error('Error fetching session to delete:', fetchSessionError);
+          alert('Error: Could not find session to delete.');
+          return;
         }
         
-        console.log('Deleting session and all day sessions:', sessionToDelete);
+        console.log('Deleting session and all day sessions:', {
+          sessionId: sessionToDelete.id,
+          coach_id: sessionToDelete.coach_id,
+          session_type: sessionToDelete.session_type,
+          session_time: sessionToDelete.session_time,
+          session_date: sessionToDelete.session_date
+        });
         
         const sessionDate = new Date(sessionToDelete.session_date);
         const dayOfWeek = sessionDate.getDay();
         
-        // First delete the current session
-        const { error: currentError } = await supabase
-          .from('sessions')
-          .delete()
-          .eq('id', pendingEditSessionId);
-        
-        if (currentError) {
-          console.error('Error deleting current session:', currentError);
-          throw currentError;
-        }
-        
-        // Find and delete all other sessions on the same day of week with same type and time
+        // Find and delete ALL sessions on the same day of week with same type, time, and coach_id
+        // Use the session's coach_id, not the logged-in user's ID
         const { data: allSessions, error: fetchError } = await supabase
           .from('sessions')
-          .select('id, session_date, session_time, session_type')
-          .eq('coach_id', session.user.id)
+          .select('id, session_date, session_time, session_type, coach_id')
+          .eq('coach_id', sessionToDelete.coach_id) // Use the session's coach_id, not authSession.user.id
           .eq('session_type', sessionToDelete.session_type)
           .eq('session_time', sessionToDelete.session_time);
         
         if (fetchError) {
           console.error('Error fetching sessions to delete:', fetchError);
+          alert(`Error finding recurring sessions: ${fetchError.message}`);
           throw fetchError;
         }
         
+        console.log(`Found ${allSessions?.length || 0} sessions with matching type, time, and coach_id`);
+        
         // Filter sessions that fall on the same day of week
-        const sessionsToDelete = allSessions.filter(s => {
+        const sessionsToDelete = (allSessions || []).filter(s => {
           const sDate = new Date(s.session_date);
-          return sDate.getDay() === dayOfWeek && s.id !== pendingEditSessionId;
+          const matchesDayOfWeek = sDate.getDay() === dayOfWeek;
+          console.log(`Session ${s.id}: date=${s.session_date}, dayOfWeek=${sDate.getDay()}, matches=${matchesDayOfWeek}`);
+          return matchesDayOfWeek;
         });
         
-        console.log('Sessions to delete:', sessionsToDelete.length);
+        console.log(`Found ${sessionsToDelete.length} sessions to delete (including current session)`);
         
-        if (sessionsToDelete.length > 0) {
-          const sessionIds = sessionsToDelete.map(s => s.id);
-          const { error: deleteError } = await supabase
-            .from('sessions')
-            .delete()
-            .in('id', sessionIds);
-          
-          if (deleteError) {
-            console.error('Error deleting multiple sessions:', deleteError);
-            throw deleteError;
-          }
+        if (sessionsToDelete.length === 0) {
+          console.warn('No recurring sessions found to delete');
+          alert('No other recurring sessions found to delete.');
+          // Still reload to refresh UI
+          await loadSessions();
+          renderSessionsOnCalendar();
+          return;
         }
         
-        alert(`Deleted ${sessionsToDelete.length + 1} session(s) successfully!`);
+        // Delete all matching sessions (including the current one)
+        const sessionIds = sessionsToDelete.map(s => s.id);
+        console.log('Deleting session IDs:', sessionIds);
+        
+        const { data: deletedSessions, error: deleteError } = await supabase
+          .from('sessions')
+          .delete()
+          .in('id', sessionIds)
+          .select();
+        
+        if (deleteError) {
+          console.error('Error deleting multiple sessions:', deleteError);
+          console.error('Delete error details:', {
+            code: deleteError.code,
+            message: deleteError.message,
+            details: deleteError.details,
+            hint: deleteError.hint
+          });
+          alert(`Error deleting sessions: ${deleteError.message}. ${deleteError.hint || ''}\n\nThis is likely an RLS policy issue. Please run the updated fix-sessions-rls-policies.sql migration.`);
+          throw deleteError;
+        }
+        
+        console.log(`✅ Successfully deleted ${deletedSessions?.length || 0} session(s):`, deletedSessions);
+        alert(`Deleted ${deletedSessions?.length || 0} session(s) successfully!`);
       }
       
       closeEditSessionModal();
@@ -1490,11 +2039,27 @@ async function saveEditSession() {
       // Clear current editing session
       currentEditingSession = null;
       
+      // Clear form dataset
+      const form = document.getElementById('sessionForm');
+      if (form && form.dataset.sessionId) {
+        delete form.dataset.sessionId;
+      }
+      
       // Wait a moment for database to update
       await new Promise(resolve => setTimeout(resolve, 500));
       
+      // Force reload sessions from database
       await loadSessions();
       renderSessionsOnCalendar();
+      
+      // Double-check: remove any session blocks that might still be in the DOM
+      const deletedSessionBlock = document.querySelector(`[data-session-id="${pendingEditSessionId}"]`);
+      if (deletedSessionBlock) {
+        console.warn('Session block still in DOM after delete, removing manually');
+        deletedSessionBlock.remove();
+        renderSessionsOnCalendar(); // Re-render to clean up
+      }
+      
       return;
     }
     
@@ -1768,40 +2333,10 @@ async function saveEditSession() {
 
 // Handle session drop (drag and drop)
 async function handleSessionDrop(session, newDate, newTime) {
-  // Check if this is part of a recurring series FIRST
+  // Always show modal for drag operations to give user choice
+  // Check if this is part of a recurring series
   const isRecurring = await checkIfRecurringSession(session);
   
-  // If single session, move directly without modal
-  if (!isRecurring) {
-    try {
-      const updateData = {
-        session_date: newDate,
-        session_time: newTime
-      };
-      
-      const { error } = await supabase
-        .from('sessions')
-        .update(updateData)
-        .eq('id', session.id);
-      
-      if (error) {
-        console.error('Error moving session:', error);
-        alert(`Error moving session: ${error.message}`);
-        return;
-      }
-      
-      // Reload and re-render
-      await loadSessions();
-      renderSessionsOnCalendar();
-      return;
-    } catch (error) {
-      console.error('Error moving single session:', error);
-      alert(`Error moving session: ${error.message}`);
-      return;
-    }
-  }
-  
-  // For recurring sessions, show modal
   // Create updated session data with new date/time
   const updatedSessionData = {
     coach_id: session.coach_id, // Preserve coach_id when dragging
@@ -1821,34 +2356,75 @@ async function handleSessionDrop(session, newDate, newTime) {
     originalTime: session.originalTime || session.session_time
   };
 
-  // Show edit modal with new date/time
-  openEditSessionModal(updatedSessionData, session.id, true, false, true);
+  // Set currentEditingSession so modal can access it
+  if (!currentEditingSession) {
+    currentEditingSession = session;
+  }
+
+  // Always show modal for drag operations (even if not recurring, user can still choose "this session")
+  openEditSessionModal(updatedSessionData, session.id, true, false, isRecurring);
 }
 
 // Handle delete session
 function handleDeleteSession() {
-  if (!currentEditingSession) {
-    console.error('No session to delete');
+  // Try to get session ID from multiple sources
+  let sessionId = null;
+  let sessionToDelete = null;
+  
+  // First, try currentEditingSession
+  if (currentEditingSession) {
+    sessionId = currentEditingSession.id;
+    sessionToDelete = currentEditingSession;
+  } else {
+    // Try to get from form dataset
+    const form = document.getElementById('sessionForm');
+    if (form && form.dataset.sessionId) {
+      sessionId = form.dataset.sessionId;
+      sessionToDelete = sessions.find(s => s.id === sessionId);
+    } else {
+      // Try to find from sessions array (last resort)
+      console.warn('No currentEditingSession, trying to find session from sessions array');
+      // This shouldn't happen, but as a fallback, we could try to get from the visible session block
+      const sessionBlock = document.querySelector('.session-block[data-session-id]');
+      if (sessionBlock) {
+        sessionId = sessionBlock.dataset.sessionId;
+        sessionToDelete = sessions.find(s => s.id === sessionId);
+      }
+    }
+  }
+  
+  if (!sessionId || !sessionToDelete) {
+    console.error('No session to delete - sessionId:', sessionId, 'sessionToDelete:', sessionToDelete);
+    alert('Unable to find session to delete. Please try again.');
     return;
   }
-  console.log('Opening delete modal for session:', currentEditingSession.id);
-  openEditSessionModal({ _delete: true }, currentEditingSession.id, false, true);
+  
+  console.log('Opening delete modal for session:', sessionId);
+  // Set currentEditingSession if not already set
+  if (!currentEditingSession) {
+    currentEditingSession = sessionToDelete;
+  }
+  openEditSessionModal({ _delete: true }, sessionId, false, true);
 }
 
 // Check if a session is part of a recurring series
 async function checkIfRecurringSession(session) {
   try {
-    const { data: { session: authSession } } = await supabase.auth.getSession();
-    if (!authSession || !authSession.user) return false;
+    // Use the session's coach_id, not the logged-in user's ID
+    // This is important because coaches can create sessions for other coaches
+    if (!session.coach_id) {
+      console.warn('Session has no coach_id, cannot check for recurring sessions');
+      return false;
+    }
 
-    // Find sessions with same type, time, and day of week
+    // Find sessions with same type, time, coach_id, and day of week
     const sessionDate = new Date(session.session_date);
     const dayOfWeek = sessionDate.getDay();
     
     const { data: similarSessions, error } = await supabase
       .from('sessions')
-      .select('id, session_date, session_time, session_type')
-      .eq('coach_id', authSession.user.id)
+      .select('id, session_date, session_time, session_type, coach_id')
+      .eq('coach_id', session.coach_id) // Use session's coach_id, not logged-in user's ID
       .eq('session_type', session.session_type)
       .eq('session_time', session.session_time);
     
@@ -1858,7 +2434,7 @@ async function checkIfRecurringSession(session) {
     }
     
     // Check if there are other sessions on the same day of week
-    const recurringSessions = similarSessions.filter(s => {
+    const recurringSessions = (similarSessions || []).filter(s => {
       const sDate = new Date(s.session_date);
       return sDate.getDay() === dayOfWeek && s.id !== session.id;
     });
@@ -1873,19 +2449,20 @@ async function checkIfRecurringSession(session) {
 // Get all recurring session dates for a given session
 async function getRecurringSessionDates(sessionId, originalDate) {
   try {
-    const { data: { session: authSession } } = await supabase.auth.getSession();
-    if (!authSession || !authSession.user) return [];
-
     const session = currentEditingSession || sessions.find(s => s.id === sessionId);
-    if (!session) return [];
+    if (!session || !session.coach_id) {
+      console.warn('Session not found or has no coach_id');
+      return [];
+    }
 
     const originalDateObj = new Date(originalDate);
     const dayOfWeek = originalDateObj.getDay();
     
+    // Use the session's coach_id, not the logged-in user's ID
     const { data: allSessions, error } = await supabase
       .from('sessions')
-      .select('id, session_date, session_time, session_type')
-      .eq('coach_id', authSession.user.id)
+      .select('id, session_date, session_time, session_type, coach_id')
+      .eq('coach_id', session.coach_id) // Use session's coach_id, not logged-in user's ID
       .eq('session_type', session.session_type)
       .eq('session_time', session.session_time)
       .order('session_date', { ascending: true });
@@ -1896,7 +2473,7 @@ async function getRecurringSessionDates(sessionId, originalDate) {
     }
     
     // Filter sessions that fall on the same day of week
-    const recurringSessions = allSessions.filter(s => {
+    const recurringSessions = (allSessions || []).filter(s => {
       const sDate = new Date(s.session_date);
       return sDate.getDay() === dayOfWeek;
     });
@@ -2087,6 +2664,11 @@ function editSession(session) {
   // Show delete button
   document.getElementById('sidebarDelete').style.display = 'block';
   
+  // Update day name display based on the session's date
+  if (session.session_date) {
+    updateDayNameDisplay(session.session_date);
+  }
+  
   // Populate form with session data
   document.getElementById('sessionType').value = session.session_type;
   document.getElementById('sessionDate').value = session.session_date; // Date is now editable
@@ -2101,6 +2683,11 @@ function editSession(session) {
   endTime.setMinutes(endTime.getMinutes() + session.duration_minutes);
   document.getElementById('sessionEndTime').value = 
     `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
+  
+  // Validate duration after populating form
+  if (window.validateSessionDuration) {
+    setTimeout(() => window.validateSessionDuration(), 100); // Small delay to ensure form is fully populated
+  }
   
   // Set location fields
   if (session.location_type === 'on-field') {
@@ -2128,11 +2715,25 @@ function editSession(session) {
     if (session.coach_id) {
       document.getElementById('mainCoach').value = session.coach_id;
     }
-    if (session.assistant_coaches && session.assistant_coaches.length > 0) {
-      document.getElementById('assistantCoach').value = session.assistant_coaches[0];
+    
+    // Clear existing additional coaches
+    const additionalCoachesContainer = document.getElementById('additionalCoachesContainer');
+    if (additionalCoachesContainer) {
+      additionalCoachesContainer.innerHTML = '';
     }
+    
+    // Add assistant coaches
+    if (session.assistant_coaches && session.assistant_coaches.length > 0) {
+      session.assistant_coaches.forEach(coachId => {
+        addCoachDropdownWithValues('assistant', coachId);
+      });
+    }
+    
+    // Add goalkeeper coaches
     if (session.goalkeeper_coaches && session.goalkeeper_coaches.length > 0) {
-      document.getElementById('goalkeeperCoach').value = session.goalkeeper_coaches[0];
+      session.goalkeeper_coaches.forEach(coachId => {
+        addCoachDropdownWithValues('goalkeeper', coachId);
+      });
     }
   });
   
@@ -3709,6 +4310,7 @@ async function loadIndividualSessionTypes() {
       .eq('is_active', true);
     
     console.log('All active session types:', allTypes);
+    console.log('Number of active types found:', allTypes?.length || 0);
     
     // Get session types - use left join so we show all types, even without availability
     // But we'll filter to only show types that have at least one availability entry
@@ -3757,7 +4359,25 @@ async function loadIndividualSessionTypes() {
     
     console.log('Cleaned session types for display:', cleanedTypes);
     
+    // Update the set of existing individual session type names
+    // Only include types that appear in the table (have available coaches)
+    // This way, if a type exists but has no coaches, it can still be created
+    // Store both name and display_name to catch all variations
+    existingIndividualSessionTypeNames = new Set();
+    (cleanedTypes || []).forEach(type => {
+      if (type.name) existingIndividualSessionTypeNames.add(type.name);
+      if (type.display_name) existingIndividualSessionTypeNames.add(type.display_name);
+    });
+    console.log('Existing individual session type names (will filter from dropdown):', Array.from(existingIndividualSessionTypeNames));
+    console.log('Only types that appear in the table (with available coaches) will be filtered out.');
+    
     renderIndividualSessionTypesTable(cleanedTypes);
+    
+    // Update session type dropdown to exclude existing types
+    const locationTypeSelect = document.getElementById('locationType');
+    if (locationTypeSelect) {
+      updateSessionTypeOptions(locationTypeSelect.value);
+    }
   } catch (error) {
     console.error('Error loading individual session types:', error);
   }
@@ -4053,6 +4673,64 @@ function hexToRgb(hex) {
     g: parseInt(result[2], 16),
     b: parseInt(result[3], 16)
   } : { r: 0, g: 0, b: 0 };
+}
+
+// Convert RGB string to hex
+function rgbToHex(rgb) {
+  const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (!match) return rgb; // Return as-is if not RGB format
+  
+  const r = parseInt(match[1]);
+  const g = parseInt(match[2]);
+  const b = parseInt(match[3]);
+  
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// Get group session color
+function getGroupSessionColor(sessionType) {
+  if (!sessionType) return null;
+  
+  const colorMap = {
+    'Tec Tac': 'var(--accent)', // Use CSS variable for accent color
+    'Speed Training': '#fbbf24', // Yellow
+    'Strength & Conditioning': '#ef4444', // Red
+    'Group Film-Analysis': '#9333ea', // Purple
+    'Pro Player Stories': '#f97316' // Orange
+  };
+  
+  return colorMap[sessionType] || null;
+}
+
+// Get group session abbreviation
+function getGroupSessionAbbreviation(sessionType) {
+  if (!sessionType) return sessionType;
+  
+  const abbrevMap = {
+    'Tec Tac': 'Tec',
+    'Speed Training': 'Speed',
+    'Strength & Conditioning': 'S&C',
+    'Group Film-Analysis': 'GFA',
+    'Pro Player Stories': 'PPS'
+  };
+  
+  return abbrevMap[sessionType] || sessionType;
+}
+
+// Abbreviate coach name (first initial + last name, or just last name if too long)
+function abbreviateCoachName(fullName) {
+  if (!fullName) return '';
+  
+  const parts = fullName.trim().split(' ');
+  if (parts.length === 1) {
+    return parts[0].length > 12 ? parts[0].substring(0, 10) + '...' : parts[0];
+  }
+  
+  const firstName = parts[0];
+  const lastName = parts.slice(1).join(' ');
+  const abbreviated = `${firstName.charAt(0)}. ${lastName}`;
+  
+  return abbreviated.length > 15 ? abbreviated.substring(0, 13) + '...' : abbreviated;
 }
 
 // Show individual session details modal

@@ -273,8 +273,8 @@ async function loadProfilePhoto(userId) {
     // If no .png found, look for any avatar file
     if (!avatarFile) {
       avatarFile = data.find(file => 
-        file.name.toLowerCase().startsWith('avatar.')
-      );
+      file.name.toLowerCase().startsWith('avatar.')
+    );
     }
 
     if (!avatarFile) {
@@ -449,26 +449,25 @@ async function updateProfilePhotosInUI(photoUrl) {
     photoPlaceholder.style.display = 'none';
   }
 
-  // Update sidebar photo using the utility (which respects account context)
-  // This ensures the photo only shows if we're still viewing that account
+  // Update sidebar photo (pass URL so it updates immediately without refetch)
   try {
     const { updateSidebarPhoto } = await import('../../../utils/sidebar-photo.js');
-    await updateSidebarPhoto();
+    await updateSidebarPhoto(photoUrl);
   } catch (error) {
     console.error('Error updating sidebar photo:', error);
   }
 
   // Update ONLY the current user's leaderboard item (by userId)
+  // Leaderboard lives in layout top-bar, so it's in DOM when on Profile
   const leaderboardItem = document.querySelector(`.player-leaderboard-item[data-player-id="${userId}"]`);
   if (leaderboardItem) {
     const circleImg = leaderboardItem.querySelector('.player-circle-img');
     if (circleImg) {
+      const cacheBusted = `${photoUrl}${photoUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
       const initials = circleImg.querySelector('.player-avatar-initials');
       if (initials) {
-        // Replace initials with photo
-        // Add cache-busting to ensure latest photo is loaded
         const photo = document.createElement('img');
-        photo.src = `${photoUrl}?t=${Date.now()}`;
+        photo.src = cacheBusted;
         photo.alt = 'Profile photo';
         photo.className = 'profile-photo-leaderboard';
         photo.style.width = '100%';
@@ -477,25 +476,16 @@ async function updateProfilePhotosInUI(photoUrl) {
         photo.style.borderRadius = '50%';
         initials.replaceWith(photo);
       } else {
-        // Update existing photo with cache-busting
         const existingPhoto = circleImg.querySelector('.profile-photo-leaderboard');
         if (existingPhoto) {
-          existingPhoto.src = `${photoUrl}?t=${Date.now()}`;
+          existingPhoto.src = cacheBusted;
         }
       }
     }
   }
 
-  // Reload leaderboard to ensure all photos are loaded (this will load photos for ALL players)
-  const container = document.getElementById('leaderboardContainer');
-  if (container) {
-    try {
-      const { loadLeaderboard } = await import('../../../utils/leaderboard.js');
-      await loadLeaderboard(container);
-    } catch (error) {
-      console.error('Error reloading leaderboard:', error);
-    }
-  }
+  // Do not reload the whole leaderboard here – it would replace the DOM and undo the update.
+  // When the user navigates to Home, the leaderboard is already updated in place.
 }
 
 // Show message helper
@@ -515,7 +505,7 @@ function showMessage(elementId, message, type = 'success') {
 
 // Logout functionality - attach after DOM is ready
 function setupLogoutButton() {
-  const logoutBtn = document.getElementById('logoutBtn');
+const logoutBtn = document.getElementById('logoutBtn');
   if (!logoutBtn) {
     // Button not found, try again after a short delay
     setTimeout(setupLogoutButton, 100);
@@ -530,45 +520,45 @@ function setupLogoutButton() {
     e.preventDefault();
     e.stopPropagation();
     
-    // Try to sign out if Supabase is available, but always clear storage and redirect
-    if (supabaseReady && supabase) {
-      try {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-          console.warn('Sign out error (continuing anyway):', error);
-        }
-      } catch (error) {
-        console.warn('Sign out failed (continuing anyway):', error);
+  // Try to sign out if Supabase is available, but always clear storage and redirect
+  if (supabaseReady && supabase) {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.warn('Sign out error (continuing anyway):', error);
       }
-    } else {
-      // Try to initialize one more time
-      try {
-        const client = await initSupabase();
-        if (client) {
-          supabase = client;
-          supabaseReady = true;
-          try {
-            await supabase.auth.signOut();
-          } catch (e) {
-            // Ignore sign out errors if not logged in
-          }
-        }
-      } catch (error) {
-        console.warn('Supabase not available, proceeding with logout anyway:', error);
-      }
+    } catch (error) {
+      console.warn('Sign out failed (continuing anyway):', error);
     }
+  } else {
+    // Try to initialize one more time
+    try {
+      const client = await initSupabase();
+      if (client) {
+        supabase = client;
+        supabaseReady = true;
+        try {
+          await supabase.auth.signOut();
+        } catch (e) {
+          // Ignore sign out errors if not logged in
+        }
+      }
+    } catch (error) {
+      console.warn('Supabase not available, proceeding with logout anyway:', error);
+    }
+  }
 
-    // Always clear local storage and redirect, regardless of Supabase status
+  // Always clear local storage and redirect, regardless of Supabase status
     // Preserve theme preference across logouts
     const savedTheme = localStorage.getItem('hg-theme');
-    localStorage.clear();
+  localStorage.clear();
     if (savedTheme) {
       localStorage.setItem('hg-theme', savedTheme);
     }
-    
+  
     // Redirect to unlock page
     window.location.href = '/auth/unlock/unlock.html';
-  });
+});
 }
 
 // Initialize profile when page loads

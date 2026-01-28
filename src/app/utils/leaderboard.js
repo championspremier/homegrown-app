@@ -266,9 +266,25 @@ async function loadPlayerPhoto(playerId) {
           // No file starting with 'avatar.' found
         }
       }
+    }
+
+    // Fallback: when public URL fails (e.g. another account, cache, or bucket config),
+    // use signed URLs so any authenticated user can load the photo (RLS allows SELECT for profile-photos).
+    // Only try signing paths we know exist (from list()); signing non-existent paths returns 400.
+    if (!photoUrl && files && files.length > 0) {
+      const avatarFile = files.find(f => f.name.toLowerCase().startsWith('avatar.'));
+      if (avatarFile) {
+        const path = `${playerId}/${avatarFile.name}`;
+        const { data, error } = await supabase.storage.from('profile-photos').createSignedUrl(path, 3600);
+        if (!error && (data?.signedUrl ?? data?.signedURL)) {
+          photoUrl = data.signedUrl ?? data.signedURL;
+        }
+      }
       if (!photoUrl) {
         return; // Still no photo found
       }
+    } else if (!photoUrl) {
+      return; // No photo from public URL and no list result to try signing
     }
 
     // Wait a bit to ensure DOM is ready
@@ -291,9 +307,10 @@ async function loadPlayerPhoto(playerId) {
     const positionBadge = circleImg.querySelector('.player-leader-position');
     
     if (initials) {
-      // Create photo element with unique cache-busting for this specific player
+      // Create photo element; signed URLs already have ?token= — append cache-bust with & not ?
+      const sep = photoUrl.includes('?') ? '&' : '?';
       const photo = document.createElement('img');
-      photo.src = `${photoUrl}?t=${Date.now()}&player=${playerId}`;
+      photo.src = `${photoUrl}${sep}t=${Date.now()}&player=${playerId}`;
       photo.alt = 'Profile photo';
       photo.className = 'profile-photo-leaderboard';
       
@@ -373,7 +390,8 @@ async function loadPlayerPhoto(playerId) {
       // Update existing photo
       const existingPhoto = circleImg.querySelector('.profile-photo-leaderboard');
       if (existingPhoto) {
-        existingPhoto.src = `${photoUrl}?t=${Date.now()}`;
+        const sep = photoUrl.includes('?') ? '&' : '?';
+        existingPhoto.src = `${photoUrl}${sep}t=${Date.now()}`;
         console.log(`Photo updated for player ${playerId}`);
       }
     }

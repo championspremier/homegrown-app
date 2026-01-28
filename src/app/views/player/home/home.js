@@ -76,6 +76,8 @@ async function init() {
     setupRealtimeSubscriptions();
     loadReservedSessions();
     loadNotifications();
+    loadObjectives();
+    loadQuizzes();
     setupNotificationBottomSheet();
   } else {
     console.error('Failed to initialize Supabase');
@@ -128,6 +130,21 @@ function moveHeaderAboveTopBar() {
         console.log('Removing duplicate header from content-area');
         homeHeaderInContent.remove();
       }
+      // Remove content skeleton and restore hidden content (e.g. after account switch)
+      if (contentArea) {
+        const contentSkeleton = contentArea.querySelector('.page-skeleton');
+        if (contentSkeleton) {
+          contentSkeleton.remove();
+        }
+        const hiddenContent = contentArea.querySelectorAll('[data-skeleton-hidden="true"]');
+        hiddenContent.forEach(element => {
+          element.style.display = '';
+          element.removeAttribute('data-skeleton-hidden');
+        });
+      }
+      if (typeof window.__showLeaderboard === 'function') {
+        window.__showLeaderboard();
+      }
       moveHeaderRetryCount = 0;
       return;
     }
@@ -176,6 +193,10 @@ function moveHeaderAboveTopBar() {
         element.style.display = '';
         element.removeAttribute('data-skeleton-hidden');
       });
+    }
+    
+    if (typeof window.__showLeaderboard === 'function') {
+      window.__showLeaderboard();
     }
     
     moveHeaderRetryCount = 0; // Reset on success
@@ -1362,6 +1383,271 @@ async function setupRealtimeSubscriptions() {
     .subscribe();
 }
 
+// Load current objectives for the player (blank until coach sends)
+async function loadObjectives() {
+  if (!supabaseReady || !supabase) return;
+
+  const container = document.getElementById('objectivesContent');
+  if (!container) return;
+
+  try {
+    const context = await getAccountContext();
+    if (!context) return;
+
+    const playerId = context.getPlayerIdForAction();
+    if (!playerId) return;
+
+    container.innerHTML = '<div class="loading-state">Loading objectives...</div>';
+
+    const { data: objective, error } = await supabase
+      .from('player_objectives')
+      .select(`
+        id,
+        in_possession_objective,
+        out_of_possession_objective,
+        created_at,
+        coach:coach_id(first_name, last_name)
+      `)
+      .eq('player_id', playerId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error loading objectives:', error);
+      container.innerHTML = '<div class="objectives-empty"><p>Unable to load objectives.</p></div>';
+      return;
+    }
+
+    if (!objective) {
+      container.innerHTML = `
+        <div class="objectives-empty">
+          <i class="bx bx-target-lock" style="font-size: 48px; opacity: 0.5; margin-bottom: 12px;"></i>
+          <p>No objectives yet</p>
+          <p class="objectives-empty-hint">Your coach will assign objectives here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const coach = objective.coach || objective.coach_id;
+    const coachName = coach
+      ? [coach.first_name, coach.last_name].filter(Boolean).join(' ') || 'Coach'
+      : 'Coach';
+    const dateStr = objective.created_at
+      ? new Date(objective.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
+
+    const inPoss = (objective.in_possession_objective || '').trim();
+    const outPoss = (objective.out_of_possession_objective || '').trim();
+
+    container.innerHTML = `
+      <div class="objectives-loaded">
+        <div class="objectives-header">
+          <div class="coach-info"><h5>From: ${escapeHtml(coachName)}</h5></div>
+          <div class="date-info"><h5>${escapeHtml(dateStr)}</h5></div>
+        </div>
+        ${inPoss || outPoss ? `
+          <div class="objective-item"><h4>In Possession</h4><h5>${escapeHtml(inPoss || '—')}</h5></div>
+          <div class="objective-item"><h4>Out Of Possession</h4><h5>${escapeHtml(outPoss || '—')}</h5></div>
+        ` : '<p class="objectives-no-detail">No objectives detail.</p>'}
+      </div>
+    `;
+  } catch (err) {
+    console.error('Error in loadObjectives:', err);
+    if (container) {
+      container.innerHTML = '<div class="objectives-empty"><p>Unable to load objectives.</p></div>';
+    }
+  }
+}
+
+// Load quizzes for the current player (assignments + question details)
+async function loadQuizzes() {
+  if (!supabaseReady || !supabase) return;
+
+  const container = document.querySelector('.quiz-content');
+  if (!container) return;
+
+  try {
+    const context = await getAccountContext();
+    if (!context) return;
+
+    const playerId = context.getPlayerIdForAction();
+    if (!playerId) return;
+
+    container.innerHTML = '<div class="loading-state">Loading quizzes...</div>';
+
+    const { data: rawAssignments, error } = await supabase
+      .from('quiz_assignments')
+      .select(`
+        id,
+        status,
+        assigned_at,
+        selected_answer,
+        is_correct,
+        quiz_question_id,
+        quiz_questions (
+          question,
+          options,
+          correct_answer,
+          period,
+          category
+        )
+      `)
+      .eq('player_id', playerId)
+      .eq('status', 'assigned')
+      .order('assigned_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error('Error loading quizzes:', error);
+      container.innerHTML = '<div class="quiz-empty">Unable to load quizzes.</div>';
+      return;
+    }
+
+    // Show each question only once: keep one assignment per quiz_question_id (earliest)
+    const seen = new Set();
+    const assignments = (rawAssignments || []).filter((a) => {
+      const qid = a.quiz_question_id;
+      if (seen.has(qid)) return false;
+      seen.add(qid);
+      return true;
+    });
+
+    renderQuizzes(assignments, container);
+  } catch (err) {
+    console.error('Error in loadQuizzes:', err);
+    if (container) {
+      container.innerHTML = '<div class="quiz-empty">Unable to load quizzes.</div>';
+    }
+  }
+}
+
+// Render quiz assignments into the quiz panel (only unasked questions; one per question)
+function renderQuizzes(assignments, container) {
+  if (!container) return;
+
+  if (!assignments || assignments.length === 0) {
+    container.innerHTML = `
+      <div class="quiz-empty">
+        <i class="bx bx-question-mark" style="font-size: 48px; opacity: 0.5; margin-bottom: 12px;"></i>
+        <p>No quizzes yet</p>
+        <p class="quiz-empty-hint">Your coach will assign quizzes here.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const list = assignments.map((a) => {
+    const q = Array.isArray(a.quiz_questions) ? a.quiz_questions[0] : a.quiz_questions;
+    const question = (q && q.question) || 'Question';
+    const options = Array.isArray(q?.options) ? q.options : [];
+    const correctIdx = q && typeof q.correct_answer === 'number' ? q.correct_answer : -1;
+
+    const optionsHtml = options.map((opt, i) => `
+      <button type="button" class="quiz-option-btn" data-assignment-id="${a.id}" data-option-index="${i}" data-correct-index="${correctIdx}">
+        ${escapeHtml(String(opt))}
+      </button>
+    `).join('');
+
+    return `
+      <div class="quiz-card" data-assignment-id="${a.id}" data-correct-index="${correctIdx}">
+        <div class="quiz-question-wrap">
+          <div class="quiz-question">${escapeHtml(question)}</div>
+        </div>
+        <div class="quiz-options">${optionsHtml}</div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `<div class="quiz-list">${list}</div>`;
+}
+
+async function handleQuizOptionClick(e) {
+  const btn = e.target.closest('.quiz-option-btn');
+  if (!btn || btn.disabled) return;
+
+  const card = btn.closest('.quiz-card');
+  if (!card) return;
+
+  const assignmentId = card.dataset.assignmentId;
+  const optionIndex = parseInt(btn.dataset.optionIndex, 10);
+  const correctIndex = parseInt(card.dataset.correctIndex ?? '-1', 10);
+  if (!assignmentId || isNaN(optionIndex)) return;
+
+  // One-time answer: disable all options on this card immediately
+  card.querySelectorAll('.quiz-option-btn').forEach((b) => { b.disabled = true; });
+
+  const result = await submitQuizAnswer(assignmentId, optionIndex);
+  if (!result) return;
+
+  showQuizFeedback(card, optionIndex, correctIndex, result.is_correct, result.correct_answer);
+}
+
+async function submitQuizAnswer(assignmentId, selectedAnswerIndex) {
+  if (!supabaseReady || !supabase) return null;
+
+  const { data, error } = await supabase.rpc('submit_quiz_answer', {
+    p_assignment_id: assignmentId,
+    p_selected_answer: selectedAnswerIndex
+  });
+
+  if (error) {
+    console.error('Error submitting quiz answer:', error);
+    if (error.message && /rate_limit|15/i.test(error.message)) {
+      alert('Maximum 15 quiz answers per day. Try again tomorrow.');
+    } else {
+      alert(error.message || 'Could not submit answer.');
+    }
+    return null;
+  }
+
+  const parsed = typeof data === 'string' ? JSON.parse(data) : (data || {});
+  if (!parsed.ok) {
+    const msg = parsed.message || parsed.error || 'Could not submit answer.';
+    if (parsed.error === 'rate_limit') alert('Maximum 15 quiz answers per day. Try again tomorrow.');
+    else if (parsed.error !== 'already_answered') alert(msg);
+    return null;
+  }
+
+  return {
+    is_correct: !!parsed.is_correct,
+    points_awarded: Number(parsed.points_awarded) || 0,
+    correct_answer: parsed.correct_answer
+  };
+}
+
+function showQuizFeedback(card, selectedIndex, correctIndex, isCorrect, correctAnswerFromServer) {
+  const correctIdx = correctAnswerFromServer != null ? correctAnswerFromServer : correctIndex;
+  const optionsContainer = card.querySelector('.quiz-options');
+  if (!optionsContainer) return;
+
+  // Icon on top-right of quiz-card (green check if correct, red x if incorrect)
+  // Use inline SVG so it always shows regardless of icon font loading
+  const icon = isCorrect
+    ? '<span class="quiz-feedback-icon quiz-feedback-correct" role="img" aria-label="Correct">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>' +
+      '</span>'
+    : '<span class="quiz-feedback-icon quiz-feedback-incorrect" role="img" aria-label="Incorrect">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+      '</span>';
+  card.classList.add('quiz-card-with-feedback');
+  card.insertAdjacentHTML('afterbegin', icon);
+
+  // Green border on correct option; if incorrect, red border on selected option
+  const options = optionsContainer.querySelectorAll('.quiz-option-btn');
+  options.forEach((opt, i) => {
+    opt.classList.remove('quiz-option-correct', 'quiz-option-incorrect');
+    if (i === correctIdx) opt.classList.add('quiz-option-correct');
+    if (!isCorrect && i === selectedIndex) opt.classList.add('quiz-option-incorrect');
+  });
+
+  setTimeout(() => {
+    loadQuizzes();
+  }, 5000);
+}
+
 // Initialize on page load
 // Setup Objectives/Quiz Tabs (Material-UI style)
 function setupObjectivesQuizTabs() {
@@ -1401,8 +1687,21 @@ function setupObjectivesQuizTabs() {
       if (targetPanel) {
         targetPanel.classList.add('active');
       }
+
+      if (targetTab === 'quiz') {
+        loadQuizzes();
+      } else if (targetTab === 'objectives') {
+        loadObjectives();
+      }
     });
   });
+
+  // One-time event delegation for quiz answer clicks (container is .quiz-content)
+  const quizContent = document.querySelector('.quiz-content');
+  if (quizContent && !quizContent.dataset.quizClickBound) {
+    quizContent.dataset.quizClickBound = '1';
+    quizContent.addEventListener('click', handleQuizOptionClick);
+  }
 }
 
 // Store current notifications for mark all as read
@@ -1460,15 +1759,36 @@ function renderNotifications(notifications) {
     const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const isRead = notif.is_read;
     const icon = getNotificationIcon(notif.notification_type);
+    const d = (typeof notif.data === 'object' && notif.data !== null) ? notif.data : {};
+    const linkUrl = d.link_url && /^https?:\/\//i.test(String(d.link_url)) ? d.link_url : null;
+    const attRaw = d.attachment_url != null ? String(d.attachment_url).trim() : '';
+    const attUrlSafe = attRaw && !/javascript:/i.test(attRaw) && (/^https?:\/\//i.test(attRaw) || attRaw.startsWith('/'));
+    const attUrl = attUrlSafe ? attRaw : null;
+    const attType = (d.attachment_type || 'photo').toLowerCase();
+    let attHtml = '';
+    const attUrlEsc = attUrl ? attUrl.replace(/"/g, '&quot;') : '';
+    if (attUrl && (attType === 'photo' || attType === 'image')) {
+      attHtml = `<div class="notification-attachment notification-attachment-media" data-attachment-url="${attUrlEsc}" data-attachment-type="photo"><img src="${attUrlEsc}" alt="" class="notification-attachment-img" loading="lazy" /></div>`;
+    } else if (attUrl && attType === 'video') {
+      attHtml = `<div class="notification-attachment notification-attachment-media" data-attachment-url="${attUrlEsc}" data-attachment-type="video"><div class="notification-attachment-video" title="Video"><i class="bx bx-video"></i></div></div>`;
+    } else if (linkUrl) {
+      attHtml = `<div class="notification-attachment"><a href="${String(linkUrl)}" target="_blank" rel="noopener noreferrer" class="notification-attachment-link" title="Link"><i class="bx bx-link"></i></a></div>`;
+    }
 
+    const typeClass = (notif.notification_type || 'information').replace(/[^a-z0-9_]/g, '_');
+    const typeTitle = getNotificationTypeTitle(notif.notification_type, notif.title);
+    const titleRed = typeClass === 'cancellation' || typeClass === 'time_change';
+    const coachName = (d.coach_name != null && String(d.coach_name).trim()) ? String(d.coach_name).trim() : '';
+    const dateLine = coachName ? `${escapeHtml(coachName)} · ${dateStr}` : dateStr;
     return `
       <div class="notification-item ${isRead ? 'read' : 'unread'}" data-notification-id="${notif.id}">
-        <div class="notification-icon">${icon}</div>
+        <div class="notification-icon notification-icon--${typeClass}">${icon}</div>
         <div class="notification-content-text">
-          <div class="notification-title">${escapeHtml(notif.title)}</div>
+          <div class="notification-title${titleRed ? ' notification-title--red' : ''}">${escapeHtml(typeTitle)}</div>
           <div class="notification-message">${escapeHtml(notif.message)}</div>
-          <div class="notification-date">${dateStr}</div>
+          <div class="notification-date">${escapeHtml(dateLine)}</div>
         </div>
+        ${attHtml}
         ${!isRead ? '<div class="notification-dot"></div>' : ''}
       </div>
     `;
@@ -1521,7 +1841,21 @@ function renderNotifications(notifications) {
   });
 }
 
-// Get icon for notification type
+// Announcement type → display title (matches coach Communicate dropdown)
+function getNotificationTypeTitle(type, fallbackTitle) {
+  const titles = {
+    information: 'Information',
+    time_change: 'Time change',
+    cancellation: 'Cancellation',
+    popup_session: 'Pro player stories',
+    veo_link: 'Veo Link',
+    merch: 'Merch',
+    announcement: 'Information'
+  };
+  return titles[type] != null ? titles[type] : (fallbackTitle || 'Announcement');
+}
+
+// Get icon for notification type (announcement subtypes: time_change, cancellation, popup_session, information, veo_link, merch)
 function getNotificationIcon(type) {
   const icons = {
     'solo_session_created': '<i class="bx bx-football"></i>',
@@ -1532,7 +1866,12 @@ function getNotificationIcon(type) {
     'milestone_achieved': '<i class="bx bx-star"></i>',
     'schedule_change': '<i class="bx bx-calendar"></i>',
     'field_change': '<i class="bx bx-map"></i>',
-    'cancellation': '<i class="bx bx-x-circle"></i>'
+    'cancellation': '<i class="bx bx-block"></i>',
+    'time_change': '<i class="bx bx-alarm"></i>',
+    'popup_session': '<i class="bx bx-calendar-check"></i>',
+    'information': '<i class="bx bx-info-circle"></i>',
+    'veo_link': '<i class="bx bx-video"></i>',
+    'merch': '<i class="bx bx-purchase-tag"></i>'
   };
   return icons[type] || '<i class="bx bx-bell"></i>';
 }
@@ -1595,14 +1934,123 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Open notification media lightbox (photo/video + full notification info)
+// data: { url, type, title, message, date, typeClass }
+function openNotificationMediaLightbox(data) {
+  const lb = document.getElementById('notificationMediaLightbox');
+  if (!lb) return;
+  const img = lb.querySelector('.notification-media-lightbox-img');
+  const vid = lb.querySelector('.notification-media-lightbox-video');
+  const meta = lb.querySelector('.notification-media-lightbox-meta');
+  const metaIcon = lb.querySelector('.notification-media-lightbox-icon');
+  const metaTitle = lb.querySelector('.notification-media-lightbox-title');
+  const metaMessage = lb.querySelector('.notification-media-lightbox-message');
+  const metaDate = lb.querySelector('.notification-media-lightbox-date');
+  if (!img || !vid) return;
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  vid.pause();
+  vid.removeAttribute('src');
+  const url = data.url;
+  const type = (data.type || 'photo').toLowerCase();
+  const isVideo = type === 'video';
+  if (isVideo) {
+    vid.src = url;
+    vid.style.display = 'block';
+  } else {
+    img.src = url;
+    img.style.display = 'block';
+  }
+  if (meta && metaIcon && metaTitle && metaMessage && metaDate) {
+    const typeClass = (data.typeClass || 'information').replace(/[^a-z0-9_]/g, '_');
+    metaIcon.className = 'notification-media-lightbox-icon notification-icon notification-icon--' + typeClass;
+    metaIcon.innerHTML = getNotificationIcon(data.typeClass || 'information');
+    metaTitle.textContent = data.title || '';
+    metaTitle.className = 'notification-media-lightbox-title' + (typeClass === 'cancellation' || typeClass === 'time_change' ? ' notification-title--red' : '');
+    metaMessage.textContent = data.message || '';
+    metaDate.textContent = data.date || '';
+    meta.style.display = 'flex';
+  }
+  lb.style.display = 'flex';
+  lb.querySelector('.notification-media-lightbox-close')?.focus();
+}
+
+// Close notification media lightbox
+function closeNotificationMediaLightbox() {
+  const lb = document.getElementById('notificationMediaLightbox');
+  if (!lb) return;
+  lb.style.display = 'none';
+  const img = lb.querySelector('.notification-media-lightbox-img');
+  const vid = lb.querySelector('.notification-media-lightbox-video');
+  const meta = lb.querySelector('.notification-media-lightbox-meta');
+  if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+  if (vid) { vid.pause(); vid.removeAttribute('src'); vid.style.display = 'none'; }
+  if (meta) meta.style.display = 'none';
+}
+
 // Setup Notification Bottom Sheet (opens directly to full height)
 function setupNotificationBottomSheet() {
   const notificationBell = document.getElementById('notificationBell');
   const bottomSheet = document.getElementById('notificationBottomSheet');
   const closeBtn = document.getElementById('notificationCloseBtn');
   const handle = bottomSheet?.querySelector('.notification-bottom-sheet-handle');
-  
+  const content = bottomSheet?.querySelector('.notification-content');
+  const lightbox = document.getElementById('notificationMediaLightbox');
+
   if (!notificationBell || !bottomSheet) return;
+
+  // Ensure mark-all-read is in the header row with close btn (fix cached HTML that had it inside content)
+  const markAllReadBtn = document.getElementById('markAllReadBtn');
+  let header = bottomSheet.querySelector('.notification-bottom-sheet-header');
+  const sheetContent = bottomSheet.querySelector('.notification-bottom-sheet-content');
+  if (markAllReadBtn && sheetContent && sheetContent.contains(markAllReadBtn)) {
+    if (!header) {
+      header = document.createElement('div');
+      header.className = 'notification-bottom-sheet-header';
+      bottomSheet.insertBefore(header, sheetContent);
+      header.appendChild(markAllReadBtn);
+      if (closeBtn) header.appendChild(closeBtn);
+    } else {
+      header.insertBefore(markAllReadBtn, header.firstChild);
+    }
+  }
+
+  // Delegated click: open lightbox when clicking photo/video in notifications (capture so we run before “mark read”)
+  if (content && !content.dataset.mediaLightboxDelegate) {
+    content.dataset.mediaLightboxDelegate = '1';
+    content.addEventListener('click', (e) => {
+      if (e.target.closest('.notification-attachment-link')) return;
+      const item = e.target.closest('.notification-item');
+      if (!item) return;
+      const media = item.querySelector('.notification-attachment-media');
+      if (!media) return;
+      const url = media.dataset.attachmentUrl;
+      const type = (media.dataset.attachmentType || 'photo').toLowerCase();
+      if (!url || !/^(photo|video|image)$/.test(type)) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const iconEl = item.querySelector('.notification-icon[class*="notification-icon--"]');
+      const typeClass = iconEl ? (iconEl.className.match(/notification-icon--([a-z0-9_]+)/) || [])[1] || 'information' : 'information';
+      const titleEl = item.querySelector('.notification-title');
+      const messageEl = item.querySelector('.notification-message');
+      const dateEl = item.querySelector('.notification-date');
+      openNotificationMediaLightbox({
+        url,
+        type,
+        typeClass,
+        title: titleEl ? titleEl.textContent.trim() : '',
+        message: messageEl ? messageEl.textContent.trim() : '',
+        date: dateEl ? dateEl.textContent.trim() : ''
+      });
+    }, true);
+  }
+
+  // Lightbox close: backdrop and close button
+  if (lightbox) {
+    lightbox.querySelector('.notification-media-lightbox-backdrop')?.addEventListener('click', closeNotificationMediaLightbox);
+    lightbox.querySelector('.notification-media-lightbox-close')?.addEventListener('click', closeNotificationMediaLightbox);
+    lightbox.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNotificationMediaLightbox(); });
+  }
   
   // Full height - 70% of viewport
   const FULL_HEIGHT = Math.floor(window.innerHeight * 0.7);

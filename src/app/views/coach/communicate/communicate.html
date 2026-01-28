@@ -16,15 +16,29 @@
       </div>
     </div>
     
-    <!-- Recipient Filter -->
-    <div class="recipient-filter">
-      <label for="recipientType">Send to:</label>
-      <select id="recipientType" class="recipient-select">
-        <option value="all">All (Parents/Players/Coaches)</option>
-        <option value="players">Players Only</option>
-        <option value="parents">Parents Only</option>
-        <option value="coaches">Coaches Only</option>
-      </select>
+    <!-- Filters row: Send to + Announcement type (flex-end) -->
+    <div class="message-filters-row">
+      <div class="recipient-filter">
+        <label for="recipientType">Send to:</label>
+        <select id="recipientType" class="recipient-select">
+          <option value="all">All (Parents/Players/Coaches)</option>
+          <option value="players">Players Only</option>
+          <option value="parents">Parents Only</option>
+          <option value="coaches">Coaches Only</option>
+        </select>
+      </div>
+      <div class="announcement-type-filter">
+        <label for="announcementType">Type:</label>
+        <span class="announcement-type-icon-wrap" id="announcementTypeIconWrap" aria-hidden="true"></span>
+        <select id="announcementType" class="announcement-type-select" title="Announcement type">
+          <option value="information">Information</option>
+          <option value="time_change">Time change</option>
+          <option value="cancellation">Cancellation</option>
+          <option value="popup_session">Pro player stories</option>
+          <option value="veo_link">Veo Link</option>
+          <option value="merch">Merch</option>
+        </select>
+      </div>
     </div>
 
     <!-- Messages History (Chat-like interface) -->
@@ -39,19 +53,34 @@
     <!-- Message Input Area -->
     <div class="message-input-container">
       <div class="message-input-wrapper">
-        <button class="message-input-icon" id="voiceInputBtn" title="Voice input">
-          <i class="bx bx-microphone"></i>
-        </button>
+        <div class="plus-attach-wrap">
+          <button class="message-input-icon plus-toggle-btn" id="plusAttachBtn" type="button" title="Add photo, video or link">
+            <i class="bx bx-plus"></i>
+          </button>
+          <div class="plus-attach-dropdown" id="plusAttachDropdown" aria-hidden="true">
+            <button type="button" class="plus-attach-option" data-type="photo">
+              <i class="bx bx-image"></i>
+              <span>Photo</span>
+            </button>
+            <button type="button" class="plus-attach-option" data-type="video">
+              <i class="bx bx-video"></i>
+              <span>Video</span>
+            </button>
+            <button type="button" class="plus-attach-option" data-type="link">
+              <i class="bx bx-link"></i>
+              <span>Link</span>
+            </button>
+          </div>
+        </div>
         <input 
           type="text" 
           id="messageInput" 
           class="message-input" 
           placeholder="Type your message..."
         />
-        <button class="message-input-icon" id="attachmentBtn" title="Attach file">
-          <i class="bx bx-paperclip"></i>
-        </button>
-        <input type="file" id="fileInput" style="display: none;" />
+        <input type="file" id="photoInput" accept="image/*" style="display: none;" />
+        <input type="file" id="videoInput" accept="video/*" style="display: none;" />
+        <div class="compose-attachment-preview" id="composeAttachmentPreview" aria-live="polite"></div>
       </div>
       <button class="send-button" id="sendMessageBtn" title="Send message">
         <i class="bx bx-send"></i>

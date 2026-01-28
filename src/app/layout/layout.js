@@ -26,6 +26,13 @@ function applyTheme(theme) {
   const btn = document.getElementById('themeToggle');
   if (btn) {
     btn.innerHTML = theme === 'light' ? '<i class="bx bx-moon"></i>' : '<i class="bx bx-sun"></i>';
+    // Convert to Lucide icon
+    setTimeout(() => {
+      const icon = btn.querySelector('i.bx');
+      if (icon) {
+        replaceBoxiconWithLucide(icon, false);
+      }
+    }, 0);
   }
   localStorage.setItem(STORAGE_KEY, theme);
 }
@@ -59,6 +66,13 @@ function initThemeToggle() {
   // Update icon based on current theme
   const currentTheme = root.getAttribute('data-theme') || 'dark';
   newBtn.innerHTML = currentTheme === 'light' ? '<i class="bx bx-moon bx-flashing-hover"></i>' : '<i class="bx bx-sun bx-spin-hover"></i>';
+  // Convert to Lucide icon
+  setTimeout(() => {
+    const icon = newBtn.querySelector('i.bx');
+    if (icon) {
+      replaceBoxiconWithLucide(icon, false);
+    }
+  }, 0);
 }
 
 // Load saved theme or respect system preference on first load
@@ -281,9 +295,51 @@ const CURRENT_PAGE_STORAGE_KEY = 'hg-current-page';
 // - src/index.html: Main app entry point with layout (sidebar, main-content)
 // - src/app/layout/: Shared layout files (layout.css, layout.js)
 // - src/app/views/{role}/{page}/: Role-specific page content (HTML, CSS, JS)
+function hideLeaderboard() {
+  const el = document.getElementById('leaderboardContainer');
+  if (el) el.style.display = 'none';
+}
+function showLeaderboard() {
+  const el = document.getElementById('leaderboardContainer');
+  if (el) el.style.display = '';
+}
+window.__showLeaderboard = showLeaderboard;
+window.__hideLeaderboard = hideLeaderboard;
+
 async function loadPage(pageName) {
   try {
     const currentRole = await getCurrentRole();
+    
+    // Show skeleton loader immediately to prevent layout shift (every page gets a skeleton)
+    const { createHomePageSkeleton, createPageSkeleton, createHomeHeaderSkeleton } = await import('../utils/skeleton.js');
+    hideLeaderboard();
+    
+    // Show content skeleton
+    if (pageName === 'home' && (currentRole === 'parent' || currentRole === 'player')) {
+      const skeleton = createHomePageSkeleton();
+      contentArea.innerHTML = '';
+      contentArea.appendChild(skeleton);
+      
+      // Show header skeleton in correct position (above top-bar) only for home page
+      const mainContent = document.querySelector('.main-content');
+      const topBar = document.querySelector('.top-bar');
+      if (mainContent && topBar) {
+        // Remove any existing header skeleton
+        const existingHeaderSkeleton = mainContent.querySelector('.skeleton-home-header');
+        if (existingHeaderSkeleton) {
+          existingHeaderSkeleton.remove();
+        }
+        
+        // Insert header skeleton before top-bar
+        const headerSkeleton = createHomeHeaderSkeleton();
+        mainContent.insertBefore(headerSkeleton, topBar);
+      }
+    } else {
+      // Generic page skeleton for all other pages (coach home, profile, schedule, solo, tracking, communicate, settings, etc.)
+      const skeleton = createPageSkeleton();
+      contentArea.innerHTML = '';
+      contentArea.appendChild(skeleton);
+    }
     
     // Verify layout.css is loaded (it should be in index.html)
     const layoutCSS = document.querySelector('link[href*="layout.css"]');
@@ -297,15 +353,308 @@ async function loadPage(pageName) {
     const response = await fetch(`/app/views/${currentRole}/${pageName}/${pageName}.html${cacheBuster}`);
     if (!response.ok) throw new Error(`Page not found: ${currentRole}/${pageName}`);
     const html = await response.text();
+    
+    // Function to apply mobile styles directly (more reliable than waiting for media queries)
+    // This directly applies the mobile styles when on iPhone-sized screens
+    function applyMobileScheduleStyles() {
+      // Check if we're in mobile viewport using matchMedia
+      const isMobile = window.matchMedia('(max-width: 435px)').matches;
+      
+      if (!isMobile) return; // Not mobile, skip
+      
+      const scheduleContainer = contentArea.querySelector('.schedule-container');
+      if (scheduleContainer) {
+        // Directly apply mobile styles - this is more reliable than waiting for CSS media queries
+        scheduleContainer.style.setProperty('max-width', '100%', 'important');
+        scheduleContainer.style.setProperty('width', '100%', 'important');
+        scheduleContainer.style.setProperty('box-sizing', 'border-box', 'important');
+        scheduleContainer.style.setProperty('padding', '10px', 'important');
+      }
+    }
+    
+    // Function to clean up any session badges that accidentally end up in top-bar
+    function cleanupStraySessionBadges() {
+      const topBar = document.querySelector('.top-bar');
+      const leaderboardContainer = document.querySelector('.leaderboard-container');
+      
+      if (topBar) {
+        // Remove any session badges from top-bar
+        const badgesInTopBar = topBar.querySelectorAll('.session-badge');
+        badgesInTopBar.forEach(badge => {
+          console.warn('Removing stray session badge from top-bar');
+          badge.remove();
+        });
+      }
+      
+      if (leaderboardContainer) {
+        // Remove any session badges from leaderboard
+        const badgesInLeaderboard = leaderboardContainer.querySelectorAll('.session-badge');
+        badgesInLeaderboard.forEach(badge => {
+          console.warn('Removing stray session badge from leaderboard-container');
+          badge.remove();
+        });
+      }
+      
+      // Also check main-content directly (shouldn't have badges)
+      const mainContent = document.querySelector('.main-content');
+      if (mainContent) {
+        const badgesInMain = Array.from(mainContent.children).filter(child => 
+          child.classList.contains('session-badge')
+        );
+        badgesInMain.forEach(badge => {
+          console.warn('Removing stray session badge from main-content');
+          badge.remove();
+        });
+      }
+    }
+    
+    // Function to fix session-title styles that get overridden by solo.css
+    // This ensures schedule and home page titles display correctly even if solo.css loads after
+    function fixScheduleSessionTitles() {
+      // Fix schedule page session titles
+      const scheduleContainer = contentArea.querySelector('.schedule-container');
+      if (scheduleContainer) {
+        const sessionTitles = scheduleContainer.querySelectorAll('.session-title');
+        sessionTitles.forEach(title => {
+          // Apply correct schedule styles directly to override solo.css
+          title.style.setProperty('font-size', '1.3rem', 'important');
+          title.style.setProperty('font-weight', '700', 'important');
+          title.style.setProperty('color', 'var(--text)', 'important');
+          title.style.setProperty('margin-bottom', '6px', 'important');
+          title.style.setProperty('text-shadow', 'none', 'important');
+        });
+        
+        // Also fix upcoming session titles
+        const upcomingTitles = scheduleContainer.querySelectorAll('.upcoming-session-title');
+        upcomingTitles.forEach(title => {
+          title.style.setProperty('font-size', '1.1rem', 'important');
+          title.style.setProperty('font-weight', '700', 'important');
+          title.style.setProperty('color', 'var(--text)', 'important');
+          title.style.setProperty('margin-bottom', '8px', 'important');
+          title.style.setProperty('text-shadow', 'none', 'important');
+        });
+      }
+      
+      // Fix home page session titles (for both player and parent)
+      const sessionsListContainer = contentArea.querySelector('.sessions-list-container');
+      const reservationsListContainer = contentArea.querySelector('.reservations-list-container');
+      const reservedSessionCards = contentArea.querySelectorAll('.reserved-session-card .session-title');
+      
+      // Fix titles in sessions and reservations containers
+      [sessionsListContainer, reservationsListContainer].forEach(container => {
+        if (container) {
+          const sessionTitles = container.querySelectorAll('.session-title');
+          sessionTitles.forEach(title => {
+            // Apply correct home page styles (18px) directly to override solo.css
+            title.style.setProperty('font-size', '18px', 'important');
+            title.style.setProperty('font-weight', '600', 'important');
+            title.style.setProperty('color', 'var(--text)', 'important');
+            title.style.setProperty('text-shadow', 'none', 'important');
+          });
+        }
+      });
+      
+      // Fix titles in reserved session cards
+      reservedSessionCards.forEach(title => {
+        title.style.setProperty('font-size', '18px', 'important');
+        title.style.setProperty('font-weight', '600', 'important');
+        title.style.setProperty('color', 'var(--text)', 'important');
+        title.style.setProperty('text-shadow', 'none', 'important');
+      });
+    }
+    
+    // Function to force media query recalculation (for other elements)
+    function forceMediaQueryRecalculation() {
+      // Trigger resize events
+      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event('orientationchange'));
+      
+      // Force reflow
+      if (contentArea) {
+        void contentArea.offsetHeight;
+      }
+    }
+    
+    // Replace skeleton with actual content
     contentArea.innerHTML = html;
+    showLeaderboard();
+    
+    // Re-apply theme variables when loading home or schedule so borders/accents show after client-side nav
+    if (pageName === 'home' || pageName === 'schedule') {
+      const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+      const accentSolid = theme === 'light' ? '#3b82f6' : '#D3AF37';
+      document.documentElement.style.setProperty('--accent-solid', accentSolid);
+    }
+    
+    // Initialize Lucide icons for the newly loaded content
+    setTimeout(() => {
+      initLucideIcons(contentArea);
+    }, 50);
+    
+    // Set up a MutationObserver to watch for schedule container or home page containers being added
+    // This ensures we catch it even if it's added asynchronously
+    if (pageName === 'schedule' || pageName === 'home') {
+      const observer = new MutationObserver((mutations) => {
+        const scheduleContainer = contentArea.querySelector('.schedule-container');
+        const sessionsListContainer = contentArea.querySelector('.sessions-list-container');
+        const reservationsListContainer = contentArea.querySelector('.reservations-list-container');
+        
+        if (scheduleContainer || sessionsListContainer || reservationsListContainer) {
+          // Container found, apply fixes
+          if (scheduleContainer) {
+            applyMobileScheduleStyles();
+          }
+          // Fix session titles that might be overridden by solo.css
+          fixScheduleSessionTitles();
+          cleanupStraySessionBadges();
+          observer.disconnect(); // Stop observing once we find it
+        }
+      });
+      
+      // Start observing
+      observer.observe(contentArea, {
+        childList: true,
+        subtree: true
+      });
+      
+      // Also check immediately in case containers are already there
+      const scheduleContainer = contentArea.querySelector('.schedule-container');
+      const sessionsListContainer = contentArea.querySelector('.sessions-list-container');
+      const reservationsListContainer = contentArea.querySelector('.reservations-list-container');
+      
+      if (scheduleContainer || sessionsListContainer || reservationsListContainer) {
+        if (scheduleContainer) {
+          applyMobileScheduleStyles();
+        }
+        fixScheduleSessionTitles();
+        cleanupStraySessionBadges();
+        observer.disconnect();
+      }
+    }
+    
+    // Clean up any stray badges when schedule or home page loads
+    if (pageName === 'schedule' || pageName === 'home') {
+      // Run cleanup after a short delay to catch any that appear during load
+      setTimeout(() => {
+        cleanupStraySessionBadges();
+      }, 100);
+      
+      // Also run cleanup after CSS and JS load
+      setTimeout(() => {
+        cleanupStraySessionBadges();
+        if (pageName === 'home') {
+          fixScheduleSessionTitles();
+        }
+      }, 300);
+    }
+    
+    // For home pages, hide the header in content-area until it's moved to prevent visual jump
+    // The skeleton header at the top will remain visible until the actual header is moved
+    const mainContent = document.querySelector('.main-content');
+    const isHomePage = pageName === 'home' && (currentRole === 'parent' || currentRole === 'player');
+    
+    if (isHomePage) {
+      // Hide the header in content-area until it's moved (prevents visual jump)
+      const homeHeader = contentArea.querySelector('.home-header');
+      if (homeHeader) {
+        homeHeader.style.display = 'none';
+        homeHeader.style.visibility = 'hidden';
+        homeHeader.style.position = 'absolute';
+        homeHeader.style.opacity = '0';
+        homeHeader.style.pointerEvents = 'none';
+      }
+      
+      // Hide all actual content until skeleton is removed (prevents content showing through skeleton)
+      const allContentChildren = Array.from(contentArea.children);
+      allContentChildren.forEach(child => {
+        // Skip the header (already hidden) and any existing skeletons
+        if (!child.classList.contains('home-header') && !child.classList.contains('page-skeleton')) {
+          child.style.display = 'none';
+          child.dataset.skeletonHidden = 'true'; // Mark for later restoration
+        }
+      });
+      
+      // Re-create and show content skeleton to prevent layout shift
+      // The skeleton will be removed by moveHeaderAboveTopBar() after header is moved
+      const { createHomePageSkeleton } = await import('../utils/skeleton.js');
+      const contentSkeleton = createHomePageSkeleton();
+      // Remove the header skeleton from content skeleton (we already have it at the top)
+      const headerInSkeleton = contentSkeleton.querySelector('.skeleton-home-header');
+      if (headerInSkeleton) {
+        headerInSkeleton.remove();
+      }
+      // Insert skeleton at the beginning of content-area to show loading state
+      contentArea.insertBefore(contentSkeleton, contentArea.firstChild);
+      hideLeaderboard();
+    }
+    
+    if (mainContent) {
+      // Hide home-header on pages where it shouldn't appear
+      const pagesToHideHeader = {
+        'parent': ['profile', 'tracking', 'schedule'],
+        'player': ['schedule', 'solo', 'tracking', 'profile']
+      };
+      
+      const pagesToHide = pagesToHideHeader[currentRole] || [];
+      if (pagesToHide.includes(pageName)) {
+        // Remove header skeleton for non-home pages
+        const headerSkeleton = mainContent.querySelector('.skeleton-home-header');
+        if (headerSkeleton) {
+          headerSkeleton.remove();
+        }
+        
+        // Remove any home-header that might be in content-area
+        const homeHeader = contentArea.querySelector('.home-header');
+        if (homeHeader) {
+          homeHeader.remove();
+        }
+        // Also remove any home-header that's already been moved to main-content
+        const movedHeader = mainContent.querySelector('.home-header');
+        if (movedHeader && movedHeader.parentElement === mainContent) {
+          movedHeader.remove();
+        }
+      }
+      // For home pages, skeleton will be removed by moveHeaderAboveTopBar() after header is moved
+    }
+    
+    // Remove padding and background from content-area and main-content for solo page to allow full-screen videos
+    if (pageName === 'solo') {
+      // Add class to body for CSS targeting
+      document.body.classList.add('solo-page-active');
+      contentArea.style.padding = '0';
+      contentArea.style.overflow = 'hidden';
+      contentArea.style.background = 'transparent';
+      const mainContent = document.querySelector('.main-content');
+      if (mainContent) {
+        mainContent.style.background = 'transparent';
+      }
+      // Set body background to black for video
+      document.body.style.background = '#000';
+    } else {
+      // Remove class from body
+      document.body.classList.remove('solo-page-active');
+      contentArea.style.padding = '';
+      contentArea.style.overflow = '';
+      contentArea.style.background = '';
+      const mainContent = document.querySelector('.main-content');
+      if (mainContent) {
+        mainContent.style.background = '';
+      }
+      // Reset body background
+      document.body.style.background = '';
+    }
     
     // Save current page to localStorage
     localStorage.setItem(CURRENT_PAGE_STORAGE_KEY, pageName);
     
-    // Hide top-bar on profile, schedule, and coach home pages
+    // Hide top-bar on profile, schedule, solo, and coach home pages
+    // Also hide for coach pages: settings, payments, people, solo-create, plans
     const topBar = document.querySelector('.top-bar');
     if (topBar) {
-      if (pageName === 'profile' || pageName === 'schedule' || (pageName === 'home' && currentRole === 'coach')) {
+      const coachPagesToHide = ['settings', 'payments', 'people', 'solo-create', 'plans'];
+      if (pageName === 'profile' || pageName === 'schedule' || pageName === 'solo' || 
+          (pageName === 'home' && currentRole === 'coach') ||
+          (currentRole === 'coach' && coachPagesToHide.includes(pageName))) {
         topBar.style.display = 'none';
       } else {
         topBar.style.display = 'flex';
@@ -323,27 +672,83 @@ async function loadPage(pageName) {
     
     // Load page-specific CSS if exists
     // This CSS depends on layout.css being loaded first (from index.html)
-    const existingLink = document.querySelector(`link[data-page-css="${pageName}"]`);
-    if (existingLink) existingLink.remove();
+    // Remove ALL page-specific CSS links so only the current page's styles apply
+    // (prevents schedule.css from overriding home.css when navigating schedule -> home)
+    document.querySelectorAll('link[data-page-css]').forEach(link => link.remove());
     
     // Create link tag for CSS - Vite will serve it correctly
     // Add cache-busting query parameter to prevent browser caching
     const cssCacheBuster = `?v=${Date.now()}`;
     const cssPath = `/app/views/${currentRole}/${pageName}/${pageName}.css${cssCacheBuster}`;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
     link.href = cssPath;
-    link.setAttribute('data-page-css', pageName);
+          link.setAttribute('data-page-css', pageName);
     link.onerror = () => {
       // Silently fail if CSS doesn't exist
       link.remove();
+      // Even if CSS fails to load, still trigger recalculation
+      forceMediaQueryRecalculation();
     };
-    // Insert after layout.css to ensure proper cascade
-    if (layoutCSS && layoutCSS.nextSibling) {
-      document.head.insertBefore(link, layoutCSS.nextSibling);
-    } else {
-      document.head.appendChild(link);
-    }
+    
+    // Wait for CSS to load, then apply mobile styles
+    link.onload = () => {
+      // CSS has loaded, apply mobile styles for schedule page and fix session titles for all pages
+      // Also initialize Lucide icons after CSS loads
+      setTimeout(() => {
+        initLucideIcons(contentArea);
+      }, 50);
+      
+      if (pageName === 'schedule') {
+        // Re-apply --accent-solid so schedule-toggle border shows after client-side nav
+        const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const accentSolid = theme === 'light' ? '#3b82f6' : '#D3AF37';
+        document.documentElement.style.setProperty('--accent-solid', accentSolid);
+        setTimeout(() => {
+          applyMobileScheduleStyles();
+          fixScheduleSessionTitles();
+          cleanupStraySessionBadges();
+        }, 10);
+      } else if (pageName === 'home') {
+        // Re-apply --accent-solid so schedule-toggle border shows after client-side nav
+        const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const accentSolid = theme === 'light' ? '#3b82f6' : '#D3AF37';
+        document.documentElement.style.setProperty('--accent-solid', accentSolid);
+        // Fix session titles on home page too
+        setTimeout(() => {
+          fixScheduleSessionTitles();
+          cleanupStraySessionBadges();
+        }, 10);
+      }
+      // Also trigger general media query recalculation
+      setTimeout(() => {
+        forceMediaQueryRecalculation();
+      }, 10);
+    };
+    
+    // Fallback: if onload doesn't fire (some browsers), use a timeout
+    // This is especially important for cached stylesheets where onload might fire immediately
+    setTimeout(() => {
+      // Check if stylesheet is loaded by checking if it's in document
+      if (document.querySelector(`link[data-page-css="${pageName}"]`)) {
+        if (pageName === 'schedule') {
+          applyMobileScheduleStyles();
+          fixScheduleSessionTitles();
+          cleanupStraySessionBadges();
+        } else if (pageName === 'home') {
+          fixScheduleSessionTitles();
+          cleanupStraySessionBadges();
+        }
+        forceMediaQueryRecalculation();
+      }
+    }, 150);
+    
+          // Insert after layout.css to ensure proper cascade
+          if (layoutCSS && layoutCSS.nextSibling) {
+            document.head.insertBefore(link, layoutCSS.nextSibling);
+          } else {
+            document.head.appendChild(link);
+          }
     
     // Load page-specific JS if exists
     const existingScript = document.querySelector(`script[data-page-js="${pageName}"]`);
@@ -383,22 +788,118 @@ async function loadPage(pageName) {
             script.textContent = code;
           }
           
+          // Wait for script to execute before applying mobile styles
+          if (hasImport) {
+            // For module scripts, wait for onload
+            script.onload = () => {
+              // Small delay to ensure script has executed
+              setTimeout(() => {
+                // Initialize Lucide icons after JS loads
+                initLucideIcons(contentArea);
+                
+                if (pageName === 'schedule') {
+                  applyMobileScheduleStyles();
+                  fixScheduleSessionTitles();
+                }
+                forceMediaQueryRecalculation();
+              }, 50);
+            };
+          } else {
+            // For inline scripts, they execute immediately, so wait a bit
+            setTimeout(() => {
+              if (pageName === 'schedule') {
+                applyMobileScheduleStyles();
+                fixScheduleSessionTitles();
+                cleanupStraySessionBadges();
+              } else if (pageName === 'home') {
+                fixScheduleSessionTitles();
+                cleanupStraySessionBadges();
+              }
+              forceMediaQueryRecalculation();
+            }, 50);
+          }
+          
           document.body.appendChild(script);
           
           // If home page, also load account switcher (only for parent and player roles)
           if (pageName === 'home' && (currentRole === 'parent' || currentRole === 'player')) {
-            const switcherPath = `/app/views/${currentRole}/${pageName}/account-switcher.js${jsCacheBuster}`;
-            const switcherScript = document.createElement('script');
-            switcherScript.type = 'module';
-            switcherScript.src = switcherPath;
-            switcherScript.setAttribute('data-page-js', `${pageName}-switcher`);
-            document.body.appendChild(switcherScript);
+            // Remove any existing account switcher script first
+            const existingSwitcherScript = document.querySelector(`script[data-page-js="${pageName}-switcher"]`);
+            if (existingSwitcherScript) {
+              existingSwitcherScript.remove();
+            }
+            
+            // Wait for DOM to be ready, then load account switcher
+            // Use requestAnimationFrame to ensure DOM is painted
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                const switcherPath = `/app/views/${currentRole}/${pageName}/account-switcher.js${jsCacheBuster}`;
+                const switcherScript = document.createElement('script');
+                switcherScript.type = 'module';
+                switcherScript.src = switcherPath;
+                switcherScript.setAttribute('data-page-js', `${pageName}-switcher`);
+                switcherScript.onload = () => {
+                  console.log('Account switcher script loaded successfully');
+                };
+                switcherScript.onerror = (err) => {
+                  console.error('Error loading account switcher script:', err);
+                };
+                document.body.appendChild(switcherScript);
+              }, 150);
+            });
           }
         }
       })
       .catch((err) => {
         console.warn(`⚠️ Error loading JS for ${currentRole}/${pageName}:`, err);
       }); // JS file doesn't exist, that's okay
+    
+    // Add resize listener for schedule page to re-apply mobile styles when viewport changes
+    if (pageName === 'schedule') {
+      // Remove any existing listener
+      const existingHandler = window._scheduleMobileStyleHandler;
+      if (existingHandler) {
+        window.removeEventListener('resize', existingHandler);
+      }
+      
+      // Create new handler
+      const resizeHandler = () => {
+        applyMobileScheduleStyles();
+        fixScheduleSessionTitles();
+        cleanupStraySessionBadges();
+      };
+      window._scheduleMobileStyleHandler = resizeHandler;
+      window.addEventListener('resize', resizeHandler);
+      
+      // Also apply immediately after a short delay to catch any late-loading content
+      setTimeout(() => {
+        applyMobileScheduleStyles();
+        fixScheduleSessionTitles();
+        cleanupStraySessionBadges();
+      }, 200);
+      
+      // Set up a more aggressive observer to catch dynamically added session titles
+      const titleObserver = new MutationObserver(() => {
+        fixScheduleSessionTitles();
+      });
+      
+      // Start observing for session titles being added (for both schedule and home pages)
+      const scheduleContainer = contentArea.querySelector('.schedule-container');
+      const sessionsListContainer = contentArea.querySelector('.sessions-list-container');
+      const reservationsListContainer = contentArea.querySelector('.reservations-list-container');
+      
+      [scheduleContainer, sessionsListContainer, reservationsListContainer].forEach(container => {
+        if (container) {
+          titleObserver.observe(container, {
+            childList: true,
+            subtree: true
+          });
+        }
+      });
+      
+      // Store observer so we can disconnect it later if needed
+      window._scheduleTitleObserver = titleObserver;
+    }
   } catch (error) {
     console.error('Error loading page:', error);
     const currentRole = await getCurrentRole();
@@ -409,92 +910,121 @@ async function loadPage(pageName) {
 // Export setCurrentRole for future use (e.g., after authentication)
 window.setCurrentRole = setCurrentRole;
 
+// Import Lucide icon utilities
+import { setIconFilled, setIconOutline, initLucideIcons, replaceBoxiconWithLucide, setupIconObserver } from '../utils/lucide-icons.js';
+
 // Helper function to switch icon to filled (solid) version
 function updateIconToFilled(button) {
   if (!button) return;
   
-  // Find the icon element - look for i tag with bx or bxs class, but not solo-icon-desktop
-  const icon = button.querySelector('i.bx:not(.solo-icon-desktop), i.bxs:not(.solo-icon-desktop)');
-  if (!icon) return;
+  // Special handling for solo-create: show HD.png when active
+  const link = button.querySelector('.nav-link[data-page]');
+  if (link && link.getAttribute('data-page') === 'solo-create') {
+    const icon = button.querySelector('i[data-lucide], i.bx, i.bxs, svg.lucide-icon');
+    const navLink = button.querySelector('.nav-link');
+    if (icon && navLink) {
+      // Hide the icon (whether it's an <i> or <svg>)
+      if (icon.tagName === 'I' || icon.tagName === 'i') {
+        icon.style.display = 'none';
+      } else if (icon.tagName === 'svg' || icon.tagName === 'SVG') {
+        icon.style.display = 'none';
+      }
+      
+      // Check if img already exists, if not create it
+      let img = navLink.querySelector('img.solo-create-icon');
+      if (!img) {
+        img = document.createElement('img');
+        img.className = 'img solo-create-icon';
+        img.src = '/icons/hd.png';
+        img.alt = 'Homegrown logo';
+        img.style.width = '22px';
+        img.style.height = '22px';
+        // Insert before the icon (whether it's <i> or <svg>)
+        if (icon.parentNode) {
+          icon.parentNode.insertBefore(img, icon);
+        } else {
+          navLink.appendChild(img);
+        }
+      }
+      img.style.display = 'block';
+    }
+    return;
+  }
   
-  // Map of outline to filled icon classes
-  const iconMap = {
-    'bx-home': 'bxs-home',
-    'bx-calendar': 'bxs-calendar',
-    'bx-football': 'bxs-football',
-    'bx-chart': 'bxs-chart',
-    'bx-user': 'bxs-user'
-  };
+  // Find the SVG icon (could be direct child or in nav-link)
+  let svg = button.querySelector('svg.lucide-icon') || button.querySelector('svg[data-lucide]');
   
-  // Get all classes from the icon
-  const classes = Array.from(icon.classList);
-  
-  // Find the icon class (bx-* or bxs-*), excluding utility classes
-  let currentIconClass = null;
-  for (const cls of classes) {
-    if ((cls.startsWith('bx-') || cls.startsWith('bxs-')) && 
-        cls !== 'bx' && cls !== 'bxs' && 
-        !cls.includes('tada') && 
-        !cls.includes('hover')) {
-      currentIconClass = cls;
-      break;
+  if (!svg) {
+    // If no SVG found, try to convert any remaining Boxicons
+    const boxicon = button.querySelector('i.bx:not(.solo-icon-desktop), i.bxs:not(.solo-icon-desktop)');
+    if (boxicon) {
+      svg = replaceBoxiconWithLucide(boxicon, true);
+      if (!svg) return;
+    } else {
+      return;
     }
   }
   
-  if (!currentIconClass) return;
-  
-  // If already filled, do nothing
-  if (currentIconClass.startsWith('bxs-')) return;
-  
-  // Switch to filled
-  if (iconMap[currentIconClass]) {
-    icon.classList.remove(currentIconClass);
-    icon.classList.add(iconMap[currentIconClass]);
-  }
+  // Set to filled using Lucide utility (pass the button, not the SVG)
+  setIconFilled(button);
 }
 
 // Helper function to switch icon back to outline version
 function updateIconToOutline(button) {
   if (!button) return;
   
-  // Find the icon element - look for i tag with bx or bxs class, but not solo-icon-desktop
-  const icon = button.querySelector('i.bx:not(.solo-icon-desktop), i.bxs:not(.solo-icon-desktop)');
-  if (!icon) return;
+  // Special handling for solo-create: show outline football icon when inactive
+  const link = button.querySelector('.nav-link[data-page]');
+  if (link && link.getAttribute('data-page') === 'solo-create') {
+    // Find icon (could be <i> or <svg>)
+    let icon = button.querySelector('i[data-lucide], i.bx, i.bxs, svg.lucide-icon');
+    const img = button.querySelector('img.solo-create-icon');
+    
+    if (icon) {
+      // If it's a Boxicon, convert it first
+      if (icon.tagName === 'I' || icon.tagName === 'i') {
+        if (icon.classList.contains('bx') || icon.classList.contains('bxs')) {
+          icon = replaceBoxiconWithLucide(icon, false);
+        }
+      }
+      
+      // Show the icon (whether it's <i> or <svg>)
+      if (icon) {
+        icon.style.display = 'block';
+        // If it's an SVG, ensure it has proper stroke width
+        if (icon.tagName === 'svg' || icon.tagName === 'SVG') {
+          icon.setAttribute('stroke-width', '1.5');
+          const paths = icon.querySelectorAll('path');
+          paths.forEach(path => {
+            path.setAttribute('stroke-width', '1.5');
+          });
+        }
+      }
+      setIconOutline(button);
+    }
+    if (img) {
+      // Hide the HD.png image
+      img.style.display = 'none';
+    }
+    return;
+  }
   
-  // Map of filled to outline icon classes
-  const iconMap = {
-    'bxs-home': 'bx-home',
-    'bxs-calendar': 'bx-calendar',
-    'bxs-football': 'bx-football',
-    'bxs-chart': 'bx-chart',
-    'bxs-user': 'bx-user'
-  };
+  // Find the SVG icon (could be direct child or in nav-link)
+  let svg = button.querySelector('svg.lucide-icon') || button.querySelector('svg[data-lucide]');
   
-  // Get all classes from the icon
-  const classes = Array.from(icon.classList);
-  
-  // Find the icon class (bx-* or bxs-*), excluding utility classes
-  let currentIconClass = null;
-  for (const cls of classes) {
-    if ((cls.startsWith('bx-') || cls.startsWith('bxs-')) && 
-        cls !== 'bx' && cls !== 'bxs' && 
-        !cls.includes('tada') && 
-        !cls.includes('hover')) {
-      currentIconClass = cls;
-      break;
+  if (!svg) {
+    // If no SVG found, try to convert any remaining Boxicons
+    const boxicon = button.querySelector('i.bx:not(.solo-icon-desktop), i.bxs:not(.solo-icon-desktop)');
+    if (boxicon) {
+      svg = replaceBoxiconWithLucide(boxicon, false);
+      if (!svg) return;
+    } else {
+      return;
     }
   }
   
-  if (!currentIconClass) return;
-  
-  // If already outline, do nothing
-  if (currentIconClass.startsWith('bx-') && !currentIconClass.startsWith('bxs-')) return;
-  
-  // Switch to outline
-  if (iconMap[currentIconClass]) {
-    icon.classList.remove(currentIconClass);
-    icon.classList.add(iconMap[currentIconClass]);
-  }
+  // Set to outline using Lucide utility
+  setIconOutline(button);
 }
 
 // Function to attach navigation event listeners
@@ -514,7 +1044,7 @@ function attachNavigationListeners() {
       e.preventDefault();
       const pageName = link.getAttribute('data-page');
       
-      // Update active state - get fresh list of all buttons
+      // Update active state - get fresh list of all buttons (including home)
       const allButtons = document.querySelectorAll('.nav-list .button');
       allButtons.forEach(btn => {
         btn.classList.remove('active');
@@ -523,7 +1053,10 @@ function attachNavigationListeners() {
       
       // Set the clicked button as active
       newButton.classList.add('active');
-      updateIconToFilled(newButton);
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        updateIconToFilled(newButton);
+      }, 0);
       
       // Load page (this will also save to localStorage)
       await loadPage(pageName);
@@ -533,6 +1066,36 @@ function attachNavigationListeners() {
 
 // Initial attachment of navigation listeners
 attachNavigationListeners();
+
+// Set up MutationObserver to watch for new icons
+let iconObserver = null;
+function initializeIconSystem() {
+  // Initialize icons on initial load
+  initLucideIcons();
+  
+  // Set up observer to watch for dynamically added icons
+  if (!iconObserver) {
+    iconObserver = setupIconObserver();
+  }
+  
+  // Also initialize icons for the active button
+  const activeButton = document.querySelector('.button.active');
+  if (activeButton) {
+    updateIconToFilled(activeButton);
+  }
+}
+
+// Initialize Lucide icons on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initializeIconSystem();
+  });
+} else {
+  // DOM already loaded
+  setTimeout(() => {
+    initializeIconSystem();
+  }, 100);
+}
 
 // Coach navigation items
 const coachNavigation = [
@@ -564,6 +1127,17 @@ function updateNavigationItems(role) {
 
     // Re-attach event listeners to new buttons
     attachNavigationListeners();
+    
+    // Initialize Lucide icons for coach navigation
+    setTimeout(() => {
+      initLucideIcons(navList);
+      // Also initialize icons in the entire document for any other icons
+      initLucideIcons();
+      const activeButton = document.querySelector('.button.active');
+      if (activeButton) {
+        updateIconToFilled(activeButton);
+      }
+    }, 100);
   }
 }
 
@@ -618,13 +1192,21 @@ async function initializeApp() {
   
   // Set active state for the saved page
   const allButtons = document.querySelectorAll('.nav-list .button');
+  // First, remove active from all buttons and reset icons
   allButtons.forEach(btn => {
     btn.classList.remove('active');
     updateIconToOutline(btn);
+  });
+  
+  // Then set the correct button as active
+  allButtons.forEach(btn => {
     const link = btn.querySelector('.nav-link[data-page]');
     if (link && link.getAttribute('data-page') === pageToLoad) {
       btn.classList.add('active');
-      updateIconToFilled(btn);
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        updateIconToFilled(btn);
+      }, 0);
     }
   });
   

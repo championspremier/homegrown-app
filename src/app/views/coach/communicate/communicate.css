@@ -73,21 +73,32 @@
   border-radius: 6px;
 }
 
-/* Recipient Filter */
-.recipient-filter {
+/* Filters row: Send to + Announcement type (flex-end) */
+.message-filters-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 16px;
 }
 
-.recipient-filter label {
+.recipient-filter,
+.announcement-type-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recipient-filter label,
+.announcement-type-filter label {
   font-size: 14px;
   font-weight: 500;
   color: var(--text);
 }
 
-.recipient-select {
+.recipient-select,
+.announcement-type-select {
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -95,8 +106,30 @@
   color: var(--text);
   font-size: 14px;
   cursor: pointer;
-  min-width: 200px;
+  min-width: 180px;
 }
+
+.announcement-type-select {
+  min-width: 220px;
+}
+
+/* Colored type icon next to Type dropdown */
+.announcement-type-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+.announcement-type-icon {
+  font-size: 22px;
+}
+.announcement-type-icon--information { color: #EAB308; }
+.announcement-type-icon--cancellation { color: #DC2626; }
+.announcement-type-icon--merch { color: #2563EB; }
+.announcement-type-icon--popup_session { color: #16A34A; }
+.announcement-type-icon--time_change { color: #DC2626; }
+.announcement-type-icon--veo_link { color: #16A34A; }
 
 /* Messages History (Chat-like interface) */
 .messages-history {
@@ -105,7 +138,7 @@
   border-radius: 16px;
   padding: 20px;
   min-height: 300px;
-  max-height: 500px;
+  max-height: 300px;
   overflow-y: auto;
   margin-bottom: 16px;
   display: flex;
@@ -205,10 +238,107 @@
   flex: 1;
   display: flex;
   align-items: center;
+  gap: 4px;
   background: var(--bg);
   border-radius: 24px;
-  padding: 0 16px;
+  padding: 0 12px;
   border: 1px solid var(--border);
+}
+
+/* Compose-area preview: photo/link/video at flex-end, centered */
+.compose-attachment-preview {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 44px;
+}
+.compose-attachment-preview:empty {
+  display: none;
+}
+.compose-attachment-preview .preview-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.compose-attachment-preview .preview-video-wrap,
+.compose-attachment-preview .preview-link-wrap {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-alt, rgba(0,0,0,0.06));
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 22px;
+}
+.compose-attachment-preview .preview-link-wrap {
+  text-decoration: none;
+}
+.compose-attachment-preview .preview-link-wrap:hover {
+  background: rgba(0,0,0,0.08);
+}
+
+/* Plus button + Photo/Video/Link dropdown (left of input) */
+.plus-attach-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.plus-toggle-btn {
+  color: var(--accent);
+}
+
+.plus-toggle-btn:hover {
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.plus-attach-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 6px 0;
+  z-index: 100;
+  display: none;
+}
+
+.plus-attach-dropdown.is-open {
+  display: block;
+}
+
+.plus-attach-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.plus-attach-option:hover {
+  background: var(--hover);
+}
+
+.plus-attach-option i {
+  font-size: 18px;
+  color: var(--muted);
 }
 
 .message-input-icon {
@@ -284,11 +414,29 @@
 
 .objectives-section .section-header,
 .quizzes-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
   margin-bottom: 20px;
+}
+
+.objectives-section .section-header .section-title,
+.quizzes-section .section-header .section-title {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.objectives-section .section-header .rate-limit-info,
+.quizzes-section .section-header .rate-limit-info {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Player Search */
 .player-search-container {
+  position: relative;
   margin-bottom: 20px;
 }
 
@@ -476,7 +624,7 @@
 }
 
 .quiz-question-input::placeholder {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
 }
 
 /* Quiz Answers Container */

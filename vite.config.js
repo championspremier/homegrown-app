@@ -5,7 +5,7 @@ export default defineConfig({
   root: 'src',
   publicDir: resolve(__dirname, 'public'),
   server: {
-    port: 3000,
+    port: 5173,
     open: true,
     host: true
   },

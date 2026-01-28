@@ -273,6 +273,149 @@
   min-width: 4px;
 }
 
+/* Quiz History Section */
+.quiz-history-section {
+  margin-top: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.quiz-history-section .section-header {
+  margin-bottom: 20px;
+}
+
+.quiz-history-content {
+  min-height: 80px;
+}
+
+.quiz-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.quiz-history-item {
+  padding: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.quiz-history-question {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.quiz-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.875rem;
+}
+
+.quiz-history-correct {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.quiz-history-incorrect {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.quiz-history-points {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.quiz-history-date {
+  color: var(--muted);
+}
+
+.quiz-history-correct-answer {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* Objectives History Section */
+.objectives-history-section {
+  margin-top: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.objectives-history-section .section-header {
+  margin-bottom: 20px;
+}
+
+.objectives-history-content {
+  min-height: 80px;
+}
+
+.objectives-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.objectives-history-item {
+  padding: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.objectives-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.875rem;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.objectives-history-coach {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.objectives-history-date {
+  color: var(--muted);
+}
+
+.objectives-history-current {
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.objectives-history-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.objectives-history-detail strong {
+  color: var(--muted);
+  font-weight: 500;
+  margin-right: 4px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .tracking-container {

@@ -112,7 +112,7 @@
 }
 
 .view-toggle-btn.active {
-  background: var(--surface);
+  background: var(--accent);
   color: var(--text);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -312,11 +312,12 @@
   position: absolute;
   left: 2px;
   right: 2px;
-  background: var(--accent);
+  /* Background color is set inline by JavaScript - no CSS default to avoid conflicts */
+  background: #7bb4d4; /* Fallback color only, will be overridden by inline styles */
   color: var(--text);
   border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: 2px 6px;
+  font-size: 11px;
   font-weight: 500;
   cursor: move;
   overflow: hidden;
@@ -324,6 +325,10 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   user-select: none;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  line-height: 1.2;
 }
 
 .session-block:hover {
@@ -343,21 +348,41 @@
   border: 2px dashed var(--accent);
 }
 
+.session-block-content-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: nowrap;
+  text-justify: center;
+}
+
 .session-block-type {
   font-weight: 600;
-  margin-bottom: 4px;
-  font-size: 13px;
+  margin-bottom: 1px;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .session-block-time {
-  font-size: 11px;
+  font-size: 10px;
   opacity: 0.9;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .session-block-coach {
-  font-size: 10px;
+  font-size: 9px;
   opacity: 0.8;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Current time indicator */
@@ -401,7 +426,7 @@
 
 .session-sidebar.open {
   right: 0;
-  z-index: 10002;
+  z-index: 30000;
 }
 
 /* Scoped to session-sidebar only to avoid affecting main app sidebar */
@@ -514,6 +539,69 @@
   margin: -4px 0 12px 0;
 }
 
+/* Additional coaches container */
+#additionalCoachesContainer {
+  margin-top: 12px;
+}
+
+.additional-coach-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.coach-type-select,
+.coach-select {
+  flex: 1;
+}
+
+.btn-remove-coach {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-remove-coach:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-add-coach {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-top: 12px;
+}
+
+.btn-add-coach:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-add-coach i {
+  font-size: 1.1rem;
+}
+
 .form-group input[type="text"],
 .form-group input[type="date"],
 .form-group input[type="time"],
@@ -559,33 +647,23 @@
   font-size: 18px;
 }
 
-.day-selector {
+/* Date input wrapper with day name display */
+.date-input-wrapper {
   display: flex;
-  gap: 8px;
-  margin: 12px 0;
+  align-items: center;
+  gap: 12px;
 }
 
-.day-btn {
+.date-input-wrapper input[type="date"] {
   flex: 1;
-  padding: 10px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
+}
+
+.day-name-display {
   font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.day-btn:hover {
-  background: var(--hover);
-}
-
-.day-btn.selected {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--text);
+  font-weight: 500;
+  color: var(--accent);
+  min-width: 80px;
+  text-align: left;
 }
 
 .repeats-forever-link {
@@ -702,6 +780,7 @@
 .modal-overlay.show {
   display: flex;
   opacity: 1;
+  z-index: 30001;
 }
 
 .modal-content {
@@ -1418,7 +1497,7 @@
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 20px;
-  z-index: 1000;
+  z-index: 100000;
   display: none;
   opacity: 0;
   transform: translateY(-10px);

@@ -1,11 +1,20 @@
+/* Import Skeleton Loader Styles */
+@import url('../utils/skeleton.css');
+
 /* ========== THEME VARIABLES ========== */
 :root {
-  --bg: #0b0b0b;
-  --surface: #101010;
+  --bg: rgb(25, 25, 25);
+  --surface: rgb(32, 32, 32);
   --text: #ffffff;
   --border: #818181;
   --muted: #9ca3af;
-  --accent: #D3AF37;
+  --accent: linear-gradient(
+    135deg,
+    #FFE9A3 0%,
+    #D3AF37 40%,
+    #9F7C19 100%
+  );
+  --accent-solid: #D3AF37; /* solid color for borders, from gradient */
   --hover: rgba(188, 188, 188, 0.1);
 }
 
@@ -15,7 +24,13 @@ html[data-theme="light"] {
   --text: #111111;
   --border: #bebebe;
   --muted: #6b7280;
-  --accent: #7BB8D4;
+  --accent: linear-gradient(
+    135deg,
+    #7bb8d4 0%,
+    #5fa4c4 45%,
+    #3b82f6 100%
+  );
+  --accent-solid: #3b82f6; /* solid color for borders, from gradient */
   --hover: rgba(111, 111, 111, 0.05);
 }
 
@@ -42,7 +57,7 @@ body {
   flex-direction: column;
   transition: width 300ms ease, transform 300ms ease;
   position: relative;
-  z-index: 100;
+  z-index: 1000;
   overflow: visible;
 }
 
@@ -129,7 +144,7 @@ html[data-theme="light"] .img {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 101;
+  z-index: 10001;
   transition: background 200ms ease, border-color 200ms ease, transform 300ms ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
@@ -141,6 +156,18 @@ html[data-theme="light"] .img {
 .toggle-chevron {
   font-size: 20px;
   transition: opacity 200ms ease;
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in sidebar toggle use correct color */
+.toggle-chevron svg,
+.toggle-chevron.lucide-icon {
+  color: var(--text);
+}
+
+.toggle-chevron svg path {
+  stroke: currentColor;
+  fill: none;
 }
 
 /* Hide all mobile chevrons by default (desktop) */
@@ -169,7 +196,7 @@ html[data-theme="light"] .img {
 }
 
 /* ========== NAV ========== */
-.icons { padding: 8px 6px; }
+.icons { padding: 0; }
 
 .nav-list {
   width: 100%;
@@ -202,6 +229,11 @@ html[data-theme="light"] .img {
   padding: 0;
   width: 100%;
 } /* we'll pad the link instead */
+
+.button:hover .nav-link {
+  background: var(--hover);
+}
+
 .nav-link {
   width: 100%;
   display: flex;
@@ -216,6 +248,37 @@ html[data-theme="light"] .img {
 
 .nav-link .bx { font-size: 22px; }
 
+/* Lucide icon styles */
+.nav-link .lucide-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.nav-link .lucide-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  color: inherit;
+}
+
+.nav-link .lucide-icon svg,
+.nav-link .lucide-icon svg path {
+  color: inherit;
+  stroke: currentColor;
+}
+
+.nav-link .lucide-icon-filled svg {
+  fill: currentColor;
+  stroke-width: 0;
+}
+
+.nav-link .lucide-icon-filled svg path {
+  fill: currentColor;
+  stroke-width: 0;
+}
+
 /* Profile photo in sidebar nav */
 .nav-link .profile-photo-nav {
   width: 22px;
@@ -225,12 +288,22 @@ html[data-theme="light"] .img {
   display: none; /* Hidden by default, shown when photo exists */
 }
 
-.nav-link:has(.profile-photo-nav) .bx {
-  display: none; /* Hide icon when photo exists */
+.nav-link:has(.profile-photo-nav) .bx,
+.nav-link:has(.profile-photo-nav) svg[data-lucide="user"],
+.nav-link:has(.profile-photo-nav) svg.lucide-icon {
+  display: none !important; /* Hide icon when photo exists (Boxicons or Lucide) */
 }
 
 .nav-link:has(.profile-photo-nav) .profile-photo-nav {
   display: block;
+}
+
+/* Solo Create icon (HD.png) in sidebar nav */
+.nav-link .solo-create-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: none; /* Hidden by default, shown when active via JavaScript */
 }
 
 /* The text label next to the icon */
@@ -281,6 +354,121 @@ html[data-theme="light"] .img {
   transition: color 200ms ease;
 }
 
+/* Ensure active navigation icons are visible with proper stroke */
+.nav-list li.active .lucide-icon-filled,
+.nav-list li.active .lucide-icon-filled svg,
+.nav-list li.active svg.lucide-icon,
+.nav-list li.active svg[data-lucide] {
+  stroke-width: 2.5px !important;
+  fill: currentColor !important;
+}
+
+.nav-list li.active .lucide-icon-filled path,
+.nav-list li.active svg.lucide-icon path,
+.nav-list li.active svg[data-lucide] path {
+  stroke-width: 2.5px !important;
+  fill: currentColor !important;
+}
+
+/* Chart icons should never use fill - override general rules */
+.nav-list li.active svg[data-lucide*="chart"],
+.nav-list li.active .lucide-icon[data-lucide*="chart"] {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+.nav-list li.active svg[data-lucide*="chart"] path,
+.nav-list li.active .lucide-icon[data-lucide*="chart"] path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Circle-dot, calendar, and house icons should also use stroke-only */
+.nav-list li.active svg[data-lucide="circle-dot"],
+.nav-list li.active .lucide-icon[data-lucide="circle-dot"],
+.nav-list li.active svg[data-lucide="calendar"],
+.nav-list li.active .lucide-icon[data-lucide="calendar"],
+.nav-list li.active svg[data-lucide="house"],
+.nav-list li.active .lucide-icon[data-lucide="house"] {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+.nav-list li.active svg[data-lucide="circle-dot"] path,
+.nav-list li.active .lucide-icon[data-lucide="circle-dot"] path,
+.nav-list li.active svg[data-lucide="calendar"] path,
+.nav-list li.active .lucide-icon[data-lucide="calendar"] path,
+.nav-list li.active svg[data-lucide="house"] path,
+.nav-list li.active .lucide-icon[data-lucide="house"] path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Ensure chart-column-increasing (tracking) icon is visible when active */
+.nav-list li.active svg[data-lucide="chart-column-increasing"],
+.nav-list li.active .lucide-icon[data-lucide="chart-column-increasing"] {
+  stroke-width: 2.5px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.nav-list li.active svg[data-lucide="chart-column-increasing"] path,
+.nav-list li.active .lucide-icon[data-lucide="chart-column-increasing"] path {
+  stroke-width: 2.5px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Ensure all Lucide icons use theme colors */
+.lucide-icon,
+.lucide-icon svg {
+  color: var(--text);
+}
+
+.lucide-icon svg path {
+  stroke: currentColor;
+}
+
+/* Ensure icons in buttons and links use theme colors */
+button svg,
+button .lucide-icon,
+a svg,
+a .lucide-icon,
+i.bx svg,
+i.bxs svg {
+  color: var(--text);
+}
+
+button svg path,
+a svg path,
+i.bx svg path,
+i.bxs svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+/* Global icon color fix - ensure all icons are visible */
+i.bx,
+i.bxs,
+svg.lucide-icon {
+  color: var(--text) !important;
+}
+
+i.bx svg,
+i.bxs svg,
+svg.lucide-icon {
+  color: inherit !important;
+}
+
+i.bx svg path,
+i.bxs svg path,
+svg.lucide-icon path {
+  stroke: currentColor !important;
+}
+
 /* Ensure filled icons (bxs-*) also get the active styling */
 .nav-list li.active .bxs-home,
 .nav-list li.active .bxs-calendar,
@@ -299,6 +487,31 @@ html[data-theme="light"] .img {
   flex-direction: column;
   transition: margin-left 300ms ease;
   margin-left: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable; /* Reserve space for scrollbar to prevent layout shift */
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) transparent; /* Transparent track, visible thumb */
+}
+
+/* Webkit scrollbar styles for transparent background */
+.main-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.main-content::-webkit-scrollbar-track {
+  background: transparent; /* Transparent track */
+}
+
+.main-content::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.main-content::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+  opacity: 0.8;
 }
 
 /* Adjust main content when sidebar is open */
@@ -309,7 +522,7 @@ body:has(.sidebar:not(.closed)) .main-content {
 .top-bar {
   height: 120px;
   background: var(--bg);
-  margin: 0 40px;
+  margin: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -335,11 +548,25 @@ body:has(.sidebar:not(.closed)) .main-content {
   background: var(--hover);
 }
 
+.theme-toggle i {
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in theme toggle use correct color */
+.theme-toggle svg,
+.theme-toggle .lucide-icon {
+  color: var(--text);
+}
+
+.theme-toggle svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
 .content-area {
   flex: 1;
   padding: 20px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
   color: var(--text);
   background: var(--bg);
 }
@@ -377,7 +604,7 @@ body:has(.sidebar:not(.closed)) .main-content {
   gap: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 10px 0;
+  padding: none;
   width: 100%;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
@@ -466,7 +693,7 @@ body:has(.sidebar:not(.closed)) .main-content {
   overflow: hidden; /* Clip photo to circle */
 }
 
-/* mini circle badge - MUST be on top */
+/* mini circle badge - MUST be on top of photos, but below account switcher dropdown */
 .player-leader-position {
   position: absolute !important;
   top: -6px;
@@ -486,7 +713,7 @@ body:has(.sidebar:not(.closed)) .main-content {
   pointer-events: none;
   opacity: 0.85;
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
-  z-index: 100 !important; /* Much higher than photo to ensure it's always visible */
+  z-index: 99 !important; /* Higher than photo to ensure it's always visible, but lower than account switcher dropdown */
 }
 
 .player-info {
@@ -531,7 +758,7 @@ body:has(.sidebar:not(.closed)) .main-content {
     position: fixed;
     left: 0;
     top: 0;
-    z-index: 100;
+    z-index: 1000;
     transform: translateX(0) !important; /* Always fully visible */
   }
 
@@ -634,7 +861,7 @@ body:has(.sidebar:not(.closed)) .main-content {
     flex-direction: row;
     z-index: 1000;
     transform: none !important;
-    margin: 0 0 5px 0;
+    margin: 0;
   }
 
   /* Sidebar always open on mobile - ignore closed class */
@@ -728,6 +955,11 @@ body:has(.sidebar:not(.closed)) .main-content {
   .nav-link .bx {
     font-size: 24px;
   }
+  
+  .nav-link .lucide-icon {
+    width: 24px;
+    height: 24px;
+  }
 
   .nav-link .label {
     font-size: 11px;
@@ -750,11 +982,11 @@ body:has(.sidebar:not(.closed)) .main-content {
   /* Main content adjustments */
   .main-content {
     margin-left: 0;
-    margin-bottom: 80px;
+    margin-bottom: 0;
     width: 100%;
   }
 
   .top-bar {
-    margin: 0 20px;
+    margin: none;
   }
 }

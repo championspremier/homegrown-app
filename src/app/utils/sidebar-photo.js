@@ -16,13 +16,17 @@ let supabaseReady = false;
 })();
 
 /**
- * Update the sidebar profile photo based on the current account context
- * This ensures the correct photo is shown when switching accounts
+ * Update the sidebar profile photo based on the current account context.
+ * If photoUrl is provided (e.g. after upload), sets it immediately without fetching.
  */
-export async function updateSidebarPhoto() {
+export async function updateSidebarPhoto(photoUrl) {
+  if (photoUrl) {
+    setSidebarPhoto(photoUrl);
+    return;
+  }
+
   if (!supabaseReady || !supabase) {
-    // Wait a bit and try again
-    setTimeout(updateSidebarPhoto, 100);
+    setTimeout(() => updateSidebarPhoto(), 100);
     return;
   }
 
@@ -157,52 +161,44 @@ async function loadAndSetSidebarPhoto(userId) {
 
 /**
  * Set the sidebar photo
+ * Supports both Boxicons (.bx-user) and Lucide (svg[data-lucide="user"]) in the Profile nav link
  */
 function setSidebarPhoto(photoUrl) {
   const sidebarProfileLink = document.querySelector('.nav-link[data-page="profile"]');
   if (!sidebarProfileLink) return;
 
   const existingPhoto = sidebarProfileLink.querySelector('.profile-photo-nav');
-  // Look for both outline and filled user icons
-  const icon = sidebarProfileLink.querySelector('.bx-user, .bxs-user');
+  const icon = sidebarProfileLink.querySelector('.bx-user, .bxs-user, svg[data-lucide="user"], svg.lucide-icon');
 
   if (existingPhoto) {
-    // Update existing photo with cache-busting
     existingPhoto.src = `${photoUrl}?t=${Date.now()}`;
-    // Ensure photo is visible (CSS will handle hiding icon via :has() selector)
     existingPhoto.style.display = 'block';
   } else if (icon) {
-    // Create new photo element
     const photo = document.createElement('img');
     photo.className = 'profile-photo-nav';
     photo.src = `${photoUrl}?t=${Date.now()}`;
     photo.alt = 'Profile photo';
-    // Insert before icon so CSS :has() selector works correctly
     icon.parentNode.insertBefore(photo, icon);
-    // CSS will handle hiding the icon via .nav-link:has(.profile-photo-nav) .bx
-    // But we'll also hide it manually as a fallback
     icon.style.display = 'none';
   }
 }
 
 /**
  * Reset sidebar photo (remove photo and show icon)
+ * Supports both Boxicons and Lucide in the Profile nav link
  */
 function resetSidebarPhoto() {
   const sidebarProfileLink = document.querySelector('.nav-link[data-page="profile"]');
   if (!sidebarProfileLink) return;
 
   const existingPhoto = sidebarProfileLink.querySelector('.profile-photo-nav');
-  // Look for both outline and filled user icons
-  const icon = sidebarProfileLink.querySelector('.bx-user, .bxs-user');
+  const icon = sidebarProfileLink.querySelector('.bx-user, .bxs-user, svg[data-lucide="user"], svg.lucide-icon');
 
   if (existingPhoto) {
-    // Remove photo
     existingPhoto.remove();
   }
 
   if (icon) {
-    // Show icon (CSS will handle this via :has() selector, but set explicitly as fallback)
     icon.style.display = '';
   }
 }

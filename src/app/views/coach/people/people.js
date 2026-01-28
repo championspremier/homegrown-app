@@ -172,7 +172,7 @@ async function loadStaff() {
     // First, get profiles for coaches and admins
     const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('id, first_name, last_name, role, created_at, updated_at')
+      .select('id, first_name, last_name, role, coach_role, profile_photo_url, team_logos, created_at, updated_at')
       .in('role', ['coach', 'admin'])
       .order('first_name', { ascending: true });
 
@@ -221,6 +221,9 @@ async function loadStaff() {
         last_name: profile.last_name || '',
         name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown',
         role: profile.role || 'coach',
+        coach_role: profile.coach_role || 'Coach',
+        profile_photo_url: profile.profile_photo_url || null,
+        team_logos: profile.team_logos || [],
         email: email,
         last_checkin: profile.updated_at || profile.created_at || null,
         created_at: profile.created_at
@@ -235,6 +238,7 @@ async function loadStaff() {
 }
 
 // Load leads (parents who signed up via landing page, with their linked players)
+// Also includes player-only accounts (players without parent relationships)
 async function loadLeads() {
   if (!supabaseReady || !supabase) {
     console.warn('Supabase not ready yet');
@@ -250,22 +254,59 @@ async function loadLeads() {
       .order('created_at', { ascending: false });
 
     if (parentsError) {
-      console.error('Error loading leads:', parentsError);
+      console.error('Error loading parents for leads:', parentsError);
       console.error('Error details:', {
         code: parentsError.code,
         message: parentsError.message,
         details: parentsError.details,
         hint: parentsError.hint
       });
-      allStaff = [];
-      filteredStaff = [];
-      renderStaffTable();
-      return;
     }
 
     console.log('Loaded parents for leads:', parents?.length || 0, parents);
 
-    if (!parents || parents.length === 0) {
+    // Get all players to find player-only accounts (players without parent relationships)
+    const { data: allPlayers, error: playersError } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, role, created_at, updated_at')
+      .eq('role', 'player')
+      .order('created_at', { ascending: false });
+
+    if (playersError) {
+      console.error('Error loading players for leads:', playersError);
+    }
+
+    console.log('Loaded all players:', allPlayers?.length || 0);
+
+    // Get all player IDs that have a parent relationship
+    let playersWithParents = new Set();
+    if (allPlayers && allPlayers.length > 0) {
+      try {
+        const { data: allRelationships, error: relErr } = await supabase
+          .from('parent_player_relationships')
+          .select('player_id');
+
+        if (!relErr && allRelationships) {
+          allRelationships.forEach(rel => {
+            if (rel.player_id) {
+              playersWithParents.add(rel.player_id);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Error loading all relationships:', err);
+      }
+    }
+
+    // Find player-only accounts (players without parent relationships)
+    const playerOnlyAccounts = (allPlayers || []).filter(player => 
+      !playersWithParents.has(player.id)
+    );
+
+    console.log('Player-only accounts (leads):', playerOnlyAccounts.length, playerOnlyAccounts);
+
+    // If no parents and no player-only accounts, return empty
+    if ((!parents || parents.length === 0) && playerOnlyAccounts.length === 0) {
       allStaff = [];
       filteredStaff = [];
       renderStaffTable();
@@ -273,60 +314,62 @@ async function loadLeads() {
     }
 
     // Get parent IDs and fetch their linked players
-    const parentIds = parents.map(p => p.id);
+    const parentIds = (parents || []).map(p => p.id);
     
     // Try to get relationships - if this fails, we'll still show parents without linked players
     let relationships = [];
     let relError = null;
     
-    try {
-      const { data: relData, error: relErr } = await supabase
-        .from('parent_player_relationships')
-        .select('parent_id, player_id')
-        .in('parent_id', parentIds);
-      
-      console.log('Relationships query result:', { relData, relErr, parentIds });
-      
-      if (!relErr && relData && relData.length > 0) {
-        relationships = relData;
-        console.log('Found relationships:', relationships.length);
+    if (parentIds.length > 0) {
+      try {
+        const { data: relData, error: relErr } = await supabase
+          .from('parent_player_relationships')
+          .select('parent_id, player_id')
+          .in('parent_id', parentIds);
         
-        // Get player details separately if we have relationships
-        const playerIds = relationships.map(r => r.player_id).filter(Boolean);
-        console.log('Player IDs to fetch:', playerIds);
+        console.log('Relationships query result:', { relData, relErr, parentIds });
         
-        if (playerIds.length > 0) {
-          const { data: playersData, error: playersError } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name, created_at, updated_at')
-            .in('id', playerIds)
-            .eq('role', 'player');
+        if (!relErr && relData && relData.length > 0) {
+          relationships = relData;
+          console.log('Found relationships:', relationships.length);
           
-          console.log('Players data:', { playersData, playersError });
+          // Get player details separately if we have relationships
+          const playerIds = relationships.map(r => r.player_id).filter(Boolean);
+          console.log('Player IDs to fetch:', playerIds);
           
-          if (!playersError && playersData) {
-            const playersMapById = new Map(playersData.map(p => [p.id, p]));
-            relationships = relationships.map(rel => ({
-              ...rel,
-              player: playersMapById.get(rel.player_id)
-            }));
-            console.log('Mapped relationships with players:', relationships);
-          } else if (playersError) {
-            console.warn('Error loading player details:', playersError);
+          if (playerIds.length > 0) {
+            const { data: playersData, error: playersError } = await supabase
+              .from('profiles')
+              .select('id, first_name, last_name, created_at, updated_at')
+              .in('id', playerIds)
+              .eq('role', 'player');
+            
+            console.log('Players data:', { playersData, playersError });
+            
+            if (!playersError && playersData) {
+              const playersMapById = new Map(playersData.map(p => [p.id, p]));
+              relationships = relationships.map(rel => ({
+                ...rel,
+                player: playersMapById.get(rel.player_id)
+              }));
+              console.log('Mapped relationships with players:', relationships);
+            } else if (playersError) {
+              console.warn('Error loading player details:', playersError);
+            }
+          } else {
+            console.warn('No player IDs found in relationships');
           }
         } else {
-          console.warn('No player IDs found in relationships');
+          if (relErr) {
+            relError = relErr;
+            console.warn('Error loading relationships:', relErr);
+          } else {
+            console.log('No relationships found for parents:', parentIds);
+          }
         }
-      } else {
-        if (relErr) {
-          relError = relErr;
-          console.warn('Error loading relationships:', relErr);
-        } else {
-          console.log('No relationships found for parents:', parentIds);
-        }
+      } catch (err) {
+        console.warn('Error loading relationships (non-critical):', err);
       }
-    } catch (err) {
-      console.warn('Error loading relationships (non-critical):', err);
     }
 
     // Create a map of parent_id -> array of players
@@ -344,12 +387,15 @@ async function loadLeads() {
     
     console.log('Players map for leads:', playersMap);
 
-    // Get emails for parents
-    const parentIdsForEmail = parents.map(p => p.id);
+    // Get emails for parents and player-only accounts
+    const allLeadIds = [
+      ...(parents || []).map(p => p.id),
+      ...playerOnlyAccounts.map(p => p.id)
+    ];
     let emailMap = new Map();
     try {
       const { data: emailsData, error: emailsError } = await supabase
-        .rpc('get_user_emails', { user_ids: parentIdsForEmail });
+        .rpc('get_user_emails', { user_ids: allLeadIds });
 
       if (!emailsError && emailsData) {
         emailsData.forEach(item => {
@@ -363,7 +409,7 @@ async function loadLeads() {
     }
 
     // Map parents with their linked players
-    allStaff = parents.map(parent => {
+    const parentLeads = (parents || []).map(parent => {
       const email = emailMap.get(parent.id) || 
                    `${(parent.first_name || 'user').toLowerCase()}@championspremier.net`;
       const linkedPlayers = playersMap.get(parent.id) || [];
@@ -386,6 +432,27 @@ async function loadLeads() {
         linkedPlayers: linkedPlayers // Store linked players for display
       };
     });
+
+    // Map player-only accounts as leads
+    const playerOnlyLeads = playerOnlyAccounts.map(player => {
+      const email = emailMap.get(player.id) || 
+                   `${(player.first_name || 'user').toLowerCase()}@championspremier.net`;
+      
+      return {
+        id: player.id,
+        first_name: player.first_name || '',
+        last_name: player.last_name || '',
+        name: `${player.first_name || ''} ${player.last_name || ''}`.trim() || 'Unknown',
+        role: 'lead',
+        email: email,
+        last_checkin: player.updated_at || player.created_at || null,
+        created_at: player.created_at,
+        linkedPlayers: [] // Player-only accounts have no linked players
+      };
+    });
+
+    // Combine parents and player-only accounts
+    allStaff = [...parentLeads, ...playerOnlyLeads];
 
     console.log('Mapped leads:', allStaff.length, allStaff);
     console.log('All staff with linkedPlayers:', allStaff.map(s => ({
@@ -1401,15 +1468,51 @@ function showEditStaffInfoModal(staffId, staff) {
           
           <div class="edit-staff-sidebar">
             <div class="edit-staff-avatar">
-              <div class="edit-staff-avatar-placeholder">
-                ${getInitials(staff?.name || 'Staff Member')}
+              <div class="edit-staff-avatar-placeholder" id="editStaffAvatarPlaceholder">
+                ${staff?.profile_photo_url 
+                  ? `<img src="${escapeHtml(staff.profile_photo_url)}" alt="${escapeHtml(staff?.name || 'Staff')}" class="edit-staff-avatar-img" />`
+                  : getInitials(staff?.name || 'Staff Member')
+                }
               </div>
+              <button class="edit-staff-avatar-upload-btn" type="button" id="editStaffAvatarUploadBtn" title="Change photo">
+                <i class="bx bx-plus"></i>
+              </button>
+              <input type="file" id="editStaffAvatarInput" accept="image/*" style="display: none;" />
             </div>
             <div class="edit-staff-sidebar-name">${escapeHtml(staff?.name || 'Staff Member')}</div>
-            <div class="edit-staff-sidebar-role">
-              <span class="role-tag ${staff?.role || 'coach'}">${getRoleDisplay(staff?.role || 'coach')}</span>
+            <div class="edit-staff-sidebar-role-section">
+              <label class="edit-staff-role-label">Coach Role</label>
+              <select id="editStaffCoachRole" class="edit-staff-role-select">
+                <option value="Coach" ${(staff?.coach_role || 'Coach') === 'Coach' ? 'selected' : ''}>Coach</option>
+                <option value="Current Pro" ${staff?.coach_role === 'Current Pro' ? 'selected' : ''}>Current Pro</option>
+                <option value="Ex-Pro" ${staff?.coach_role === 'Ex-Pro' ? 'selected' : ''}>Ex-Pro</option>
+                <option value="GK Current Pro" ${staff?.coach_role === 'GK Current Pro' ? 'selected' : ''}>GK Current Pro</option>
+                <option value="GK Ex-Pro" ${staff?.coach_role === 'GK Ex-Pro' ? 'selected' : ''}>GK Ex-Pro</option>
+              </select>
+            </div>
+            <div class="edit-staff-team-logos-section">
+              <label class="edit-staff-team-logos-label">Team Logos</label>
+              <div class="edit-staff-team-logos-container" id="editStaffTeamLogosContainer">
+                ${(staff?.team_logos || []).map((logo, index) => `
+                  <div class="team-logo-item" data-logo-index="${index}">
+                    <img src="${escapeHtml(logo)}" alt="Team logo" class="team-logo-preview" />
+                    <button type="button" class="team-logo-remove-btn" data-logo-index="${index}">
+                      <i class="bx bx-x"></i>
+                    </button>
+                  </div>
+                `).join('')}
+                <button type="button" class="team-logo-add-btn" id="editStaffAddTeamLogoBtn">
+                  <i class="bx bx-plus"></i>
+                  <span>Add Logo</span>
+                </button>
+              </div>
+              <input type="file" id="editStaffTeamLogosInput" accept="image/*" multiple style="display: none;" />
             </div>
             <div class="edit-staff-sidebar-menu">
+              <button type="button" class="edit-staff-save-btn" id="editStaffSaveBtn">
+                <i class="bx bx-save"></i>
+                <span>Save Changes</span>
+              </button>
               <a href="#" class="edit-staff-sidebar-link" data-action="working-hours" data-staff-id="${staffId}">
                 <i class="bx bx-time"></i>
                 <span>Working Hours</span>
@@ -1449,6 +1552,227 @@ function showEditStaffInfoModal(staffId, staff) {
     overlay.remove(); // Close edit modal
     showWorkingHoursModal(staffId, staff);
   });
+  
+  // Setup avatar upload
+  const avatarUploadBtn = overlay.querySelector('#editStaffAvatarUploadBtn');
+  const avatarInput = overlay.querySelector('#editStaffAvatarInput');
+  const avatarPlaceholder = overlay.querySelector('#editStaffAvatarPlaceholder');
+  
+  if (avatarUploadBtn && avatarInput) {
+    avatarUploadBtn.addEventListener('click', () => {
+      avatarInput.click();
+    });
+    
+    avatarInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        // TODO: Upload to Supabase Storage and update profile
+        // For now, show preview
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          avatarPlaceholder.innerHTML = `<img src="${event.target.result}" alt="Profile" class="edit-staff-avatar-img" />`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+  
+  // Setup team logos
+  const addTeamLogoBtn = overlay.querySelector('#editStaffAddTeamLogoBtn');
+  const teamLogosInput = overlay.querySelector('#editStaffTeamLogosInput');
+  const teamLogosContainer = overlay.querySelector('#editStaffTeamLogosContainer');
+  
+  if (addTeamLogoBtn && teamLogosInput && teamLogosContainer) {
+    addTeamLogoBtn.addEventListener('click', () => {
+      teamLogosInput.click();
+    });
+    
+    teamLogosInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const logoIndex = teamLogosContainer.querySelectorAll('.team-logo-item').length;
+          const logoItem = document.createElement('div');
+          logoItem.className = 'team-logo-item';
+          logoItem.dataset.logoIndex = logoIndex;
+          logoItem.innerHTML = `
+            <img src="${event.target.result}" alt="Team logo" class="team-logo-preview" />
+            <button type="button" class="team-logo-remove-btn" data-logo-index="${logoIndex}">
+              <i class="bx bx-x"></i>
+            </button>
+          `;
+          teamLogosContainer.insertBefore(logoItem, addTeamLogoBtn);
+          
+          // Setup remove button
+          logoItem.querySelector('.team-logo-remove-btn').addEventListener('click', () => {
+            logoItem.remove();
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+    
+    // Setup existing remove buttons
+    teamLogosContainer.querySelectorAll('.team-logo-remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.closest('.team-logo-item').remove();
+      });
+    });
+  }
+  
+  // Setup Save button
+  const saveBtn = overlay.querySelector('#editStaffSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      await saveCoachProfile(staffId, overlay);
+    });
+  }
+}
+
+// Save coach profile (photo, role, team logos)
+async function saveCoachProfile(staffId, overlay) {
+  if (!supabaseReady || !supabase) {
+    alert('Supabase not ready. Please try again.');
+    return;
+  }
+  
+  try {
+    const saveBtn = overlay.querySelector('#editStaffSaveBtn');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i> <span>Saving...</span>';
+    }
+    
+    // Get coach role
+    const coachRoleSelect = overlay.querySelector('#editStaffCoachRole');
+    const coachRole = coachRoleSelect ? coachRoleSelect.value : null;
+    
+    // Get profile photo (check if new file was selected)
+    const avatarInput = overlay.querySelector('#editStaffAvatarInput');
+    let profilePhotoUrl = null;
+    
+    if (avatarInput && avatarInput.files && avatarInput.files.length > 0) {
+      const file = avatarInput.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${staffId}/profile-photo.${fileExt}`;
+      
+      // Upload to coach-photos bucket
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('coach-photos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+      
+      if (uploadError) {
+        console.error('Error uploading profile photo:', uploadError);
+        throw new Error(`Failed to upload profile photo: ${uploadError.message}`);
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('coach-photos')
+        .getPublicUrl(fileName);
+      
+      profilePhotoUrl = publicUrl;
+    } else {
+      // Check if there's an existing photo URL
+      const avatarImg = overlay.querySelector('.edit-staff-avatar-img');
+      if (avatarImg && avatarImg.src) {
+        profilePhotoUrl = avatarImg.src;
+      }
+    }
+    
+    // Get team logos
+    const teamLogoItems = overlay.querySelectorAll('.team-logo-item');
+    const teamLogos = [];
+    
+    // First, collect existing logos (from preview images that weren't removed)
+    teamLogoItems.forEach(item => {
+      const img = item.querySelector('.team-logo-preview');
+      if (img && img.src && !img.src.startsWith('data:')) {
+        // Only include URLs (not data URIs from new uploads)
+        teamLogos.push(img.src);
+      }
+    });
+    
+    // Upload new team logos (from file input)
+    const teamLogosInput = overlay.querySelector('#editStaffTeamLogosInput');
+    if (teamLogosInput && teamLogosInput.files && teamLogosInput.files.length > 0) {
+      const files = Array.from(teamLogosInput.files);
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${staffId}/team-logo-${Date.now()}-${i}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('team-logos')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (uploadError) {
+          console.error('Error uploading team logo:', uploadError);
+          continue; // Skip this logo but continue with others
+        }
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('team-logos')
+          .getPublicUrl(fileName);
+        
+        teamLogos.push(publicUrl);
+      }
+    }
+    
+    // Build update object
+    const updateData = {};
+    
+    if (coachRole) {
+      updateData.coach_role = coachRole;
+    }
+    
+    if (profilePhotoUrl !== null) {
+      updateData.profile_photo_url = profilePhotoUrl;
+    }
+    
+    // Always update team_logos (even if empty array to clear them)
+    updateData.team_logos = teamLogos;
+    
+    // Update profile
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', staffId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating coach profile:', error);
+      throw new Error(`Failed to save profile: ${error.message}`);
+    }
+    
+    alert('Coach profile saved successfully!');
+    
+    // Reload the page or refresh the staff list
+    if (typeof loadStaff === 'function') {
+      loadStaff();
+    } else {
+      location.reload();
+    }
+    
+  } catch (error) {
+    console.error('Error saving coach profile:', error);
+    alert(`Error saving profile: ${error.message}`);
+  } finally {
+    const saveBtn = overlay.querySelector('#editStaffSaveBtn');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bx bx-save"></i> <span>Save Changes</span>';
+    }
+  }
 }
 
 // Get initials from name
@@ -1900,9 +2224,5 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializePeoplePage);
-} else {
-  initializePeoplePage();
-}
+// Note: initializePeoplePage() is called after Supabase is ready (line 12)
+// No need to call it here as it would run before Supabase is initialized

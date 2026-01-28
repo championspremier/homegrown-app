@@ -179,7 +179,14 @@ CREATE POLICY "Coaches can create sessions"
   TO authenticated
   WITH CHECK (
     public.is_coach()
-    AND coach_id = auth.uid()
+    AND (
+      coach_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE profiles.id = coach_id
+        AND profiles.role IN ('coach', 'admin')
+      )
+    )
   );
 
 CREATE POLICY "Coaches can update own sessions"
@@ -195,7 +202,8 @@ CREATE POLICY "Coaches can delete own sessions"
   TO authenticated
   USING (
     public.is_coach()
-    AND coach_id = auth.uid()
+    -- Allow coaches to delete any session (since they can view all sessions)
+    -- This is necessary because coaches can create sessions for other coaches
   );
 
 CREATE POLICY "Players and parents can view scheduled sessions"
