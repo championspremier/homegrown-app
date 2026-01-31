@@ -1,6 +1,7 @@
 // Coach Communicate page scripts
 import { initSupabase } from '../../../../auth/config/supabase.js';
 import { CURRICULUM_BACKBONE } from '../../../utils/curriculum-backbone.js';
+import { getCurrentQuarter } from '../../../utils/points.js';
 import { initLucideIcons } from '../../../utils/lucide-icons.js';
 
 let supabase;
@@ -768,6 +769,19 @@ async function handleSendObjectives() {
     // Create notification
     await supabase.rpc('create_objectives_notification', {
       p_objective_id: objective.id
+    });
+
+    // Record for spider chart: one tactical “objective assigned” in current quarter (counted by period from date)
+    const { year, quarter } = getCurrentQuarter();
+    await supabase.from('points_transactions').insert({
+      player_id: selectedPlayerId,
+      points: 0.1,
+      session_type: 'HG_OBJECTIVE',
+      session_id: objective.id,
+      quarter_year: year,
+      quarter_number: quarter,
+      status: 'active',
+      checked_in_at: new Date().toISOString()
     });
 
     // Clear form

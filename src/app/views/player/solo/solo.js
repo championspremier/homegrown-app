@@ -2743,8 +2743,15 @@ async function handleTacticalVideoComplete(videoId, videoPlayer) {
       console.error('❌ No session or user');
       return;
     }
-    
-    const playerId = session.user.id;
+    // Use effective player ID (parent viewing as player uses selected child's ID)
+    let playerId = session.user.id;
+    try {
+      const { getAccountContext } = await import('../../../utils/account-context.js');
+      const context = await getAccountContext();
+      if (context && context.getPlayerIdForAction) {
+        playerId = context.getPlayerIdForAction();
+      }
+    } catch (_) { /* fallback to session.user.id */ }
     console.log('✅ Player ID:', playerId);
     
     // Get current quarter for checking points
@@ -2821,11 +2828,12 @@ async function handleTacticalVideoComplete(videoId, videoPlayer) {
       }
     }
     
-    // Award 0.3 points for tactical reel
+    // Award 0.3 points for tactical reel (leaderboard only; spider uses count from progress)
     const points = 0.3;
     // year and quarter already declared at the top of the function
     
-    // Record in player_curriculum_progress
+    // Record in player_curriculum_progress (spider counts 1 per tactical reel from here)
+    const completedAt = new Date().toISOString();
     console.log('📝 Recording progress with period:', period);
     const { error: progressError, data: progressData } = await supabase
       .from('player_curriculum_progress')
@@ -2835,7 +2843,8 @@ async function handleTacticalVideoComplete(videoId, videoPlayer) {
         category: 'tactical',
         session_type: 'solo',
         video_id: videoId,
-        points_earned: points
+        points_earned: points,
+        completed_at: completedAt
       })
       .select();
     
@@ -2849,6 +2858,7 @@ async function handleTacticalVideoComplete(videoId, videoPlayer) {
     
     // Award points via points_transactions
     console.log('💰 Awarding points:', points, 'for quarter:', year, quarter);
+    const checkedInAt = new Date().toISOString();
     const { error: pointsError, data: pointsData } = await supabase
       .from('points_transactions')
       .insert({
@@ -2857,7 +2867,8 @@ async function handleTacticalVideoComplete(videoId, videoPlayer) {
         session_type: 'HG_TACTICAL_REEL',
         quarter_year: year,
         quarter_number: quarter,
-        status: 'active'
+        status: 'active',
+        checked_in_at: checkedInAt
       })
       .select();
     

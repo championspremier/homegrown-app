@@ -1459,11 +1459,18 @@
 }
 
 .coach-modal-header {
-  margin-bottom: 15px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.coach-modal-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .coach-modal-header h2 {
@@ -1472,6 +1479,22 @@
   color: var(--text);
   margin: 0;
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.coach-modal-date-hint {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0;
+  width: 100%;
+}
+
+.coach-modal-no-coaches {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0 0 12px 0;
+  width: 100%;
 }
 
 .coach-modal-filter {

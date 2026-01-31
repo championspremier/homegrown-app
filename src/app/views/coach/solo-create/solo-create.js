@@ -4,7 +4,8 @@ import { getCurrentFocus } from '../../player/home/curriculum-focus.js';
 import { 
   CURRICULUM_BACKBONE, 
   getSkillsForPeriodAndCategory,
-  getSubSkillsForSkill 
+  getSubSkillsForSkill,
+  TACTICAL_POSITIONS
 } from '../../../utils/curriculum-backbone.js';
 import { 
   getKeywordsForPeriod,
@@ -267,7 +268,6 @@ function selectCategory(category) {
   // Show/hide period vs season selection
   const periodSection = document.getElementById('periodSection');
   const seasonSection = document.getElementById('seasonSection');
-  const allPeriodOption = document.getElementById('allPeriodOption');
   const periodSelect = document.getElementById('periodSelect');
   const seasonSelect = document.getElementById('seasonSelect');
 
@@ -277,15 +277,36 @@ function selectCategory(category) {
     if (seasonSection) seasonSection.style.display = 'none';
     if (periodSelect) periodSelect.value = '';
     currentPeriod = null;
-  } else {
-    // Other categories: Show period selection, hide season
+  } else if (category === 'mental') {
+    // Mental: Period doesn't matter — videos show in all periods. Only "All" option.
     if (periodSection) periodSection.style.display = 'block';
     if (seasonSection) seasonSection.style.display = 'none';
     if (seasonSelect) seasonSelect.value = '';
-    
-    // Show "All" option for tactical, technical, and mental
-    if (allPeriodOption) {
-      allPeriodOption.style.display = (category === 'tactical' || category === 'technical' || category === 'mental') ? 'block' : 'none';
+    if (periodSelect) {
+      periodSelect.innerHTML = '<option value="all">All</option>';
+      periodSelect.value = 'all';
+    }
+    currentPeriod = 'all';
+  } else {
+    // Technical / Tactical: Show full period selection including "All"
+    if (periodSection) periodSection.style.display = 'block';
+    if (seasonSection) seasonSection.style.display = 'none';
+    if (seasonSelect) seasonSelect.value = '';
+    if (periodSelect) {
+      periodSelect.innerHTML = [
+        '<option value="">Select Period</option>',
+        '<option value="build-out">Build-Out</option>',
+        '<option value="middle-third">Middle Third</option>',
+        '<option value="final-third">Final Third</option>',
+        '<option value="wide-play">Wide Play</option>',
+        '<option value="all">All</option>'
+      ].join('');
+      if (currentPeriod && periodSelect.querySelector(`option[value="${currentPeriod}"]`)) {
+        periodSelect.value = currentPeriod;
+      } else {
+        periodSelect.value = 'build-out';
+        currentPeriod = 'build-out';
+      }
     }
   }
 
@@ -1172,14 +1193,13 @@ async function openUploadModal(section, setId = null, prefillData = null) {
     currentPeriod = physicalSeasonSelect.value;
   }
   
-  // For tactical, period can be "all" or a specific period
-  if (currentCategory !== 'tactical' && currentCategory !== 'physical' && !currentPeriod) {
+  // For tactical or mental, period can be "all" (mental videos show in all periods)
+  if (currentCategory !== 'tactical' && currentCategory !== 'physical' && currentCategory !== 'mental' && !currentPeriod) {
     alert('Please select a period first');
     return;
   }
   
-  // For tactical, set period to "all" if not selected
-  if (currentCategory === 'tactical' && !currentPeriod) {
+  if ((currentCategory === 'tactical' || currentCategory === 'mental') && !currentPeriod) {
     currentPeriod = 'all';
   }
 
@@ -2032,6 +2052,19 @@ function loadCategoryKeywords(modalElement, existingKeywords = []) {
   const keywordsField = modalElement.querySelector('.form-field:has(#keywordsContainer)');
   if (keywordsField) {
     keywordsField.style.display = 'block';
+    // Mental: hint above container (sibling so it isn't wiped by displayKeywordsAsTags)
+    let mentalHintEl = keywordsField.querySelector('.keywords-hint-mental');
+    if (currentCategory === 'mental') {
+      if (!mentalHintEl) {
+        mentalHintEl = document.createElement('p');
+        mentalHintEl.className = 'keywords-hint keywords-hint-mental';
+        mentalHintEl.textContent = 'Keywords help the algorithm show this video in Start Here based on coach objectives.';
+        mentalHintEl.style.marginBottom = '8px';
+        keywordsField.insertBefore(mentalHintEl, keywordsContainer);
+      }
+    } else if (mentalHintEl) {
+      mentalHintEl.remove();
+    }
   }
   
   // If we have existing keywords, display them
@@ -2204,8 +2237,8 @@ function loadTacticalKeywords(modalElement, existingKeywords = []) {
   keywordsDisplay.id = 'keywordsDisplay';
   keywordsDisplay.className = 'keywords-display';
   
-  // Function to render keywords for selected phase
-  const renderKeywordsForPhase = (selectedPhase) => {
+  // Function to render keywords for selected phase and position
+  const renderKeywordsForPhase = (selectedPhase, selectedPosition = null) => {
     keywordsDisplay.innerHTML = '';
     
     if (!selectedPhase) {
@@ -2213,10 +2246,13 @@ function loadTacticalKeywords(modalElement, existingKeywords = []) {
       return;
     }
     
-    const keywords = getKeywordsForPeriodAndPhase(currentPeriod, selectedPhase);
+    const positionFilter = selectedPosition && selectedPosition !== '' ? selectedPosition : null;
+    const keywords = positionFilter
+      ? getKeywordsForPeriodAndPhase(currentPeriod, selectedPhase, positionFilter)
+      : getKeywordsForPeriodAndPhase(currentPeriod, selectedPhase);
     
     if (keywords.length === 0) {
-      keywordsDisplay.innerHTML = '<p class="keywords-hint">No keywords available for this phase</p>';
+      keywordsDisplay.innerHTML = '<p class="keywords-hint">No keywords available for this phase' + (positionFilter ? ' and position' : '') + '.</p>';
       return;
     }
     
@@ -2276,16 +2312,47 @@ function loadTacticalKeywords(modalElement, existingKeywords = []) {
     keywordsDisplay.appendChild(keywordsGrid);
   };
   
-  // Phase dropdown change handler
-  phaseSelect.addEventListener('change', (e) => {
-    renderKeywordsForPhase(e.target.value);
+  // Position dropdown (Option A: position as metadata filter)
+  const positionSelectWrapper = document.createElement('div');
+  positionSelectWrapper.className = 'keyword-position-select-wrapper';
+  positionSelectWrapper.style.cssText = 'margin-bottom: 1rem;';
+  const positionLabel = document.createElement('label');
+  positionLabel.textContent = 'Position (optional)';
+  positionLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-weight: 500;';
+  const positionSelect = document.createElement('select');
+  positionSelect.id = 'tacticalPositionSelect';
+  positionSelect.className = 'form-select';
+  positionSelect.style.cssText = 'width: 100%; max-width: 300px;';
+  const positionDefaultOption = document.createElement('option');
+  positionDefaultOption.value = '';
+  positionDefaultOption.textContent = 'All positions';
+  positionSelect.appendChild(positionDefaultOption);
+  (TACTICAL_POSITIONS || []).forEach(pos => {
+    const opt = document.createElement('option');
+    opt.value = pos;
+    opt.textContent = pos;
+    positionSelect.appendChild(opt);
+  });
+  positionSelectWrapper.appendChild(positionLabel);
+  positionSelectWrapper.appendChild(positionSelect);
+
+  const getSelectedPosition = () => {
+    const v = positionSelect.value;
+    return v === '' ? null : v;
+  };
+
+  phaseSelect.addEventListener('change', () => {
+    renderKeywordsForPhase(phaseSelect.value, getSelectedPosition());
+  });
+  positionSelect.addEventListener('change', () => {
+    renderKeywordsForPhase(phaseSelect.value, getSelectedPosition());
   });
   
-  // Initial render (no phase selected)
   renderKeywordsForPhase('');
   
   phaseSelectWrapper.appendChild(phaseSelect);
   keywordsContainer.appendChild(phaseSelectWrapper);
+  keywordsContainer.appendChild(positionSelectWrapper);
   keywordsContainer.appendChild(keywordsDisplay);
 }
 
@@ -3038,6 +3105,8 @@ async function saveSession() {
     if (currentCategory === 'tactical') {
       sessionData.skill = null;
       sessionData.sub_skill = null;
+      // target_positions: null = all positions; set when session-level position selector is added
+      sessionData.target_positions = null;
     } else if (simpleDrills.length > 0) {
       // For mental sessions, try to get skill from first video
       const firstDrillId = simpleDrills[0]?.dataset.drillId;

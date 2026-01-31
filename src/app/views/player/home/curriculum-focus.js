@@ -166,37 +166,49 @@ function isDateInRange(date, start, end) {
 }
 
 /**
- * Get the current curriculum focus based on today's date
+ * Get the curriculum focus for a given date (used for attributing points to spider axes).
+ * @param {Date} date
+ * @returns {{ focus: string }}
  */
-function getCurrentFocus() {
-  const today = new Date();
-  const month = today.getMonth() + 1; // JavaScript months are 0-indexed
-  const day = today.getDate();
-  
-  // Handle December (week-based)
+function getCurriculumFocusForDate(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+
   if (month === 12) {
     const week = getDecemberWeek(day);
     const weekConfig = DECEMBER_WEEKS.find(w => w.week === week);
-    if (weekConfig) {
-      return {
-        focus: weekConfig.focus,
-      };
-    }
+    if (weekConfig) return { focus: weekConfig.focus };
   }
-  
-  // Check regular schedule
+
   for (const period of CURRICULUM_SCHEDULE) {
-    if (isDateInRange(today, period.start, period.end)) {
-      return {
-        focus: period.focus,
-      };
+    if (isDateInRange(d, period.start, period.end)) {
+      return { focus: period.focus };
     }
   }
-  
-  // Default fallback (shouldn't happen, but just in case)
-  return {
-    focus: "BUILD-OUT"
+  return { focus: 'BUILD-OUT' };
+}
+
+/**
+ * Get backbone period key for a date (build-out, middle-third, final-third, wide-play).
+ * Returns null for 11V11/SET PIECES so spider only uses the big four.
+ */
+function getBackbonePeriodKeyForDate(date) {
+  const { focus } = getCurriculumFocusForDate(date);
+  const map = {
+    'BUILD-OUT': 'build-out',
+    'FINAL THIRD': 'final-third',
+    'MIDDLE THIRD': 'middle-third',
+    'WIDE PLAY': 'wide-play'
   };
+  return map[focus] || null;
+}
+
+/**
+ * Get the current curriculum focus based on today's date
+ */
+function getCurrentFocus() {
+  return getCurriculumFocusForDate(new Date());
 }
 
 /**
@@ -228,5 +240,5 @@ function initCurriculumFocus() {
 // Export for potential use in other files
 // Note: initCurriculumFocus should be called explicitly from the page that needs it
 // (e.g., player home page) rather than auto-initializing
-export { getCurrentFocus, initCurriculumFocus };
+export { getCurrentFocus, getCurriculumFocusForDate, getBackbonePeriodKeyForDate, initCurriculumFocus };
 

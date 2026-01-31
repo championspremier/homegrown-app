@@ -3,6 +3,7 @@
  * 
  * This file defines the complete curriculum hierarchy for solo sessions.
  * It maps the structure: Period → Category → Skill → Sub-Skill
+ * Tactical content (phases + keywords with optional positions) lives under each period's tactical key.
  * 
  * Used for:
  * - Filtering videos by curriculum structure
@@ -10,6 +11,10 @@
  * - Organizing solo sessions and quiz questions
  * - Tracking player progress through curriculum
  */
+import { TACTICAL_KEYWORDS_DATA } from './tactical-keywords-data.js';
+
+/** Four tactical positions for filtering keywords. Signup uses: GK; Defenders = Central Defender + Full-Back; Midfielders = Mid-Defensive + Mid-Offensive; Forwards = Winger + Forward. Empty positions = all positions. */
+export const TACTICAL_POSITIONS = ['GK', 'Defenders', 'Midfielders', 'Forwards'];
 
 export const CURRICULUM_BACKBONE = {
   'build-out': {
@@ -50,9 +55,9 @@ export const CURRICULUM_BACKBONE = {
         }
       },
       'passing': {
-        'on-ground': ['backspin', 'curl', 'trivela', 'weak-foot', 'deception'],
-        'half-volley': ['backspin', 'curl'],
-        'full-volley': ['backspin']
+        'on-ground': ['pass-backspin', 'pass-curl', 'pass-trivela', 'pass-weak-foot', 'pass-deception'],
+        'half-volley': ['pass-backspin', 'pass-curl', 'pass-half-volley-weak-foot'],
+        'full-volley': ['pass-backspin', 'pass-full-volley-weak-foot']
       }
       // Note: Build-Out does NOT have: ball-mastery, turning, finishing
     },
@@ -76,7 +81,7 @@ export const CURRICULUM_BACKBONE = {
       'sleep': {},
       'objectives': {}
     },
-    tactical: {} // Tactical content specific to Build-Out period
+    tactical: TACTICAL_KEYWORDS_DATA['build-out'] || {}
   },
   
   'middle-third': {
@@ -144,12 +149,18 @@ export const CURRICULUM_BACKBONE = {
           'run': []
         }
       },
-      'turning': {},
-      'finishing': {},
+      'turning': {
+        'on-ground': ['turn-inside-open-up', 'turn-inside-across-the-body', 'turn-outside-foot', 'turn-chop', 'turn-sole-open-up', 'turn-sole-across', 'turn-l-turn', 'turn-one-touch-over', 'turn-two-touch-over', 'turn-lunge-inside-open-up', 'turn-foot-deception-inside-across-the-body', 'turn-lunge-outside-foot', 'turn-no-touch'],
+        'half-volley': ['turn-hf-inside-open-up', 'turn-hf-inside-across-the-body', 'turn-hf-outside-foot', 'turn-hf-chop'],
+        'full-volley': ['turn-fv-inside-open-up', 'turn-fv-inside-across-the-body', 'turn-fv-outside-foot', 'turn-fv-chop'],
+      },
+      'finishing': {'on-ground': ['power', 'curl', 'trivela', 'finishing-weak-foot', 'finishing-deception', 'finishing-weak-foot'],
+        'half-volley': ['power-half-volley', 'curl', 'finishing-half-volley-weak-foot'],
+        'full-volley': ['power-full-volley', 'finishing-full-volley-weak-foot']},
       'passing': {
-        'on-ground': ['backspin', 'curl', 'trivela', 'weak-foot', 'deception'],
-        'half-volley': ['backspin', 'curl'],
-        'full-volley': ['backspin']
+        'on-ground': ['pass-backspin', 'pass-curl', 'pass-trivela', 'pass-weak-foot', 'pass-deception'],
+        'half-volley': ['pass-backspin', 'pass-curl', 'pass-half-volley-weak-foot'],
+        'full-volley': ['pass-backspin', 'pass-full-volley-weak-foot']
       }
     },
     physical: {
@@ -172,7 +183,7 @@ export const CURRICULUM_BACKBONE = {
       'sleep': {},
       'objectives': {}
     },
-    tactical: {} // Tactical content specific to Middle-Third period
+    tactical: TACTICAL_KEYWORDS_DATA['middle-third'] || {}
   },
   
   'final-third': {
@@ -240,12 +251,18 @@ export const CURRICULUM_BACKBONE = {
           'run': []
         }
       },
-      'turning': {},
-      'finishing': {},
+      'turning': {
+        'on-ground': ['turn-inside-open-up', 'turn-inside-across-the-body', 'turn-outside-foot', 'turn-chop', 'turn-sole-open-up', 'turn-sole-across', 'turn-l-turn', 'turn-one-touch-over', 'turn-two-touch-over', 'turn-lunge-inside-open-up', 'turn-foot-deception-inside-across-the-body', 'turn-lunge-outside-foot', 'turn-no-touch'],
+        'half-volley': ['turn-hf-inside-open-up', 'turn-hf-inside-across-the-body', 'turn-hf-outside-foot', 'turn-hf-chop'],
+        'full-volley': ['turn-fv-inside-open-up', 'turn-fv-inside-across-the-body', 'turn-fv-outside-foot', 'turn-fv-chop'],
+      },
+      'finishing': {'on-ground': ['power', 'curl', 'trivela', 'finishing-weak-foot', 'finishing-deception', 'finishing-weak-foot'],
+        'half-volley': ['power-half-volley', 'curl', 'finishing-half-volley-weak-foot'],
+        'full-volley': ['power-full-volley', 'finishing-full-volley-weak-foot']},
       'passing': {
-        'on-ground': ['backspin', 'curl', 'trivela', 'weak-foot', 'deception'],
-        'half-volley': ['backspin', 'curl'],
-        'full-volley': ['backspin']
+        'on-ground': ['pass-backspin', 'pass-curl', 'pass-trivela', 'pass-weak-foot', 'pass-deception'],
+        'half-volley': ['pass-backspin', 'pass-curl', 'pass-half-volley-weak-foot'],
+        'full-volley': ['pass-backspin', 'pass-full-volley-weak-foot']
       }
     },
     physical: {
@@ -268,7 +285,7 @@ export const CURRICULUM_BACKBONE = {
       'sleep': {},
       'objectives': {}
     },
-    tactical: {} // Tactical content specific to Final-Third period
+    tactical: TACTICAL_KEYWORDS_DATA['final-third'] || {}
   },
   
   'wide-play': {
@@ -337,11 +354,13 @@ export const CURRICULUM_BACKBONE = {
         }
       },
       // Note: Wide-Play does NOT have 'turning'
-      'finishing': {},
+      'finishing': {'on-ground': ['power', 'curl', 'trivela', 'finishing-weak-foot', 'finishing-deception', 'finishing-weak-foot'],
+        'half-volley': ['power-half-volley', 'curl', 'finishing-half-volley-weak-foot'],
+        'full-volley': ['power-full-volley', 'finishing-full-volley-weak-foot']},
       'passing': {
-        'on-ground': ['backspin', 'curl', 'trivela', 'weak-foot', 'deception'],
-        'half-volley': ['backspin', 'curl'],
-        'full-volley': ['backspin']
+        'on-ground': ['pass-backspin', 'pass-curl', 'pass-trivela', 'pass-weak-foot', 'pass-deception'],
+        'half-volley': ['pass-backspin', 'pass-curl', 'pass-half-volley-weak-foot'],
+        'full-volley': ['pass-backspin', 'pass-full-volley-weak-foot']
       }
     },
     physical: {
@@ -364,7 +383,7 @@ export const CURRICULUM_BACKBONE = {
       'sleep': {},
       'objectives': {}
     },
-    tactical: {} // Tactical content specific to Wide-Play period
+    tactical: TACTICAL_KEYWORDS_DATA['wide-play'] || {}
   }
 };
 
@@ -472,6 +491,74 @@ export function mapKeywordToCurriculum(keyword) {
 }
 
 /**
+ * Normalize period string to backbone key (build-out, middle-third, final-third, wide-play)
+ */
+function normalizePeriodKey(period) {
+  if (!period || typeof period !== 'string') return null;
+  const p = period.toLowerCase().trim().replace(/\s+/g, '-');
+  const map = {
+    'build-out': 'build-out',
+    'buildout': 'build-out',
+    'middle-third': 'middle-third',
+    'middlethird': 'middle-third',
+    'final-third': 'final-third',
+    'finalthird': 'final-third',
+    'wide-play': 'wide-play',
+    'wideplay': 'wide-play'
+  };
+  return map[p] || (CURRICULUM_BACKBONE[p] ? p : null);
+}
+
+/**
+ * Map keyword to curriculum structure for a specific period only.
+ * Use this when awarding points or recording progress from film/session input
+ * so that "escape moves" in January (Build-out month) awards to Build-out, not all periods.
+ *
+ * @param {string} keyword - The keyword or phrase (e.g. "escape moves", "first touch")
+ * @param {string} contextPeriod - The period for this session (e.g. "build-out", "Build-Out", or from getCurrentFocus())
+ * @returns {Object|null} Single match { period, category, skill, subSkill?, subSubSkill? } or null
+ */
+export function mapKeywordToCurriculumForPeriod(keyword, contextPeriod) {
+  const periodKey = normalizePeriodKey(contextPeriod);
+  if (!periodKey || !CURRICULUM_BACKBONE[periodKey]) return null;
+
+  const normalizedKeyword = keyword.toLowerCase().trim();
+  const periodData = CURRICULUM_BACKBONE[periodKey];
+
+  for (const category in periodData) {
+    const categoryData = periodData[category];
+    if (typeof categoryData !== 'object' || categoryData === null) continue;
+
+    for (const skill in categoryData) {
+      if (skill.toLowerCase().includes(normalizedKeyword) ||
+          normalizedKeyword.includes(skill.toLowerCase())) {
+        return { period: periodKey, category, skill, subSkill: null };
+      }
+
+      const skillData = categoryData[skill];
+      if (typeof skillData === 'object' && !Array.isArray(skillData)) {
+        for (const subSkill in skillData) {
+          if (subSkill.toLowerCase().includes(normalizedKeyword) ||
+              normalizedKeyword.includes(subSkill.toLowerCase())) {
+            return { period: periodKey, category, skill, subSkill };
+          }
+          const subSkillData = skillData[subSkill];
+          if (Array.isArray(subSkillData)) {
+            for (const subSubSkill of subSkillData) {
+              if (subSubSkill.toLowerCase().includes(normalizedKeyword) ||
+                  normalizedKeyword.includes(subSubSkill.toLowerCase())) {
+                return { period: periodKey, category, skill, subSkill, subSubSkill };
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Get all periods (for tactical tab)
  */
 export function getAllPeriods() {
@@ -483,5 +570,146 @@ export function getAllPeriods() {
  */
 export function getAllCategories() {
   return ['technical', 'physical', 'mental', 'tactical'];
+}
+
+/** Format backbone key (kebab-case) as display label (Title Case). */
+export function formatBackboneKeyAsLabel(key) {
+  if (!key || typeof key !== 'string') return '';
+  return key.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+/**
+ * Find a skill/sub-skill/sub-sub-skill key in a category across all periods; return keyword info for drill-keywords API.
+ * Used so technical/physical/mental "keywords" are backbone keys (skills, sub-skills, sub-sub-skills).
+ */
+export function getKeywordForBackboneSkill(category, skillKey) {
+  if (!skillKey || category === 'tactical') return null;
+  const key = String(skillKey).toLowerCase().trim();
+  for (const period in CURRICULUM_BACKBONE) {
+    const catData = CURRICULUM_BACKBONE[period][category];
+    if (!catData || typeof catData !== 'object') continue;
+    for (const skill of Object.keys(catData)) {
+      if (skill === key) {
+        return { keyword: formatBackboneKeyAsLabel(skill), synonyms: [] };
+      }
+      const skillData = catData[skill];
+      if (typeof skillData !== 'object' || skillData === null) continue;
+      if (Array.isArray(skillData)) {
+        if (skillData.includes(key)) return { keyword: formatBackboneKeyAsLabel(key), synonyms: [] };
+        continue;
+      }
+      for (const subSkill of Object.keys(skillData)) {
+        if (subSkill === key) {
+          return { keyword: formatBackboneKeyAsLabel(key), synonyms: [] };
+        }
+        const subSkillData = skillData[subSkill];
+        if (Array.isArray(subSkillData) && subSkillData.includes(key)) {
+          return { keyword: formatBackboneKeyAsLabel(key), synonyms: [] };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Get all "keywords" for a category from backbone (skill/sub-skill/sub-sub-skill keys as display labels).
+ * Used by getKeywordsForCategory for technical/physical/mental.
+ */
+export function getKeywordsForCategoryFromBackbone(category) {
+  if (category === 'tactical') return [];
+  const seen = new Set();
+  const out = [];
+  for (const period in CURRICULUM_BACKBONE) {
+    const catData = CURRICULUM_BACKBONE[period][category];
+    if (!catData || typeof catData !== 'object') continue;
+    function collect(obj) {
+      if (!obj || typeof obj !== 'object') return;
+      for (const k of Object.keys(obj)) {
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({ skill: k, keyword: formatBackboneKeyAsLabel(k), synonyms: [] });
+        if (!Array.isArray(obj[k]) && typeof obj[k] === 'object') collect(obj[k]);
+        if (Array.isArray(obj[k])) {
+          for (const sub of obj[k]) {
+            if (sub && !seen.has(sub)) {
+              seen.add(sub);
+              out.push({ skill: sub, keyword: formatBackboneKeyAsLabel(sub), synonyms: [] });
+            }
+          }
+        }
+      }
+    }
+    collect(catData);
+  }
+  return out;
+}
+
+/**
+ * Find a tactical keyword by key (e.g. 'plus-1') across all periods/phases. For getKeywordForSkill('tactical', key).
+ */
+export function getTacticalKeywordByKey(key) {
+  const keyLower = String(key).toLowerCase().trim();
+  for (const period in CURRICULUM_BACKBONE) {
+    const tactical = CURRICULUM_BACKBONE[period]?.tactical;
+    if (!tactical || typeof tactical !== 'object') continue;
+    for (const phase in tactical) {
+      const phaseData = tactical[phase];
+      if (phaseData && phaseData[keyLower]) {
+        const item = phaseData[keyLower];
+        return {
+          keyword: item.keyword,
+          synonyms: item.synonyms || [],
+          allTerms: [item.keyword, ...(item.synonyms || [])],
+          period,
+          phase
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Get tactical phases for a period (attacking, defending, transition-a-to-d, transition-d-to-a).
+ * Used by solo-create tactical flow.
+ */
+export function getPhasesForPeriod(period) {
+  const tactical = CURRICULUM_BACKBONE[period]?.tactical;
+  if (!tactical || typeof tactical !== 'object') return [];
+  return Object.keys(tactical);
+}
+
+/**
+ * Get tactical keywords for a period and phase, optionally filtered by position.
+ * @param {string} period - build-out, middle-third, final-third, wide-play
+ * @param {string} phase - attacking, defending, transition-a-to-d, transition-d-to-a
+ * @param {string|null} positionFilter - Optional: single position (e.g. 'Full-Back') or group key (e.g. 'defense'). Null/empty = all keywords.
+ * @returns {Array<{ keyword: string, synonyms: string[], positions: string[], phase: string }>}
+ */
+export function getTacticalKeywordsForPeriodAndPhase(period, phase, positionFilter = null) {
+  const tactical = CURRICULUM_BACKBONE[period]?.tactical;
+  if (!tactical || !tactical[phase]) return [];
+  const phaseData = tactical[phase];
+  const keywords = [];
+  const positionsToMatch = positionFilter ? [positionFilter] : null;
+  for (const key of Object.keys(phaseData)) {
+    const item = phaseData[key];
+    if (!item || item.keyword == null) continue;
+    if (positionsToMatch && positionsToMatch.length > 0) {
+      const keywordPositions = item.positions || [];
+      if (keywordPositions.length > 0) {
+        const hasMatch = positionsToMatch.some(p => keywordPositions.includes(p));
+        if (!hasMatch) continue;
+      }
+    }
+    keywords.push({
+      keyword: item.keyword,
+      synonyms: item.synonyms || [],
+      positions: item.positions || [],
+      phase
+    });
+  }
+  return keywords;
 }
 

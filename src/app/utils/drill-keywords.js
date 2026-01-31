@@ -1,24 +1,23 @@
 /**
  * Drill Algorithm Keywords with Synonyms
  * 
- * This file contains all keywords for drill algorithms organized by category:
- * - Tactical: Organized by period (build-out, middle-third, wide-play, final-third) and phase (attacking, defending, transition-d-to-a, transition-a-to-d)
- * - Technical: Organized by skill area
- * - Physical: Organized by physical attribute
- * - Mental: Organized by mental attribute
- * 
- * Each keyword includes synonyms for better search and matching capabilities.
+ * Tactical: from drill-keywords-restructured (sourced into curriculum-backbone).
+ * Technical/Physical/Mental: derived from curriculum-backbone (skills/sub-skills as keywords).
  */
+import { DRILL_KEYWORDS as DRILL_KEYWORDS_RESTRUCTURED } from './drill-keywords-restructured.js';
+import {
+  getPhasesForPeriod as getPhasesForPeriodFromBackbone,
+  getTacticalKeywordsForPeriodAndPhase as getTacticalKeywordsFromBackbone,
+  getKeywordForBackboneSkill,
+  getKeywordsForCategoryFromBackbone,
+  getTacticalKeywordByKey
+} from './curriculum-backbone.js';
 
-export const DRILL_KEYWORDS = {
-  'tactical': {
-    'build-out': {
-      'attacking': {
-        'plus-1': {
-          keyword: 'Plus 1',
-          synonyms: ['Add one', 'Extra player', 'Additional support']
-        },
-        'support-angles': {
+export const DRILL_KEYWORDS = DRILL_KEYWORDS_RESTRUCTURED;
+
+// (Technical/physical/mental keywords are derived from curriculum-backbone in getKeywordsForCategory, getKeywordForSkill, etc.)
+
+/**
           keyword: 'Support angles',
           synonyms: ['Supporting positions', 'Passing angles', 'Assist angles']
         },
@@ -892,8 +891,7 @@ export const DRILL_KEYWORDS = {
           synonyms: ['Opponent retreating', 'Defense dropping', 'Retreating defense', 'Dropping back']
         }
       }
-    }
-  },
+    },
   'technical': {
     'first-touch': {
       keyword: 'First Touch',
@@ -1096,197 +1094,141 @@ export const DRILL_KEYWORDS = {
 
 /**
  * Get all keywords for a specific category
+ * Tactical: from DRILL_KEYWORDS. Technical/Physical/Mental: from backbone (skills/sub-skills as keys).
  * @param {string} category - The category name (tactical, technical, physical, mental)
- * @returns {Object} Object containing keywords organized by subcategory
+ * @returns {Object} Object containing keywords organized by subcategory (tactical: period/phase; others: skill -> { keyword, synonyms })
  */
 export function getKeywordsForCategory(category) {
-  return DRILL_KEYWORDS[category] || {};
+  if (category === 'tactical') return DRILL_KEYWORDS.tactical || {};
+  const items = getKeywordsForCategoryFromBackbone(category);
+  const out = {};
+  items.forEach(item => { out[item.skill] = { keyword: item.keyword, synonyms: item.synonyms || [] }; });
+  return out;
 }
 
 /**
- * Get all keywords for a specific period (tactical only)
- * Returns all keywords across all phases for backward compatibility
+ * Get all keywords for a specific period (tactical only), across all phases.
+ * Tactical data is sourced from curriculum-backbone.
  * @param {string} period - The period name (build-out, middle-third, wide-play, final-third)
- * @returns {Array} Array of keyword objects with keyword and synonyms
+ * @returns {Array} Array of keyword objects with keyword, synonyms, allTerms, phase
  */
 export function getKeywordsForPeriod(period) {
-  const tacticalData = DRILL_KEYWORDS.tactical;
-  if (!tacticalData || !tacticalData[period]) return [];
-  
+  const phases = getPhasesForPeriodFromBackbone(period);
   const allKeywords = [];
-  const periodData = tacticalData[period];
-  
-  // Iterate through all phases
-  for (const phase in periodData) {
-    const phaseData = periodData[phase];
-    if (typeof phaseData === 'object' && phaseData.keyword) {
-      // Old structure (backward compatibility - shouldn't happen with new structure)
+  for (const phase of phases) {
+    const items = getTacticalKeywordsFromBackbone(period, phase, null);
+    for (const item of items) {
       allKeywords.push({
-        keyword: phaseData.keyword,
-        synonyms: phaseData.synonyms,
-        allTerms: [phaseData.keyword, ...phaseData.synonyms],
-        phase: phase
+        keyword: item.keyword,
+        synonyms: item.synonyms || [],
+        allTerms: [item.keyword, ...(item.synonyms || [])],
+        phase: item.phase || phase
       });
-    } else if (typeof phaseData === 'object') {
-      // New structure with phases
-      for (const key in phaseData) {
-        const item = phaseData[key];
-        if (item && item.keyword) {
-          allKeywords.push({
-            keyword: item.keyword,
-            synonyms: item.synonyms,
-            allTerms: [item.keyword, ...item.synonyms],
-            phase: phase
-          });
-        }
-      }
     }
   }
-  
   return allKeywords;
 }
 
 /**
- * Get keywords for a specific period and phase
+ * Get keywords for a specific period and phase, optionally filtered by position.
+ * Tactical data is sourced from curriculum-backbone (supports position metadata).
  * @param {string} period - The period name (build-out, middle-third, wide-play, final-third)
  * @param {string} phase - The phase name (attacking, defending, transition-d-to-a, transition-a-to-d)
- * @returns {Array} Array of keyword objects
+ * @param {string|null} positionFilter - Optional: single position (e.g. 'Full-Back') or group key (e.g. 'defense'). Null = all keywords.
+ * @returns {Array} Array of keyword objects { keyword, synonyms, allTerms, phase }
  */
-export function getKeywordsForPeriodAndPhase(period, phase) {
-  const tacticalData = DRILL_KEYWORDS.tactical;
-  if (!tacticalData || !tacticalData[period] || !tacticalData[period][phase]) return [];
-  
-  const phaseData = tacticalData[period][phase];
-  const keywords = [];
-  
-  for (const key in phaseData) {
-    const item = phaseData[key];
-    if (item && item.keyword) {
-      keywords.push({
-        keyword: item.keyword,
-        synonyms: item.synonyms,
-        allTerms: [item.keyword, ...item.synonyms],
-        phase: phase
-      });
-    }
-  }
-  
-  return keywords;
+export function getKeywordsForPeriodAndPhase(period, phase, positionFilter = null) {
+  const items = getTacticalKeywordsFromBackbone(period, phase, positionFilter);
+  return items.map(item => ({
+    keyword: item.keyword,
+    synonyms: item.synonyms || [],
+    allTerms: [item.keyword, ...(item.synonyms || [])],
+    phase: item.phase || phase
+  }));
 }
 
 /**
- * Get all phases for a period
+ * Get all phases for a period. Tactical data is sourced from curriculum-backbone.
  * @param {string} period - The period name
  * @returns {Array} Array of phase names
  */
 export function getPhasesForPeriod(period) {
-  const tacticalData = DRILL_KEYWORDS.tactical;
-  if (!tacticalData || !tacticalData[period]) return [];
-  return Object.keys(tacticalData[period]);
+  return getPhasesForPeriodFromBackbone(period);
 }
 
 /**
  * Get all keywords for a specific skill/area within a category
+ * Tactical: from DRILL_KEYWORDS. Technical/Physical/Mental: from backbone.
  * @param {string} category - The category name (tactical, technical, physical, mental)
- * @param {string} skill - The skill/area name (e.g., 'first-touch', 'speed', 'decision-making')
- * @returns {Object|null} Keyword object or null if not found
+ * @param {string} skill - The skill/area name (e.g., 'first-touch', 'speed', 'plus-1' for tactical)
+ * @returns {Object|null} Keyword object { keyword, synonyms, allTerms?, period?, phase? } or null
  */
 export function getKeywordForSkill(category, skill) {
-  const categoryData = DRILL_KEYWORDS[category];
-  if (!categoryData) return null;
-  
-  // For tactical, need to search through periods and phases
   if (category === 'tactical') {
-    for (const period in categoryData) {
-      const periodData = categoryData[period];
-      for (const phase in periodData) {
-        const phaseData = periodData[phase];
-        if (phaseData && phaseData[skill]) {
-          return {
-            keyword: phaseData[skill].keyword,
-            synonyms: phaseData[skill].synonyms,
-            allTerms: [phaseData[skill].keyword, ...phaseData[skill].synonyms],
-            period: period,
-            phase: phase
-          };
-        }
-      }
+    const found = getTacticalKeywordByKey(skill);
+    if (found) {
+      return {
+        keyword: found.keyword,
+        synonyms: found.synonyms || [],
+        allTerms: found.allTerms || [found.keyword, ...(found.synonyms || [])],
+        period: found.period,
+        phase: found.phase
+      };
     }
     return null;
   }
-  
-  // For other categories, direct lookup
-  if (categoryData[skill]) {
-    return {
-      keyword: categoryData[skill].keyword,
-      synonyms: categoryData[skill].synonyms,
-      allTerms: [categoryData[skill].keyword, ...categoryData[skill].synonyms]
-    };
-  }
-  
-  return null;
+  const found = getKeywordForBackboneSkill(category, skill);
+  if (!found) return null;
+  return {
+    keyword: found.keyword,
+    synonyms: found.synonyms || [],
+    allTerms: [found.keyword, ...(found.synonyms || [])]
+  };
 }
 
 /**
  * Get all keywords across all categories
- * @returns {Array} Array of all keyword objects with category and subcategory info
+ * Tactical from DRILL_KEYWORDS; technical/physical/mental from backbone.
  */
 export function getAllKeywords() {
   const allKeywords = [];
-  
-  for (const category in DRILL_KEYWORDS) {
-    const categoryData = DRILL_KEYWORDS[category];
-    
-    if (category === 'tactical') {
-      // Tactical keywords are organized by period and phase
-      for (const period in categoryData) {
-        const periodData = categoryData[period];
-        for (const phase in periodData) {
-          const phaseData = periodData[phase];
-          if (typeof phaseData === 'object' && phaseData.keyword) {
-            // Old structure (backward compatibility)
-            allKeywords.push({
-              category: 'tactical',
-              period: period,
-              phase: phase,
-              key: phase,
-              keyword: phaseData.keyword,
-              synonyms: phaseData.synonyms,
-              allTerms: [phaseData.keyword, ...phaseData.synonyms]
-            });
-          } else if (typeof phaseData === 'object') {
-            // New structure with phases
-            for (const key in phaseData) {
-              const item = phaseData[key];
-              if (item && item.keyword) {
-                allKeywords.push({
-                  category: 'tactical',
-                  period: period,
-                  phase: phase,
-                  key: key,
-                  keyword: item.keyword,
-                  synonyms: item.synonyms,
-                  allTerms: [item.keyword, ...item.synonyms]
-                });
-              }
+  const categoryData = DRILL_KEYWORDS.tactical;
+  if (categoryData) {
+    for (const period in categoryData) {
+      const periodData = categoryData[period];
+      for (const phase in periodData) {
+        const phaseData = periodData[phase];
+        if (typeof phaseData === 'object') {
+          for (const key in phaseData) {
+            const item = phaseData[key];
+            if (item && item.keyword) {
+              allKeywords.push({
+                category: 'tactical',
+                period,
+                phase,
+                key,
+                keyword: item.keyword,
+                synonyms: item.synonyms || [],
+                allTerms: [item.keyword, ...(item.synonyms || [])]
+              });
             }
           }
         }
       }
-    } else {
-      // Other categories are organized by skill/area
-      for (const skill in categoryData) {
-        allKeywords.push({
-          category: category,
-          skill: skill,
-          keyword: categoryData[skill].keyword,
-          synonyms: categoryData[skill].synonyms,
-          allTerms: [categoryData[skill].keyword, ...categoryData[skill].synonyms]
-        });
-      }
     }
   }
-  
+  for (const cat of ['technical', 'physical', 'mental']) {
+    const items = getKeywordsForCategoryFromBackbone(cat);
+    items.forEach(item => {
+      allKeywords.push({
+        category: cat,
+        skill: item.skill,
+        keyword: item.keyword,
+        synonyms: item.synonyms || [],
+        allTerms: [item.keyword, ...(item.synonyms || [])]
+      });
+    });
+  }
   return allKeywords;
 }
 
@@ -1299,51 +1241,30 @@ export function getAllKeywords() {
 export function searchKeywords(searchTerm, category = null) {
   const normalizedSearch = searchTerm.toLowerCase().trim();
   const matches = [];
-  
-  const categoriesToSearch = category ? [category] : Object.keys(DRILL_KEYWORDS);
-  
+  const categoriesToSearch = category ? [category] : ['tactical', 'technical', 'physical', 'mental'];
+
   for (const cat of categoriesToSearch) {
-    const categoryData = DRILL_KEYWORDS[cat];
-    if (!categoryData) continue;
-    
     if (cat === 'tactical') {
-      // Tactical keywords are organized by period and phase
+      const categoryData = DRILL_KEYWORDS.tactical;
+      if (!categoryData) continue;
       for (const period in categoryData) {
         const periodData = categoryData[period];
         for (const phase in periodData) {
           const phaseData = periodData[phase];
-          if (typeof phaseData === 'object' && phaseData.keyword) {
-            // Old structure (backward compatibility)
-            const item = phaseData;
-            const allTerms = [item.keyword.toLowerCase(), ...item.synonyms.map(s => s.toLowerCase())];
-            
-            if (allTerms.some(term => term.includes(normalizedSearch) || normalizedSearch.includes(term))) {
-              matches.push({
-                category: 'tactical',
-                period: period,
-                phase: phase,
-                key: phase,
-                keyword: item.keyword,
-                synonyms: item.synonyms,
-                allTerms: [item.keyword, ...item.synonyms]
-              });
-            }
-          } else if (typeof phaseData === 'object') {
-            // New structure with phases
+          if (typeof phaseData === 'object') {
             for (const key in phaseData) {
               const item = phaseData[key];
               if (item && item.keyword) {
-                const allTerms = [item.keyword.toLowerCase(), ...item.synonyms.map(s => s.toLowerCase())];
-                
+                const allTerms = [item.keyword.toLowerCase(), ...(item.synonyms || []).map(s => s.toLowerCase())];
                 if (allTerms.some(term => term.includes(normalizedSearch) || normalizedSearch.includes(term))) {
                   matches.push({
                     category: 'tactical',
-                    period: period,
-                    phase: phase,
-                    key: key,
+                    period,
+                    phase,
+                    key,
                     keyword: item.keyword,
-                    synonyms: item.synonyms,
-                    allTerms: [item.keyword, ...item.synonyms]
+                    synonyms: item.synonyms || [],
+                    allTerms: [item.keyword, ...(item.synonyms || [])]
                   });
                 }
               }
@@ -1352,24 +1273,21 @@ export function searchKeywords(searchTerm, category = null) {
         }
       }
     } else {
-      // Other categories are organized by skill/area
-      for (const skill in categoryData) {
-        const item = categoryData[skill];
-        const allTerms = [item.keyword.toLowerCase(), ...item.synonyms.map(s => s.toLowerCase())];
-        
+      const items = getKeywordsForCategoryFromBackbone(cat);
+      for (const item of items) {
+        const allTerms = [item.keyword.toLowerCase(), ...(item.synonyms || []).map(s => s.toLowerCase())];
         if (allTerms.some(term => term.includes(normalizedSearch) || normalizedSearch.includes(term))) {
           matches.push({
             category: cat,
-            skill: skill,
+            skill: item.skill,
             keyword: item.keyword,
-            synonyms: item.synonyms,
-            allTerms: [item.keyword, ...item.synonyms]
+            synonyms: item.synonyms || [],
+            allTerms: [item.keyword, ...(item.synonyms || [])]
           });
         }
       }
     }
   }
-  
   return matches;
 }
 
@@ -1381,71 +1299,41 @@ export function searchKeywords(searchTerm, category = null) {
  */
 export function getKeywordsForSelection(category = null, period = null) {
   const flatList = [];
-  
   if (category) {
-    const categoryData = DRILL_KEYWORDS[category];
-    if (!categoryData) return [];
-    
-    if (category === 'tactical' && period) {
-      // Get keywords for specific period (all phases)
-      const periodData = categoryData[period];
-      if (periodData) {
-        for (const phase in periodData) {
-          const phaseData = periodData[phase];
-          if (typeof phaseData === 'object' && phaseData.keyword) {
-            // Old structure
-            flatList.push(phaseData.keyword);
-            flatList.push(...phaseData.synonyms);
-          } else if (typeof phaseData === 'object') {
-            // New structure
-            for (const key in phaseData) {
-              const item = phaseData[key];
-              if (item && item.keyword) {
-                flatList.push(item.keyword);
-                flatList.push(...item.synonyms);
-              }
-            }
-          }
-        }
-      }
-    } else if (category === 'tactical') {
-      // Get all tactical keywords across all periods
-      for (const periodKey in categoryData) {
-        const periodData = categoryData[periodKey];
-        for (const phase in periodData) {
-          const phaseData = periodData[phase];
-          if (typeof phaseData === 'object' && phaseData.keyword) {
-            // Old structure
-            flatList.push(phaseData.keyword);
-            flatList.push(...phaseData.synonyms);
-          } else if (typeof phaseData === 'object') {
-            // New structure
-            for (const key in phaseData) {
-              const item = phaseData[key];
-              if (item && item.keyword) {
-                flatList.push(item.keyword);
-                flatList.push(...item.synonyms);
+    if (category === 'tactical') {
+      const categoryData = DRILL_KEYWORDS.tactical;
+      if (categoryData) {
+        const periods = period ? [period] : Object.keys(categoryData);
+        for (const periodKey of periods) {
+          const periodData = categoryData[periodKey];
+          if (!periodData) continue;
+          for (const phase in periodData) {
+            const phaseData = periodData[phase];
+            if (typeof phaseData === 'object') {
+              for (const key in phaseData) {
+                const item = phaseData[key];
+                if (item && item.keyword) {
+                  flatList.push(item.keyword);
+                  flatList.push(...(item.synonyms || []));
+                }
               }
             }
           }
         }
       }
     } else {
-      // Get keywords for other categories
-      for (const skill in categoryData) {
-        const item = categoryData[skill];
+      const items = getKeywordsForCategoryFromBackbone(category);
+      items.forEach(item => {
         flatList.push(item.keyword);
-        flatList.push(...item.synonyms);
-      }
+        flatList.push(...(item.synonyms || []));
+      });
     }
   } else {
-    // Get all keywords from all categories
     const allKeywords = getAllKeywords();
     allKeywords.forEach(item => {
       flatList.push(item.keyword);
-      flatList.push(...item.synonyms);
+      flatList.push(...(item.synonyms || []));
     });
   }
-  
-  return [...new Set(flatList)]; // Remove duplicates
+  return [...new Set(flatList)];
 }

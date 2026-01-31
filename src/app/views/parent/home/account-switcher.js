@@ -671,29 +671,32 @@ import { initSupabase } from '../../../../auth/config/supabase.js';
     currentDropdown.classList.remove('is-open');
     currentDropdown.style.display = 'none'; // Hide dropdown
     
-    // Move dropdown back to original parent if it was moved to body
+    // Move dropdown back to original parent if it was moved to body.
+    // Always reattach to the header in main-content (active header), never to content-area,
+    // so we don't put the dropdown inside the "duplicate" header that home.js may remove.
     if (currentDropdown.dataset.originalParent === 'true' && currentDropdown.parentElement === document.body) {
-      const originalParentId = currentDropdown.dataset.originalParentId;
-      const originalParentClass = currentDropdown.dataset.originalParentClass;
-      
-      // Try to find original parent
+      const mainContent = document.querySelector('.main-content');
       let originalParent = null;
-      if (originalParentId) {
-        originalParent = document.getElementById(originalParentId);
-      }
-      if (!originalParent && originalParentClass) {
-        // Try to find by class - look for home-header or account-switcher
-        const homeHeader = document.querySelector('.home-header');
-        if (homeHeader) {
-          const accountSwitcher = homeHeader.querySelector('.account-switcher');
-          if (accountSwitcher) {
-            originalParent = accountSwitcher;
-          } else {
-            originalParent = homeHeader;
-          }
+      if (mainContent) {
+        const headerInMain = mainContent.querySelector('.home-header');
+        if (headerInMain) {
+          const accountSwitcher = headerInMain.querySelector('.account-switcher');
+          originalParent = accountSwitcher || headerInMain;
         }
       }
-      
+      if (!originalParent) {
+        const originalParentId = currentDropdown.dataset.originalParentId;
+        if (originalParentId) {
+          originalParent = document.getElementById(originalParentId);
+        }
+      }
+      if (!originalParent) {
+        const homeHeader = document.querySelector('.home-header');
+        if (homeHeader && homeHeader.closest('.main-content')) {
+          const accountSwitcher = homeHeader.querySelector('.account-switcher');
+          originalParent = accountSwitcher || homeHeader;
+        }
+      }
       if (originalParent && originalParent !== document.body) {
         originalParent.appendChild(currentDropdown);
       }

@@ -1,5 +1,7 @@
 /* Import Skeleton Loader Styles */
 @import url('../utils/skeleton.css');
+/* Import Loader (for Supabase fetch states) */
+@import url('../utils/loader.css');
 
 /* ========== THEME VARIABLES ========== */
 :root {
@@ -250,8 +252,8 @@ html[data-theme="light"] .img {
 
 /* Lucide icon styles */
 .nav-link .lucide-icon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   color: var(--text);
 }
@@ -564,15 +566,21 @@ body:has(.sidebar:not(.closed)) .main-content {
 }
 
 .content-area {
-  flex: 1;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 5px;
+  padding: 20px 0;
   overflow: visible;
   color: var(--text);
   background: var(--bg);
 }
 
-/* Base styles for content loaded into content-area */
+/* Base styles for content loaded into content-area - full width so all views (coach home, schedule, people, etc.) use full area */
 .content-area > * {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
 }
 
@@ -957,8 +965,8 @@ body:has(.sidebar:not(.closed)) .main-content {
   }
   
   .nav-link .lucide-icon {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
   }
 
   .nav-link .label {

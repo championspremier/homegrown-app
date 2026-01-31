@@ -98,10 +98,6 @@ export function createHomePageSkeleton() {
   // Header skeleton
   const headerSkeleton = createHomeHeaderSkeleton();
   
-  // Schedule section skeleton
-  const scheduleHeader = createSkeleton({ variant: 'text', width: '150px', height: '24px' });
-  const scheduleToggle = createSkeleton({ variant: 'circular', width: '36px', height: '36px' });
-  
   // Calendar skeleton
   const calendarSkeletons = Array(7).fill(0).map(() => 
     createSkeleton({ variant: 'rounded', width: '40px', height: '60px' })
@@ -113,16 +109,12 @@ export function createHomePageSkeleton() {
   container.innerHTML = `
     <!-- Schedule Section Skeleton -->
     <div class="skeleton-section">
-      <div class="skeleton-section-header">
-        ${scheduleHeader.outerHTML}
-        ${scheduleToggle.outerHTML}
-      </div>
-      <div class="skeleton-calendar">
-        ${calendarSkeletons}
-      </div>
       <div class="skeleton-tabs">
         ${createSkeleton({ variant: 'rounded', width: '100px', height: '36px' }).outerHTML}
         ${createSkeleton({ variant: 'rounded', width: '120px', height: '36px' }).outerHTML}
+      </div>
+      <div class="skeleton-calendar">
+        ${calendarSkeletons}
       </div>
     </div>
     

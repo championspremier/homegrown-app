@@ -2,6 +2,7 @@
 // Import path is relative to this file's location: src/app/views/parent/profile/
 // To reach src/auth/config/supabase.js, we need to go up 4 levels to src/, then into auth/
 import { initSupabase } from '../../../../auth/config/supabase.js';
+import { showLoader, hideLoader } from '../../../utils/loader.js';
 
 // Initialize Supabase
 let supabase;
@@ -178,6 +179,8 @@ async function loadParentProfile() {
     }
   } catch (error) {
     console.error('Error loading parent profile:', error);
+  } finally {
+    if (container) hideLoader(container);
   }
 }
 

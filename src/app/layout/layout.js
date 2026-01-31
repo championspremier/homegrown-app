@@ -477,6 +477,53 @@ async function loadPage(pageName) {
     
     // Replace skeleton with actual content
     contentArea.innerHTML = html;
+    
+    // For non-home pages, hide content immediately after insertion to prevent flash
+    // (home pages already handle this separately)
+    const isHomePage = pageName === 'home' && (currentRole === 'parent' || currentRole === 'player');
+    const mainContent = document.querySelector('.main-content');
+    if (!isHomePage) {
+      // Remove any home-header that might be in main-content (from previous page) immediately
+      if (mainContent) {
+        const headerInMain = mainContent.querySelector('.home-header:not(.skeleton-home-header)');
+        if (headerInMain) {
+          headerInMain.remove();
+        }
+      }
+      
+      // Hide all content in contentArea (except home-header which we'll remove)
+      const allContentChildren = Array.from(contentArea.children);
+      allContentChildren.forEach(child => {
+        // Remove home-header immediately (it shouldn't be on non-home pages)
+        if (child.classList.contains('home-header')) {
+          child.remove();
+        } else {
+          child.style.display = 'none';
+          child.dataset.skeletonHidden = 'true';
+        }
+      });
+      
+      // Re-insert skeleton so it shows while content is hidden
+      const { createPageSkeleton } = await import('../utils/skeleton.js');
+      const contentSkeleton = createPageSkeleton();
+      contentArea.insertBefore(contentSkeleton, contentArea.firstChild);
+      
+      // Restore hidden content after a short delay (allows CSS/JS to initialize)
+      // Page-specific JS can also restore content earlier by removing data-skeleton-hidden
+      setTimeout(() => {
+        const hiddenContent = contentArea.querySelectorAll('[data-skeleton-hidden="true"]');
+        hiddenContent.forEach(element => {
+          element.style.display = '';
+          element.removeAttribute('data-skeleton-hidden');
+        });
+        // Remove skeleton after content is restored
+        const skeleton = contentArea.querySelector('.page-skeleton');
+        if (skeleton) {
+          skeleton.remove();
+        }
+      }, 150);
+    }
+    
     showLeaderboard();
     
     // Re-apply theme variables when loading home or schedule so borders/accents show after client-side nav
@@ -550,9 +597,6 @@ async function loadPage(pageName) {
     
     // For home pages, hide the header in content-area until it's moved to prevent visual jump
     // The skeleton header at the top will remain visible until the actual header is moved
-    const mainContent = document.querySelector('.main-content');
-    const isHomePage = pageName === 'home' && (currentRole === 'parent' || currentRole === 'player');
-    
     if (isHomePage) {
       // Hide the header in content-area until it's moved (prevents visual jump)
       const homeHeader = contentArea.querySelector('.home-header');

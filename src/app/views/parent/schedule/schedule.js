@@ -1,6 +1,7 @@
 // Parent schedule page scripts
 import { initSupabase } from '../../../../auth/config/supabase.js';
 import { getAccountContext } from '../../../utils/account-context.js';
+import { showLoader, hideLoader } from '../../../utils/loader.js';
 
 let supabase;
 let supabaseReady = false;
@@ -581,6 +582,11 @@ async function loadAndDisplaySessions(locationType, selectedDate = null, customS
   
   const dateToShow = selectedDate || currentSelectedDate || new Date();
   const dateString = dateToShow.toISOString().split('T')[0];
+  const containerId = locationType === 'on-field' ? 'onFieldSessionsList' : (customSessionsListId || 'virtualSessionsList');
+  const container = document.getElementById(containerId);
+  if (container) {
+    showLoader(container, 'Loading sessions...');
+  }
   
   try {
     // Load sessions for the selected date and location type
@@ -610,7 +616,6 @@ async function loadAndDisplaySessions(locationType, selectedDate = null, customS
     }
 
     // Display sessions
-    const containerId = locationType === 'on-field' ? 'onFieldSessionsList' : (customSessionsListId || 'virtualSessionsList');
     const headerId = locationType === 'on-field' ? 'onFieldCalendarHeader' : (customHeaderId || 'virtualCalendarHeader');
     const dateDisplayId = locationType === 'on-field' ? 'onFieldSelectedDate' : 'virtualSelectedDate';
     
@@ -630,6 +635,8 @@ async function loadAndDisplaySessions(locationType, selectedDate = null, customS
     
   } catch (error) {
     console.error('Error loading sessions:', error);
+  } finally {
+    if (container) hideLoader(container);
   }
 }
 
@@ -1681,7 +1688,6 @@ async function showIndividualSessionBooking(sessionType, filtersContainer) {
   await renderIndividualSessionBooking(sessionType, bookingContainer);
   
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:1428',message:'showIndividualSessionBooking completed',data:{sessionType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
   // #endregion
 }
 
@@ -2121,6 +2127,9 @@ function setupDateSelectionHandlers(sessionTypeData, coachAvailability) {
       // Update selected state
       newDateDays.forEach(d => d.classList.remove('selected'));
       dayNumberEl.classList.add('selected');
+      // Hide booking footer when changing date (user didn't confirm)
+      const footer = document.getElementById('individualBookingFooter');
+      if (footer) footer.style.display = 'none';
       
       // Get selected date from parent calendar-day - parse as local date to avoid timezone issues
       const calendarDay = dayNumberEl.closest('.calendar-day');
@@ -2573,7 +2582,6 @@ async function generateTimeSlots(selectedDate, sessionTypeData, coachAvailabilit
   
   // #region agent log
   const totalBookedSlots = Object.values(bookedSlotsByCoach).reduce((sum, bookings) => sum + bookings.length, 0);
-  fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2169',message:'Time slots generated',data:{availableSlotsCount:availableSlots.length,unavailableSlotsCount:unavailableSlots.size,finalAvailableSlotsCount:finalAvailableSlots.length,bookedSlotsCount:totalBookedSlots,bufferBefore,bufferAfter},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
   // #endregion
   
   // Check if there are any available slots after filtering
@@ -2815,11 +2823,16 @@ function updateBookingSummary() {
     let coachName = '';
     const coachElement = document.querySelector(`[data-coach-id="${selectedCoachId}"]`);
     if (coachElement) {
-      const span = coachElement.querySelector('span');
-      if (span) {
-        coachName = span.textContent.trim();
+      const nameEl = coachElement.querySelector('.coach-card-name');
+      if (nameEl) {
+        coachName = nameEl.textContent.trim();
       } else {
-        coachName = coachElement.textContent.trim().replace(/[×✕✖]/g, '').trim();
+        const span = coachElement.querySelector('span');
+        if (span) {
+          coachName = span.textContent.trim();
+        } else {
+          coachName = coachElement.textContent.trim().replace(/[×✕✖]/g, '').trim();
+        }
       }
     }
     if (!coachName) {
@@ -2841,11 +2854,37 @@ function updateBookingSummary() {
   footer.style.display = 'flex';
 }
 
-// Show coach selection modal (bottom sheet)
+// Day names for availability (index 0 = Sunday to match Date.getDay())
+const AVAILABILITY_DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+// True if coach has availability on the given day
+function coachAvailableOnDay(coach, dayName) {
+  const avail = coach.availability || {};
+  const dayAvail = avail[dayName];
+  if (!dayAvail || dayAvail.available !== true) return false;
+  return (dayAvail.start && dayAvail.end) ||
+    (dayAvail.timeRanges && Array.isArray(dayAvail.timeRanges) && dayAvail.timeRanges.length > 0);
+}
+
+// Show coach selection modal (bottom sheet). If a date is selected, only coaches available that day are shown.
 async function showCoachSelectionModal(sessionType) {
   if (!supabaseReady || !supabase) return;
   
   try {
+    // Get currently selected date from individual booking date picker (if any)
+    let selectedDayName = null;
+    let selectedDateLabel = null;
+    const selectedDateNumber = document.querySelector('#individualDatePicker .day-number.selected');
+    if (selectedDateNumber) {
+      const calendarDay = selectedDateNumber.closest('.calendar-day');
+      if (calendarDay?.dataset?.date) {
+        const [year, month, day] = calendarDay.dataset.date.split('-').map(Number);
+        const selectedDate = new Date(year, month - 1, day);
+        selectedDayName = AVAILABILITY_DAY_NAMES[selectedDate.getDay()];
+        selectedDateLabel = selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      }
+    }
+
     // Get session type ID
     const { data: sessionTypeData, error: typeError } = await supabase
       .from('individual_session_types')
@@ -2859,7 +2898,6 @@ async function showCoachSelectionModal(sessionType) {
     }
     
     // Load available coaches with actual availability data
-    // TODO: Add coach_role, profile_photo_url, team_logos fields to profiles table
     const { data: coachAvailability, error: coachError } = await supabase
       .from('coach_individual_availability')
       .select(`
@@ -2880,16 +2918,20 @@ async function showCoachSelectionModal(sessionType) {
       .eq('is_available', true)
       .not('availability', 'is', null);
     
-    // Filter to only include coaches with actual availability data
-    const coachesWithAvailability = (coachAvailability || []).filter(coach => {
+    // Filter to coaches with at least one day of availability
+    let coachesWithAvailability = (coachAvailability || []).filter(coach => {
       const avail = coach.availability || {};
-      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-      return days.some(day => {
+      return AVAILABILITY_DAY_NAMES.some(day => {
         const dayAvail = avail[day];
         return dayAvail && dayAvail.available === true && 
                ((dayAvail.start && dayAvail.end) || (dayAvail.timeRanges && Array.isArray(dayAvail.timeRanges) && dayAvail.timeRanges.length > 0));
       });
     });
+
+    // If a date is selected, show only coaches available on that day
+    if (selectedDayName) {
+      coachesWithAvailability = coachesWithAvailability.filter(coach => coachAvailableOnDay(coach, selectedDayName));
+    }
     
     if (coachError) {
       console.error('Error loading coaches:', coachError);
@@ -2914,13 +2956,15 @@ async function showCoachSelectionModal(sessionType) {
       document.body.appendChild(modal);
     }
     
-    // Render modal content with card layout
+    // Render modal content (only coaches available on selected day when a date is chosen)
     const coaches = coachesWithAvailability || [];
     modal.innerHTML = `
       <div class="coach-modal-overlay"></div>
       <div class="coach-modal-content">
         <div class="coach-modal-header">
           <h2>Select a Coach</h2>
+          ${selectedDateLabel ? `<p class="coach-modal-date-hint">${selectedDateLabel}</p>` : ''}
+          ${selectedDayName && coaches.length === 0 ? `<p class="coach-modal-no-coaches">No coaches available on this day. Select another date.</p>` : ''}
           <div class="coach-modal-filter">
             <select id="coachRoleFilter" class="coach-role-filter-select">
               <option value="all">All Coaches</option>
@@ -3273,10 +3317,18 @@ async function reloadTimeSlotsForSelectedCoach(sessionType, sessionTypeId, selec
 async function handleIndividualBookingConfirmation(sessionType) {
   if (!supabaseReady || !supabase) return;
   
+  const confirmBtn = document.getElementById('confirmBookingBtn');
+  const originalConfirmText = confirmBtn?.textContent || 'Confirm';
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Confirming...';
+  }
+
   const selectedSlot = document.querySelector('.time-slot-btn.selected');
   const selectedDateNumber = document.querySelector('.day-number.selected');
   
   if (!selectedSlot || !selectedDateNumber) {
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
     alert('Please select a date and time slot');
     return;
   }
@@ -3284,6 +3336,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || !session.user) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert('Not logged in');
       return;
     }
@@ -3296,6 +3349,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
       .single();
     
     if (typeError || !sessionTypeData) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert('Error: Session type not found');
       return;
     }
@@ -3303,8 +3357,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
     // Determine coach_id (use selected coach or assign later)
     let coachId = selectedCoachId;
     if (!coachId) {
-      // If "Any available", we need to assign a coach
-      // For now, we'll need to implement coach assignment logic
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert('Please select a specific coach');
       return;
     }
@@ -3318,6 +3371,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
       .single();
     
     if (profileError || !profile) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert('Error: User profile not found');
       return;
     }
@@ -3382,6 +3436,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
           playerId = session.user.id;
           parentId = null; // Explicitly set to null for player-only accounts
         } else {
+          if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
           alert('No linked players found. Please link a player account first.');
           return;
         }
@@ -3395,11 +3450,13 @@ async function handleIndividualBookingConfirmation(sessionType) {
           const calendarDay = selectedDateNumber.closest('.calendar-day');
           const dateStr = calendarDay?.dataset.date;
           if (!dateStr) {
+            if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
             alert('Error: Could not determine selected date');
             return;
           }
           const [year, month, day] = dateStr.split('-').map(Number);
           const selectedDate = new Date(year, month - 1, day);
+          if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
           showIndividualSessionPlayerSelection(relationships, sessionType, sessionTypeData, coachId, selectedDate, selectedTime, selectedSlot);
           return;
         }
@@ -3410,6 +3467,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
     // Get selected date from parent calendar-day - parse as local date to avoid timezone issues
     const calendarDay = selectedDateNumber.closest('.calendar-day');
     if (!calendarDay || !calendarDay.dataset.date) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert('Error: Could not determine selected date');
       return;
     }
@@ -3428,6 +3486,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
     const hoursUntilSlot = (slotStart.getTime() - now.getTime()) / (1000 * 60 * 60);
     
     if (hoursUntilSlot < minBookingNoticeHours) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert(`This session must be booked at least ${minBookingNoticeHours} hours in advance. Please select a later time slot.`);
       return;
     }
@@ -3456,6 +3515,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
       .eq('status', 'confirmed');
     
     if (conflictError) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       console.error('Error checking for conflicts:', conflictError);
       alert('Error checking for existing bookings. Please try again.');
       return;
@@ -3475,6 +3535,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
         // Check if times overlap (including buffers)
         if ((selectedStart < existingConflictEnd && selectedEnd > existingConflictStart) ||
             (existingStart < conflictEnd && existingEnd > conflictStart)) {
+          if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
           alert('This time slot is already booked or conflicts with an existing booking (including buffer time). Please select a different time.');
           return;
         }
@@ -3482,7 +3543,6 @@ async function handleIndividualBookingConfirmation(sessionType) {
     }
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2768',message:'Before booking insert',data:{sessionTypeId:sessionTypeData.id,coachId,playerId,parentId,dateString,selectedTime,duration:sessionTypeData.duration_minutes,bufferBefore:sessionTypeData.buffer_before_minutes,bufferAfter:sessionTypeData.buffer_after_minutes,existingBookingsCount:existingBookings?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
     
     // Use secure database function to create booking
@@ -3490,6 +3550,7 @@ async function handleIndividualBookingConfirmation(sessionType) {
     // Use the new function that accepts parent_id and returns the full booking
     // parentId can be null for player-only accounts
     if (!playerId) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert('Error: Could not determine player ID. Please try again.');
       return;
     }
@@ -3505,10 +3566,10 @@ async function handleIndividualBookingConfirmation(sessionType) {
     });
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2807',message:'After booking insert',data:{rpcResult,error:bookingError?.message,errorCode:bookingError?.code,errorDetails:bookingError?.details},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
     
     if (bookingError) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       console.error('Error creating booking:', bookingError);
       alert(`Error creating booking: ${bookingError.message || 'Failed to create booking'}`);
       return;
@@ -3518,15 +3579,17 @@ async function handleIndividualBookingConfirmation(sessionType) {
     const booking = rpcResult && rpcResult.length > 0 ? rpcResult[0] : null;
     
     if (!booking) {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
       alert('Failed to create booking. Please try again.');
       return;
     }
     
-    // Show confirmation screen
+    // Show confirmation screen (replaces DOM so Confirm button is removed)
     await showBookingConfirmation(booking, sessionTypeData, selectedDate, selectedTime, coachId);
     
   } catch (error) {
     console.error('Error confirming booking:', error);
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = originalConfirmText; }
     alert(`Error: ${error.message}`);
   }
 }
@@ -3644,12 +3707,9 @@ async function createIndividualBooking(sessionType, sessionTypeData, coachId, pl
 
 // Show booking confirmation screen
 async function showBookingConfirmation(booking, sessionTypeData, selectedDate, selectedTime, coachId) {
-  // Hide booking interface
   const bookingContainer = document.getElementById('individualSessionBooking');
-  if (bookingContainer) {
-    bookingContainer.style.display = 'none';
-  }
-  
+  const contentContainer = document.getElementById('virtualContentContainer');
+
   // Get coach and player info
   const { data: coachProfile } = await supabase
     .from('profiles')
@@ -3686,11 +3746,7 @@ async function showBookingConfirmation(booking, sessionTypeData, selectedDate, s
   endTime.setHours(hours, minutes + sessionTypeData.duration_minutes);
   const endTimeStr = formatTime12Hour(endTime.getHours(), endTime.getMinutes());
   
-  // Create confirmation container
-  const contentContainer = document.getElementById('virtualContentContainer');
-  if (!contentContainer) return;
-  
-  contentContainer.innerHTML = `
+  const confirmationHTML = `
     <div class="booking-confirmation">
       <div class="confirmation-icon">👍</div>
       <h2>Reservation confirmed</h2>
@@ -3721,20 +3777,25 @@ async function showBookingConfirmation(booking, sessionTypeData, selectedDate, s
       </div>
     </div>
   `;
+
+  const confirmationParent = contentContainer || bookingContainer;
+  if (!confirmationParent) return;
+
+  if (bookingContainer) bookingContainer.style.display = 'none';
+  if (contentContainer) {
+    contentContainer.innerHTML = confirmationHTML;
+  } else {
+    bookingContainer.innerHTML = confirmationHTML;
+    bookingContainer.style.display = 'block';
+  }
   
-  // Regenerate time slots after booking to reflect the new booking
   await regenerateTimeSlotsAfterBooking(selectedDate, sessionTypeData, coachId);
   
-  // Setup action buttons
-  const bookAnotherBtn = document.getElementById('bookAnotherBtn');
-  const backToReservations = document.getElementById('backToReservations');
+  const bookAnotherBtn = confirmationParent.querySelector('#bookAnotherBtn');
+  const backToReservations = confirmationParent.querySelector('#backToReservations');
   
   if (bookAnotherBtn) {
     bookAnotherBtn.addEventListener('click', async () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/6e0233fc-901c-4087-b88f-7230b3e4daca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'parent/schedule.js:2956',message:'Book another clicked',data:{bookingId:booking?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      // Reload the booking interface - this will regenerate time slots with updated bookings
       const filters = document.getElementById('virtualFilters');
       if (filters) {
         const activeBtn = filters.querySelector('.filter-btn.active');
@@ -3748,13 +3809,14 @@ async function showBookingConfirmation(booking, sessionTypeData, selectedDate, s
   if (backToReservations) {
     backToReservations.addEventListener('click', (e) => {
       e.preventDefault();
-      // Hide confirmation and show filters
-      contentContainer.innerHTML = '';
+      confirmationParent.innerHTML = '';
       const filters = document.getElementById('virtualFilters');
       if (filters) {
         filters.style.display = 'flex';
-        // Clear active state
-        filters.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        filters.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      }
+      if (bookingContainer && !contentContainer) {
+        bookingContainer.style.display = 'none';
       }
     });
   }

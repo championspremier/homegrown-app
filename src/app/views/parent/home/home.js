@@ -1,6 +1,7 @@
 // Parent Home page scripts
 import { initSupabase } from '../../../../auth/config/supabase.js';
 import { getAccountContext } from '../../../utils/account-context.js';
+import { showLoader, hideLoader } from '../../../utils/loader.js';
 
 let supabase;
 let supabaseReady = false;
@@ -56,6 +57,8 @@ async function init() {
     });
     
     await loadReservedSessions();
+    // Also load reservations to update badge count (but don't hide calendar)
+    await loadReservations(false); // Pass false to skip calendar hiding
     
     // Listen for account switcher changes to reload data
     window.addEventListener('storage', (e) => {
@@ -77,7 +80,7 @@ async function init() {
       
       await loadLinkedPlayers();
       // Reload based on current tab
-      const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+      const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
       console.log('Active tab after account switch:', activeTab);
       if (activeTab === 'reservations') {
         console.log('Reloading reservations after account switch');
@@ -104,7 +107,7 @@ async function init() {
       if (e.key === 'selectedPlayerId' || e.key === 'hg-user-role') {
         console.log('Storage change detected:', e.key, e.newValue);
         await loadLinkedPlayers();
-        const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+        const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
         if (activeTab === 'reservations') {
           await loadReservations();
         } else {
@@ -386,10 +389,10 @@ function setupEventListeners() {
   // Notification bell functionality
   setupNotificationBottomSheet();
   
-  // Tab switching
-  document.querySelectorAll('.schedule-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const tabName = tab.dataset.tab;
+  // Toggle card switching
+  document.querySelectorAll('.schedule-toggle-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const tabName = card.dataset.tab;
       switchTab(tabName);
     });
   });
@@ -405,36 +408,32 @@ function setupEventListeners() {
     renderCalendar();
   });
 
-  // Schedule toggle
-  const btn = document.getElementById('scheduleToggle');
-  const panel = document.getElementById('hiddenSchedule');
-  if (btn && panel) {
-    const setOpen = async (open) => {
-      panel.classList.toggle('is-open', open);
-      btn.setAttribute('aria-expanded', String(open));
-      // Use toggleChevronIcon to update the SVG icon
-      const { toggleChevronIcon } = await import('../../../utils/lucide-icons.js');
-      toggleChevronIcon(btn, !open); // !open because chevron-up when open, chevron-down when closed
-    };
-
-    setOpen(false); // Start closed when navigating to home
-
-    btn.addEventListener('click', async () => {
-      const openNow = panel.classList.contains('is-open');
-      await setOpen(!openNow);
-      if (!openNow) {
-        loadReservedSessions();
-      }
-    });
+  // Load reserved sessions immediately (no toggle needed)
+  loadReservedSessions();
+  
+  // Initialize toggle cards state
+  const toggleCards = document.querySelector('.schedule-toggle-cards');
+  if (toggleCards) {
+    toggleCards.classList.add('sessions-active');
   }
 }
 
 // Switch between Sessions and Reservations tabs
 function switchTab(tabName) {
-  // Update tab buttons
-  document.querySelectorAll('.schedule-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.tab === tabName);
+  const toggleCards = document.querySelector('.schedule-toggle-cards');
+  const myScheduleCard = document.getElementById('myScheduleToggle');
+  const reservationsCard = document.getElementById('reservationsToggle');
+  
+  // Update toggle cards
+  document.querySelectorAll('.schedule-toggle-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.tab === tabName);
   });
+  
+  // Add class to container for CSS targeting
+  if (toggleCards) {
+    toggleCards.classList.toggle('sessions-active', tabName === 'sessions');
+    toggleCards.classList.toggle('reservations-active', tabName === 'reservations');
+  }
 
   // Update tab content
   document.querySelectorAll('.schedule-tab-content').forEach(content => {
@@ -443,6 +442,7 @@ function switchTab(tabName) {
 
   // Show/hide calendar based on tab
   const calendar = document.getElementById('parentHomeCalendar');
+  const emptyMessageEl = document.getElementById('sessionsEmptyMessage');
   if (calendar) {
     if (tabName === 'sessions') {
       calendar.style.display = 'flex';
@@ -450,8 +450,16 @@ function switchTab(tabName) {
       requestAnimationFrame(() => {
         renderCalendar();
       });
+      // Show empty message if sessions tab is active (will be updated by renderSessionsList)
+      if (emptyMessageEl) {
+        emptyMessageEl.style.display = 'block';
+      }
     } else {
       calendar.style.display = 'none';
+      // Hide empty message when switching to reservations
+      if (emptyMessageEl) {
+        emptyMessageEl.style.display = 'none';
+      }
     }
   }
 
@@ -540,7 +548,8 @@ async function loadReservedSessions() {
     const container = document.getElementById('sessionsListContainer');
     if (!container) return;
 
-    container.innerHTML = '<div class="loading-state">Loading sessions...</div>';
+    container.innerHTML = '';
+    showLoader(container, 'Loading sessions...');
 
     // Get account context to determine correct player IDs
     const context = await getAccountContext();
@@ -748,6 +757,9 @@ async function loadReservedSessions() {
     if (container) {
       container.innerHTML = '<div class="error-state">Error loading sessions. Please try again.</div>';
     }
+  } finally {
+    const container = document.getElementById('sessionsListContainer');
+    if (container) hideLoader(container);
   }
 }
 
@@ -755,14 +767,54 @@ async function loadReservedSessions() {
 function renderSessionsList(sessions, container) {
   if (!container) return;
 
+  // Update toggle card badge with count
+  const isReservationsTab = container.id === 'reservationsListContainer';
+  const badgeEl = isReservationsTab 
+    ? document.getElementById('reservationsBadge')
+    : document.getElementById('myScheduleBadge');
+  const toggleCard = isReservationsTab
+    ? document.getElementById('reservationsToggle')
+    : document.getElementById('myScheduleToggle');
+
   if (sessions.length === 0) {
-    // Different empty state messages for Sessions vs Reservations tabs
-    const isReservationsTab = container.id === 'reservationsListContainer';
-    const emptyMessage = isReservationsTab 
-      ? 'No future reserved sessions'
-      : 'No reserved sessions today';
-    container.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
+    // Hide badge when empty
+    if (badgeEl) {
+      badgeEl.style.display = 'none';
+    }
+    
+    // Show "No Sessions Reserved" under calendar for sessions tab
+    if (!isReservationsTab) {
+      const emptyMessageEl = document.getElementById('sessionsEmptyMessage');
+      if (emptyMessageEl && toggleCard?.classList.contains('active')) {
+        emptyMessageEl.textContent = 'No Sessions Reserved Today';
+        emptyMessageEl.style.display = 'block';
+      } else if (emptyMessageEl) {
+        emptyMessageEl.style.display = 'none';
+      }
+    }
+    
+    container.innerHTML = '';
     return;
+  }
+  
+  // Hide empty message when there are sessions
+  if (!isReservationsTab) {
+    const emptyMessageEl = document.getElementById('sessionsEmptyMessage');
+    if (emptyMessageEl) {
+      emptyMessageEl.style.display = 'none';
+    }
+  }
+
+  // Show count badge when there are sessions
+  if (badgeEl && toggleCard?.classList.contains('active')) {
+    badgeEl.textContent = `${sessions.length}`;
+    badgeEl.style.display = 'block';
+    badgeEl.style.color = '';
+    badgeEl.style.background = '';
+  } else if (badgeEl && !toggleCard?.classList.contains('active')) {
+    // Show count even when inactive (smaller, less prominent)
+    badgeEl.textContent = `${sessions.length}`;
+    badgeEl.style.display = 'block';
   }
 
   container.innerHTML = sessions.map(session => createSessionCard(session)).join('');
@@ -908,7 +960,6 @@ function createSessionCard(session) {
       </div>
       <div class="session-badge-container">
         ${playerNameDisplay}
-        <div class="session-badge reserved">RESERVED</div>
       </div>
       <button class="cancel-reservation-btn" 
               data-reservation-id="${session.reservation_id}" 
@@ -921,7 +972,7 @@ function createSessionCard(session) {
 }
 
 // Load reservations (for Reservations tab - shows only future sessions, no calendar)
-async function loadReservations() {
+async function loadReservations(hideCalendar = true) {
   if (!supabaseReady || !supabase) return;
 
   try {
@@ -938,13 +989,16 @@ async function loadReservations() {
     const container = document.getElementById('reservationsListContainer');
     if (!container) return;
 
-    // Hide calendar for reservations tab
-    const calendar = document.getElementById('parentHomeCalendar');
-    if (calendar) {
-      calendar.style.display = 'none';
+    // Hide calendar for reservations tab (only if hideCalendar is true)
+    if (hideCalendar) {
+      const calendar = document.getElementById('parentHomeCalendar');
+      if (calendar) {
+        calendar.style.display = 'none';
+      }
     }
 
-    container.innerHTML = '<div class="loading-state">Loading reservations...</div>';
+    container.innerHTML = '';
+    showLoader(container, 'Loading reservations...');
 
     // Ensure linkedPlayers is loaded for this parent ID
     // Check if linkedPlayers is empty or if it's for a different parent
@@ -1239,6 +1293,9 @@ async function loadReservations() {
     if (container) {
       container.innerHTML = '<div class="error-state">Error loading reservations. Please try again.</div>';
     }
+  } finally {
+    const container = document.getElementById('reservationsListContainer');
+    if (container) hideLoader(container);
   }
 }
 
@@ -1349,7 +1406,7 @@ async function cancelReservation(reservationId, isIndividual) {
     
     // Always reload to ensure UI is in sync with database
     // This is especially important for individual sessions
-    const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+    const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
     console.log(`Reloading after cancellation, active tab: ${activeTab}`);
     if (activeTab === 'reservations') {
       await loadReservations();
@@ -1514,7 +1571,7 @@ async function cancelSelectedReservations(selectedReservationIds, isIndividual, 
 
     // Always reload to ensure UI is in sync with database
     // This is more reliable than trying to manually remove cards
-    const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+    const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
     if (activeTab === 'reservations') {
       await loadReservations();
     } else {
@@ -1584,7 +1641,7 @@ async function cancelMultipleReservations(reservationIds, isIndividual, sessionC
     if (cancelledCount > 0) {
       alert(`${cancelledCount} reservation(s) cancelled successfully!`);
       // Reload based on current tab
-      const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+      const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
       if (activeTab === 'reservations') {
         await loadReservations();
       } else {
@@ -1631,7 +1688,7 @@ async function setupRealtimeSubscriptions() {
         if (payload.new && playerIds.includes(payload.new.player_id)) {
           console.log('New group reservation created for linked player, reloading sessions:', payload);
           // Reload based on current tab
-          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
           if (activeTab === 'reservations') {
             await loadReservations();
           } else {
@@ -1653,7 +1710,7 @@ async function setupRealtimeSubscriptions() {
         if (payload.new && playerIds.includes(payload.new.player_id)) {
           console.log('Group reservation cancelled for linked player, reloading sessions:', payload);
           // Reload based on current tab
-          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
           if (activeTab === 'reservations') {
             await loadReservations();
           } else {
@@ -1679,7 +1736,7 @@ async function setupRealtimeSubscriptions() {
         if (payload.new && playerIds.includes(payload.new.player_id)) {
           console.log('New individual booking created for linked player, reloading sessions:', payload);
           // Reload based on current tab
-          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
           if (activeTab === 'reservations') {
             await loadReservations();
           } else {
@@ -1701,7 +1758,7 @@ async function setupRealtimeSubscriptions() {
         if (payload.new && playerIds.includes(payload.new.player_id)) {
           console.log('Individual booking cancelled for linked player, reloading sessions:', payload);
           // Reload based on current tab
-          const activeTab = document.querySelector('.schedule-tab.active')?.dataset.tab;
+          const activeTab = document.querySelector('.schedule-toggle-card.active')?.dataset.tab;
           if (activeTab === 'reservations') {
             await loadReservations();
           } else {
@@ -1862,7 +1919,7 @@ function getNotificationTypeTitle(type, fallbackTitle) {
     information: 'Information',
     time_change: 'Time change',
     cancellation: 'Cancellation',
-    popup_session: 'Pro player stories',
+    popup_session: 'Additional Session',
     veo_link: 'Veo Link',
     merch: 'Merch',
     announcement: 'Information'

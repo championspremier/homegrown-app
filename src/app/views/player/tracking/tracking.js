@@ -2,9 +2,75 @@
 import { initSupabase } from '../../../../auth/config/supabase.js';
 import { getCurrentQuarter } from '../../../utils/points.js';
 import { getPlayerLeaderboardStats } from '../../../utils/leaderboard.js';
+import { showLoader, hideLoader } from '../../../utils/loader.js';
+import { getBackbonePeriodKeyForDate } from '../home/curriculum-focus.js';
 
 let supabase;
 let supabaseReady = false;
+
+/**
+ * Spider uses 1 per completed session (count). Tactical: coach check-ins (Tec Tac, CPP) from points_transactions;
+ * HG tactical reels are counted from player_curriculum_progress only (1 per watch by period).
+ */
+const TACTICAL_SESSION_TYPES_FROM_TRANSACTIONS = ['Tec Tac', 'Champions Player Progress (CPP)', 'HG_OBJECTIVE'];
+const PHYSICAL_SESSION_AXIS = {
+  'Speed Training': { speed: 1 },
+  'HG_SPEED': { speed: 1 },
+  'Strength & Conditioning': { strength: 1, conditioning: 1 }
+};
+const TECHNICAL_SESSION_DEFAULT_AXIS = 'ball-mastery';
+const MENTAL_SESSION_AXIS = {
+  'Psychologist': { psychologist: 1 },
+  'HG_MENTAL': { solo: 1 }
+};
+
+/** Spider chart: axes per pillar. coachOnly = coach rating only (greyed until rated). */
+const SPIDER_PILLAR_CONFIG = {
+  tactical: {
+    axes: [
+      { key: 'build-out', label: 'Build-out', coachOnly: false },
+      { key: 'middle-third', label: 'Middle Third', coachOnly: false },
+      { key: 'final-third', label: 'Final Third', coachOnly: false },
+      { key: 'wide-play', label: 'Wide Play', coachOnly: false }
+    ]
+  },
+  technical: {
+    axes: [
+      { key: 'ball-mastery', label: 'Ball Mastery', coachOnly: false },
+      { key: 'turning', label: 'Turning', coachOnly: false },
+      { key: 'escape-moves', label: 'Escape Moves', coachOnly: false },
+      { key: 'first-touch', label: 'First Touch', coachOnly: false },
+      { key: 'passing', label: 'Passing', coachOnly: false }
+    ]
+  },
+  physical: {
+    axes: [
+      { key: 'conditioning', label: 'Conditioning', coachOnly: false },
+      { key: 'speed', label: 'Sprint Form', coachOnly: false },
+      { key: 'strength', label: 'Strength', coachOnly: false },
+      { key: 'coordination', label: 'Coordination', coachOnly: false }
+    ],
+    /** Map DB skill to axis key for aggregation */
+    skillToAxis: {
+      conditioning: 'conditioning',
+      speed: 'speed',
+      'lower-body': 'strength',
+      'upper-body': 'strength',
+      core: 'strength',
+      plyometrics: 'coordination',
+      'whole-body': 'coordination'
+    }
+  },
+  mental: {
+    axes: [
+      { key: 'solo', label: 'Solo', coachOnly: false },
+      { key: 'psychologist', label: 'Psychologist', coachOnly: false },
+      { key: 'maturity', label: 'Maturity', coachOnly: true },
+      { key: 'socially', label: 'Socially', coachOnly: true },
+      { key: 'work-ethic', label: 'Work Ethic', coachOnly: true }
+    ]
+  }
+};
 
 initSupabase().then(client => {
   if (client) {
@@ -16,6 +82,9 @@ initSupabase().then(client => {
 
 async function init() {
   if (!supabaseReady) return;
+
+  const container = document.querySelector('.tracking-container');
+  if (container) showLoader(container, 'Loading tracking...');
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -36,12 +105,85 @@ async function init() {
     await loadQuizHistory(playerId);
     await loadObjectivesHistory(playerId);
     setupQuarterSelector(playerId);
-    
+    setupTrackingTabs();
+    setupPillarTabs();
+    await loadAndRenderSpider(playerId);
+
     // Listen for account switches
     setupAccountSwitchListener();
   } catch (error) {
     console.error('Error initializing tracking:', error);
+  } finally {
+    if (container) hideLoader(container);
   }
+}
+
+// Tab switching: Points, Quiz, Objectives
+function setupTrackingTabs() {
+  const tabList = document.querySelector('.tracking-container .tab-list');
+  if (tabList && tabList.dataset.tabsSetup === '1') return;
+  if (tabList) tabList.dataset.tabsSetup = '1';
+
+  const tabButtons = document.querySelectorAll('.tracking-container .tab-button');
+  const tabPanels = document.querySelectorAll('.tracking-container .tab-panel');
+
+  tabButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetTab = button.dataset.tab;
+      if (!targetTab) return;
+
+      tabButtons.forEach((btn) => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+      });
+      button.classList.add('active');
+      button.setAttribute('aria-selected', 'true');
+
+      tabPanels.forEach((panel) => {
+        panel.classList.remove('active');
+      });
+      const targetPanel = document.getElementById(`${targetTab}-panel`);
+      if (targetPanel) {
+        targetPanel.classList.add('active');
+      }
+    });
+  });
+}
+
+function getActivePillar() {
+  const active = document.querySelector('.tracking-container .tracking-pillar-card.active');
+  return (active && active.dataset.pillar) || 'technical';
+}
+
+// Pillar tabs: Technical, Tactical, Physical, Mental (above spider) - overlapping style
+function setupPillarTabs() {
+  const wrapper = document.querySelector('.tracking-container .tracking-pillar-cards');
+  if (!wrapper || wrapper.dataset.pillarSetup === '1') return;
+  wrapper.dataset.pillarSetup = '1';
+
+  const cards = document.querySelectorAll('.tracking-container .tracking-pillar-card');
+  const setPillarState = (pillar) => {
+    wrapper.classList.remove('pillar-technical-active', 'pillar-tactical-active', 'pillar-physical-active', 'pillar-mental-active');
+    if (pillar) wrapper.classList.add(`pillar-${pillar}-active`);
+  };
+  setPillarState(getActivePillar());
+
+  cards.forEach((card) => {
+    card.addEventListener('click', async () => {
+      const pillar = card.dataset.pillar;
+      if (!pillar) return;
+      cards.forEach((c) => {
+        c.classList.remove('active');
+        c.setAttribute('aria-selected', 'false');
+      });
+      card.classList.add('active');
+      card.setAttribute('aria-selected', 'true');
+      setPillarState(pillar);
+      const playerId = await getPlayerId();
+      if (playerId) await loadAndRenderSpider(playerId);
+      window.dispatchEvent(new CustomEvent('trackingPillarChanged', { detail: { pillar } }));
+    });
+  });
 }
 
 // Get the correct player ID (handles account switcher)
@@ -77,6 +219,7 @@ function setupAccountSwitchListener() {
       await loadQuizHistory(selectedPlayerId);
       await loadObjectivesHistory(selectedPlayerId);
       setupQuarterSelector(selectedPlayerId);
+      await loadAndRenderSpider(selectedPlayerId);
     } else if (role === 'parent') {
       // Switched back to parent - reload as actual player (if logged in as player)
       const playerId = await getPlayerId();
@@ -86,6 +229,7 @@ function setupAccountSwitchListener() {
         await loadQuizHistory(playerId);
         await loadObjectivesHistory(playerId);
         setupQuarterSelector(playerId);
+        await loadAndRenderSpider(playerId);
       }
     }
   });
@@ -100,9 +244,249 @@ function setupAccountSwitchListener() {
         await loadQuizHistory(playerId);
         await loadObjectivesHistory(playerId);
         setupQuarterSelector(playerId);
+        await loadAndRenderSpider(playerId);
       }
     }
   });
+}
+
+async function loadAndRenderSpider(playerId) {
+  const wrapper = document.getElementById('trackingSpiderWrapper');
+  if (wrapper) showLoader(wrapper);
+  try {
+    const pillar = getActivePillar();
+    const data = await loadSpiderData(playerId, pillar);
+    renderSpiderChart(data);
+  } finally {
+    if (wrapper) hideLoader(wrapper);
+  }
+}
+
+/**
+ * Load spider chart data for the given pillar. Uses current quarter.
+ * Tactical: points + curriculum progress by period. Technical/Physical: curriculum progress by skill. Mental: coach-only (greyed).
+ */
+async function loadSpiderData(playerId, pillar) {
+  const config = SPIDER_PILLAR_CONFIG[pillar];
+  if (!config || !config.axes) {
+    return { axes: [], scores: {}, coachOnly: {} };
+  }
+  const axes = config.axes;
+  const coachOnly = {};
+  axes.forEach((a) => { coachOnly[a.key] = !!a.coachOnly; });
+  const raw = {};
+  axes.forEach((a) => { raw[a.key] = 0; });
+
+  try {
+    const { year, quarter } = getCurrentQuarter();
+    const quarterStart = new Date(year, (quarter - 1) * 3, 1);
+    const quarterEnd = new Date(year, quarter * 3, 0, 23, 59, 59);
+    const quarterStartStr = quarterStart.toISOString().split('T')[0];
+    const quarterEndIso = quarterEnd.toISOString();
+
+    const { data: transactions } = await supabase
+      .from('points_transactions')
+      .select('points, checked_in_at, session_type, session_id')
+      .eq('player_id', playerId)
+      .eq('quarter_year', year)
+      .eq('quarter_number', quarter)
+      .eq('status', 'active');
+
+    const addOne = (key) => { if (raw[key] !== undefined) raw[key] += 1; };
+
+    if (pillar === 'tactical') {
+      if (transactions) {
+        transactions.forEach((t) => {
+          if (!TACTICAL_SESSION_TYPES_FROM_TRANSACTIONS.includes(t.session_type)) return;
+          const periodKey = getBackbonePeriodKeyForDate(new Date(t.checked_in_at));
+          if (periodKey) addOne(periodKey);
+        });
+      }
+      const { data: progressRows } = await supabase
+        .from('player_curriculum_progress')
+        .select('period, completed_at')
+        .eq('player_id', playerId)
+        .eq('category', 'tactical')
+        .gte('completed_at', quarterStartStr)
+        .lte('completed_at', quarterEndIso);
+      if (progressRows) progressRows.forEach((r) => { if (raw[r.period] !== undefined) raw[r.period] += 1; });
+    } else if (pillar === 'physical') {
+      if (transactions) {
+        transactions.forEach((t) => {
+          const map = PHYSICAL_SESSION_AXIS[t.session_type];
+          if (!map) return;
+          Object.keys(map).forEach((axisKey) => addOne(axisKey));
+        });
+      }
+      const { data: progressRows } = await supabase
+        .from('player_curriculum_progress')
+        .select('skill')
+        .eq('player_id', playerId)
+        .eq('category', 'physical')
+        .gte('completed_at', quarterStartStr)
+        .lte('completed_at', quarterEndIso);
+      if (progressRows) {
+        progressRows.forEach((r) => {
+          const axisKey = config.skillToAxis && config.skillToAxis[r.skill];
+          if (axisKey) addOne(axisKey);
+        });
+      }
+    } else if (pillar === 'technical') {
+      if (transactions) {
+        const soloSessionIds = [...new Set(
+          transactions
+            .filter((t) => (t.session_type === 'Solo Session' || t.session_type === 'HG_TECHNICAL') && t.session_id)
+            .map((t) => t.session_id)
+        )];
+        let sessionIdToSkill = {};
+        if (soloSessionIds.length > 0) {
+          const { data: soloSessions } = await supabase
+            .from('solo_sessions')
+            .select('id, skill')
+            .in('id', soloSessionIds);
+          if (soloSessions) {
+            soloSessions.forEach((s) => {
+              const key = (s.skill || '').toLowerCase().replace(/\s+/g, '-');
+              sessionIdToSkill[s.id] = key || TECHNICAL_SESSION_DEFAULT_AXIS;
+            });
+          }
+        }
+        transactions.forEach((t) => {
+          if (t.session_type === 'Solo Session') {
+            const skillKey = t.session_id ? (sessionIdToSkill[t.session_id] || TECHNICAL_SESSION_DEFAULT_AXIS) : TECHNICAL_SESSION_DEFAULT_AXIS;
+            if (raw[skillKey] !== undefined) raw[skillKey] += 1;
+            else addOne(TECHNICAL_SESSION_DEFAULT_AXIS);
+          } else if (t.session_type === 'HG_TECHNICAL') {
+            const skillKey = t.session_id ? (sessionIdToSkill[t.session_id] || TECHNICAL_SESSION_DEFAULT_AXIS) : TECHNICAL_SESSION_DEFAULT_AXIS;
+            if (raw[skillKey] !== undefined) raw[skillKey] += 1;
+            else addOne(TECHNICAL_SESSION_DEFAULT_AXIS);
+          }
+        });
+      }
+      const { data: progressRows } = await supabase
+        .from('player_curriculum_progress')
+        .select('skill')
+        .eq('player_id', playerId)
+        .eq('category', 'technical')
+        .gte('completed_at', quarterStartStr)
+        .lte('completed_at', quarterEndIso);
+      if (progressRows) {
+        progressRows.forEach((r) => {
+          const key = (r.skill || '').toLowerCase().replace(/\s+/g, '-');
+          if (key && raw[key] !== undefined) raw[key] += 1;
+        });
+      }
+    } else if (pillar === 'mental') {
+      if (transactions) {
+        transactions.forEach((t) => {
+          const map = MENTAL_SESSION_AXIS[t.session_type];
+          if (map) Object.keys(map).forEach((axisKey) => addOne(axisKey));
+        });
+        const mentalSoloIds = [...new Set(
+          transactions
+            .filter((t) => t.session_type === 'Solo Session' && t.session_id)
+            .map((t) => t.session_id)
+        )];
+        if (mentalSoloIds.length > 0) {
+          const { data: soloSessions } = await supabase
+            .from('solo_sessions')
+            .select('id, category')
+            .in('id', mentalSoloIds)
+            .eq('category', 'mental');
+          if (soloSessions) soloSessions.forEach(() => addOne('solo'));
+        }
+      }
+      const { data: progressRows } = await supabase
+        .from('player_curriculum_progress')
+        .select('id')
+        .eq('player_id', playerId)
+        .eq('category', 'mental')
+        .gte('completed_at', quarterStartStr)
+        .lte('completed_at', quarterEndIso);
+      if (progressRows) progressRows.forEach(() => addOne('solo'));
+    }
+
+    // Spider: 1 completion = 1 on 0–10 scale, capped at 10 (no normalizing max to 10)
+    const scores = {};
+    axes.forEach(({ key }) => {
+      scores[key] = coachOnly[key] ? null : Math.min(10, Math.round(raw[key] * 10) / 10);
+    });
+    return { axes, scores, coachOnly };
+  } catch (err) {
+    console.error('Error loading spider data:', err);
+    const scores = {};
+    axes.forEach(({ key }) => { scores[key] = coachOnly[key] ? null : 0; });
+    return { axes, scores, coachOnly };
+  }
+}
+
+/**
+ * Render spider (radar) chart SVG. Supports variable N axes. Coach-only axes are greyed out.
+ * Score 0 = center, 10 = outer ring. coachOnly axes with no score show "—" in legend.
+ */
+function renderSpiderChart({ axes, scores, coachOnly }) {
+  const svg = document.getElementById('trackingSpiderSvg');
+  const legend = document.getElementById('trackingSpiderLegend');
+  if (!svg || !axes || !Array.isArray(axes) || axes.length < 2) return;
+
+  const cx = 120;
+  const cy = 120;
+  const radius = 85;
+  const levels = 5;
+  const n = axes.length;
+
+  let inner = '';
+  for (let level = 1; level <= levels; level++) {
+    const r = (radius * level) / levels;
+    const points = [];
+    for (let i = 0; i < n; i++) {
+      const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+      points.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+    }
+    inner += `<polygon class="spider-grid-line" points="${points.join(' ')}"/>`;
+  }
+
+  let axisLines = '';
+  let labelEls = '';
+  const labelRadius = radius + 18;
+  for (let i = 0; i < n; i++) {
+    const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+    const isCoach = axes[i]?.coachOnly === true;
+    const lineClass = isCoach ? 'spider-axis-line spider-axis-line-coach-only' : 'spider-axis-line';
+    axisLines += `<line class="${lineClass}" x1="${cx}" y1="${cy}" x2="${cx + radius * Math.cos(angle)}" y2="${cy + radius * Math.sin(angle)}"/>`;
+    const lx = cx + labelRadius * Math.cos(angle);
+    const ly = cy + labelRadius * Math.sin(angle);
+    const labelClass = isCoach ? 'spider-label spider-label-coach-only' : 'spider-label';
+    labelEls += `<text class="${labelClass}" x="${lx}" y="${ly}">${axes[i]?.label || ''}</text>`;
+  }
+
+  const polygonPoints = [];
+  for (let i = 0; i < n; i++) {
+    const key = axes[i]?.key;
+    const score = (scores && scores[key]) != null ? scores[key] : 0;
+    const r = (radius * Math.min(10, Math.max(0, score))) / 10;
+    const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+    polygonPoints.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+  }
+  const polygon = `<polygon class="spider-polygon" points="${polygonPoints.join(' ')}"/>`;
+
+  svg.innerHTML = inner + axisLines + polygon + labelEls;
+
+  if (legend && scores) {
+    const maxScore = 365;
+    legend.innerHTML = axes.map((a) => {
+      const isCoach = a.coachOnly === true;
+      const val = scores[a.key];
+      const display = isCoach && (val == null || val === 0) ? '—' : (val != null ? val.toFixed(1) : '0');
+      const textSuffix = isCoach && (val == null || val === 0) ? '' : ' Sessions';
+      const itemClass = isCoach ? 'spider-legend-item spider-legend-coach-only' : 'spider-legend-item';
+      const barPct = (!isCoach && val != null) ? Math.min(100, (Number(val) / maxScore) * 100) : 0;
+      return `<div class="${itemClass}">
+        <span class="spider-legend-row"><span class="spider-legend-bullet"></span><span class="spider-legend-text">${a.label}: ${display}${textSuffix}</span></span>
+        <div class="spider-legend-bar" role="presentation"><div class="spider-legend-bar-fill" style="width: ${barPct}%"></div></div>
+      </div>`;
+    }).join('');
+  }
 }
 
 async function loadPointsSummary(playerId) {
@@ -122,18 +506,23 @@ async function loadPointsSummary(playerId) {
     }
 
     const totalPoints = parseFloat(pointsData || 0);
-    document.getElementById('totalPoints').textContent = totalPoints.toFixed(1);
+    const totalPointsEl = document.getElementById('totalPoints');
+    if (totalPointsEl) totalPointsEl.textContent = totalPoints.toFixed(1);
 
     // Update quarter label
     const quarterLabel = `Q${quarter} ${year}`;
-    document.getElementById('quarterLabel').textContent = quarterLabel;
+    const quarterLabelEl = document.getElementById('quarterLabel');
+    if (quarterLabelEl) quarterLabelEl.textContent = quarterLabel;
 
     // Get leaderboard position
-    const stats = await getPlayerLeaderboardStats(playerId);
-    if (stats && stats.position) {
-      document.getElementById('positionValue').textContent = `#${stats.position}`;
-    } else {
-      document.getElementById('positionValue').textContent = 'Not ranked';
+    const positionValueEl = document.getElementById('positionValue');
+    if (positionValueEl) {
+      const stats = await getPlayerLeaderboardStats(playerId);
+      if (stats && stats.position) {
+        positionValueEl.textContent = `#${stats.position}`;
+      } else {
+        positionValueEl.textContent = 'Not ranked';
+      }
     }
   } catch (error) {
     console.error('Error loading points summary:', error);

@@ -1957,7 +1957,7 @@ async function removeCheckIn(reservationId, playerId) {
       if (deleteError) {
         console.error('Error deleting points transaction:', deleteError);
         // If delete fails (e.g., coach didn't create it), try to update status
-        // Note: This will only work if RLS allows coaches to update
+        // Update succeeds only if coach created the row (checked_in_by = auth.uid()) or user is admin
         const { error: updateError } = await supabase
           .from('points_transactions')
           .update({ status: 'archived' })
@@ -2215,7 +2215,8 @@ let editMenuHandlersSetup = false;
 function showEditMenu() {
   const editMenu = document.getElementById('editMenuOverlay');
   if (editMenu) {
-    editMenu.style.display = 'flex';
+    editMenu.classList.add('is-open');
+    editMenu.setAttribute('aria-hidden', 'false');
     
     // Close menu when clicking outside (only set once)
     if (!editMenuHandlersSetup) {
@@ -2265,7 +2266,8 @@ function showEditMenu() {
 function hideEditMenu() {
   const editMenu = document.getElementById('editMenuOverlay');
   if (editMenu) {
-    editMenu.style.display = 'none';
+    editMenu.classList.remove('is-open');
+    editMenu.setAttribute('aria-hidden', 'true');
   }
 }
 
@@ -2324,14 +2326,16 @@ async function showChangeStaffModal() {
     `;
   }).join('');
   
-  modal.style.display = 'flex';
-  
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+
   if (closeBtn) {
     closeBtn.onclick = () => {
-      modal.style.display = 'none';
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
     };
   }
-  
+
   if (saveBtn) {
     saveBtn.onclick = async () => {
       const selected = document.querySelector('input[name="selectedStaff"]:checked');
@@ -2339,16 +2343,18 @@ async function showChangeStaffModal() {
         alert('Please select a coach');
         return;
       }
-      
+
       const newCoachId = selected.value;
       await updateIndividualSessionCoach(newCoachId);
-      modal.style.display = 'none';
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
     };
   }
-  
+
   modal.onclick = (e) => {
     if (e.target === modal) {
-      modal.style.display = 'none';
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
     }
   };
 }
@@ -2389,29 +2395,33 @@ function showRescheduleModal() {
   timeInput.addEventListener('change', updateSaveButton);
   updateSaveButton();
   
-  modal.style.display = 'flex';
-  
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+
   if (closeBtn) {
     closeBtn.onclick = () => {
-      modal.style.display = 'none';
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
     };
   }
-  
+
   if (saveBtn) {
     saveBtn.onclick = async () => {
       if (!dateInput.value || !timeInput.value) {
         alert('Please select both date and time');
         return;
       }
-      
+
       await updateIndividualSessionSchedule(dateInput.value, timeInput.value);
-      modal.style.display = 'none';
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
     };
   }
-  
+
   modal.onclick = (e) => {
     if (e.target === modal) {
-      modal.style.display = 'none';
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
     }
   };
 }
@@ -2920,7 +2930,7 @@ function getNotificationTypeTitle(type, fallbackTitle) {
     information: 'Information',
     time_change: 'Time change',
     cancellation: 'Cancellation',
-    popup_session: 'Pro player stories',
+    popup_session: 'Additional Session',
     veo_link: 'Veo Link',
     merch: 'Merch',
     announcement: 'Information'

@@ -5,6 +5,13 @@
  * - Base typography and layout styles
  */
 
+/* Horizontal padding on content-area (scoped to parent home only) */
+.content-area {
+  padding-left: 10px;
+  padding-right: 10px;
+  box-sizing: border-box;
+}
+
 /* Instagram-style Header */
 .home-header {
   display: flex;
@@ -353,95 +360,161 @@ html[data-theme="light"] .account-switcher-dropdown {
 
 /* Parent home page styles */
 
-/* Header row */
-.top-section {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+/* Schedule section - always visible, full width so calendar can use 100% - 20px */
+.sectionOne.mySchedule,
+#hiddenSchedule {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-/* Toggle button */
-.schedule-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  width: 40px;
-  border: 1px solid var(--accent-solid, var(--border));
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  transition: background .12s ease, border-color .12s ease, transform .12s ease;
-}
-.schedule-toggle:hover { background: var(--hover); }
-.schedule-toggle:active { transform: translateY(1px); }
-
-.schedule-toggle i {
-  color: var(--text);
-}
-
-/* Ensure Lucide icons in schedule toggle use correct color */
-.schedule-toggle svg,
-.schedule-toggle .lucide-icon {
-  color: var(--text);
-}
-
-.schedule-toggle svg path {
-  stroke: currentColor;
-  fill: none;
-}
-
-/* Collapsible panel */
-.hiddenSchedule {
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transition: max-height 240ms ease, opacity 180ms ease, margin-top 180ms ease;
-  margin-top: 0;
-}
-.hiddenSchedule.is-open {
-  max-height: calc(100vh - 200px); /* Responsive height based on viewport */
-  opacity: 1;
+#hiddenSchedule {
   margin-top: 10px;
 }
 
-/* Schedule Tabs */
-.schedule-tabs {
+/* Schedule Toggle Cards - Sliding Toggle Effect */
+.schedule-toggle-cards {
+  position: relative;
   display: flex;
+  height: 80px;
+  margin-bottom: 20px;
   justify-content: center;
-  align-items: center;
-  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.schedule-tab {
-  padding: 12px 20px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 500;
+.schedule-toggle-card {
+  position: absolute;
+  width: 160px;
+  height: 80px;
+  padding: 20px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-align: center;
   font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
 }
 
-.schedule-tab:hover {
+/* Left card (My Schedule) - starts centered */
+#myScheduleToggle {
+  left: calc(50% - 80px);
+  z-index: 2;
+}
+
+/* Right card (Reservations) - starts centered, behind */
+#reservationsToggle {
+  left: calc(50% - 80px);
+  z-index: 1;
+}
+
+/* Active state - centered, scaled up, elevated */
+.schedule-toggle-card.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  transform: translateX(0) scale(1.08);
+  z-index: 3;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+}
+
+/* When My Schedule is active */
+.schedule-toggle-cards.sessions-active #myScheduleToggle {
+  left: calc(50% - 80px);
+  transform: translateX(0) scale(1.08);
+  z-index: 3;
+}
+
+.schedule-toggle-cards.sessions-active #reservationsToggle {
+  left: calc(50% - 80px);
+  transform: translateX(-80px) scale(0.85);
+  opacity: 0.4;
+  z-index: 1;
+}
+
+/* When Reservations is active */
+.schedule-toggle-cards.reservations-active #reservationsToggle {
+  left: calc(50% - 80px);
+  transform: translateX(0) scale(1.08);
+  z-index: 3;
+}
+
+.schedule-toggle-cards.reservations-active #myScheduleToggle {
+  left: calc(50% - 80px);
+  transform: translateX(80px) scale(0.85);
+  opacity: 0.4;
+  z-index: 1;
+}
+
+/* Inactive state - default */
+.schedule-toggle-card:not(.active) {
+  opacity: 0.7;
+  transform: scale(0.95);
+}
+
+.schedule-toggle-card:hover:not(.active) {
+  background: var(--hover);
+  opacity: 0.85;
+}
+
+.toggle-card-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
+.schedule-toggle-card:not(.active) .toggle-card-label {
   color: var(--text);
 }
 
-.schedule-tab.active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
+.toggle-card-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 10px;
   font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+/* Reservations card only: badge on top-left so it stays visible when card is behind */
+#reservationsToggle .toggle-card-badge {
+  right: auto;
+  left: 8px;
+}
+
+.schedule-toggle-card.active .toggle-card-badge {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+
+.schedule-toggle-card:not(.active) .toggle-card-badge {
+  background: var(--accent);
+  color: white;
+  opacity: 0.8;
 }
 
 /* Tab Content */
 .schedule-tab-content {
   display: none;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  padding-bottom: 0;
   overflow: visible;
 }
 
@@ -449,15 +522,91 @@ html[data-theme="light"] .account-switcher-dropdown {
   display: block;
 }
 
-/* Sessions/Reservations List */
-.sessions-list-container,
+/* Add bottom spacing to the active tab content */
+.schedule-tab-content.active .sessions-scroll-container,
+.schedule-tab-content.active .reservations-container {
+  padding-bottom: 24px; /* Single source of bottom spacing */
+}
+
+/* Sessions/Reservations Scroll Container */
+.sessions-scroll-container {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  margin-bottom: 40px;
+  padding-bottom: 30px;
+}
+
+.sessions-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.sessions-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sessions-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.sessions-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Empty message under calendar */
+.sessions-empty-message {
+  text-align: center;
+  padding: 16px;
+  color: #EF4444;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+/* Sessions List - horizontal scrollable */
+.sessions-list-container {
+  display: flex;
+  gap: 16px;
+  padding: 0 4px;
+  min-width: min-content;
+}
+
+/* Reservations Container - horizontal scrollable */
+.reservations-container {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.reservations-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.reservations-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reservations-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.reservations-container::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Reservations List - horizontal row layout */
 .reservations-list-container {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-  min-height: 0;
-  padding: 10px 0;
+  gap: 16px;
+  padding: 0 4px;
+  min-width: min-content;
 }
 
 .reserved-session-card {
@@ -466,9 +615,25 @@ html[data-theme="light"] .account-switcher-dropdown {
   border-radius: 12px;
   padding: 16px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
   transition: all 0.2s ease;
+}
+
+/* Sessions cards - horizontal scrollable with fixed width */
+.sessions-list-container .reserved-session-card {
+  flex: 0 0 auto;
+  min-width: 280px;
+  max-width: 320px;
+  width: 280px;
+}
+
+/* Reservations cards - fixed width for horizontal scroll */
+.reservations-list-container .reserved-session-card {
+  flex: 0 0 auto;
+  min-width: 280px;
+  max-width: 320px;
+  width: 280px;
 }
 
 .reserved-session-card:hover {
@@ -524,7 +689,13 @@ html[data-theme="light"] .account-switcher-dropdown {
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-  margin-right: 12px;
+  margin-right: 0;
+  margin-bottom: 8px;
+}
+
+/* Hide RESERVED badge - badge now shows in toggle card */
+.session-badge-container .session-badge.reserved {
+  display: none;
 }
 
 .session-player-name {
@@ -548,6 +719,7 @@ html[data-theme="light"] .account-switcher-dropdown {
 }
 
 .cancel-reservation-btn {
+  align-self: flex-end;
   padding: 8px 16px;
   background: transparent;
   border: 1px solid var(--border);
@@ -574,16 +746,19 @@ html[data-theme="light"] .account-switcher-dropdown {
   font-size: 14px;
 }
 
-/* Calendar Header Container */
-.calendar-header-container {
+/* Calendar Header Container - 100% width with 10px side spacing, content centered */
+.calendar-header-container,
+#parentHomeCalendar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-top: 20px;
+  margin-left: 10px;
+  margin-right: 10px;
   padding: 16px 0;
-  width: 100%;
-  max-width: 100%;
+  width: calc(100% - 20px);
+  max-width: calc(100% - 20px);
   box-sizing: border-box;
   overflow: hidden; /* Prevent overflow */
 }

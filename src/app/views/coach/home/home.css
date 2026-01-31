@@ -1731,7 +1731,7 @@ html:not([data-theme]) .notification-close-btn i {
 
 }
 
-/* Edit Menu */
+/* Edit Menu - hidden by default, shown via .edit-menu-overlay.is-open */
 .edit-menu-overlay {
   position: fixed;
   top: 0;
@@ -1739,10 +1739,14 @@ html:not([data-theme]) .notification-close-btn i {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.4);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   z-index: 10001;
+}
+
+.edit-menu-overlay.is-open {
+  display: flex;
 }
 
 .edit-menu {
@@ -1779,7 +1783,7 @@ html:not([data-theme]) .notification-close-btn i {
   color: var(--muted);
 }
 
-/* Change Staff Modal */
+/* Change Staff Modal - hidden by default, shown via .change-staff-overlay.is-open */
 .change-staff-overlay {
   position: fixed;
   top: 0;
@@ -1787,11 +1791,15 @@ html:not([data-theme]) .notification-close-btn i {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   z-index: 10002;
   padding: 20px;
+}
+
+.change-staff-overlay.is-open {
+  display: flex;
 }
 
 .change-staff-modal {
@@ -1922,7 +1930,7 @@ html:not([data-theme]) .notification-close-btn i {
   cursor: not-allowed;
 }
 
-/* Reschedule Modal */
+/* Reschedule Modal - hidden by default, shown via .reschedule-overlay.is-open */
 .reschedule-overlay {
   position: fixed;
   top: 0;
@@ -1930,11 +1938,15 @@ html:not([data-theme]) .notification-close-btn i {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   z-index: 10002;
   padding: 20px;
+}
+
+.reschedule-overlay.is-open {
+  display: flex;
 }
 
 .reschedule-modal {

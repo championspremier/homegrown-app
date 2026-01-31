@@ -1118,7 +1118,7 @@ status: 'completed'
 - Email templates use Zoho template variables
 - SMS templates are plain text (160 character limit)
 - Points are calculated server-side to prevent manipulation
-- All database operations use Row Level Security (RLS) policies
+- All database operations use Row Level Security (RLS) policies. See [SUPABASE_RLS.md](./SUPABASE_RLS.md) for `points_transactions` consolidated policies and debugging (do not rely on policy names).
 - Real-time updates use Supabase Realtime subscriptions
 
 ---

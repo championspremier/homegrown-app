@@ -25,24 +25,17 @@
 
 <!-- My Schedule, Quiz -->
 <div class="sectionOne mySchedule">
-  <div class="top-section">
-    <h1>MY SCHEDULE</h1>
-    <button
-      id="scheduleToggle"
-      class="schedule-toggle"
-      aria-expanded="false"
-      aria-controls="hiddenSchedule"
-      type="button"
-    >
-      <i class="bx bx-chevron-up"></i>
-    </button>
-  </div>
-
-  <div class="hiddenSchedule" id="hiddenSchedule">
-    <!-- Tabs for Sessions and Reservations -->
-    <div class="schedule-tabs">
-      <button class="schedule-tab active" data-tab="sessions" type="button">Sessions</button>
-      <button class="schedule-tab" data-tab="reservations" type="button">Reservations</button>
+  <div id="hiddenSchedule">
+    <!-- Toggle Cards for My Schedule and Reservations -->
+    <div class="schedule-toggle-cards">
+      <button class="schedule-toggle-card active" id="myScheduleToggle" data-tab="sessions" type="button">
+        <div class="toggle-card-label">My Schedule</div>
+        <div class="toggle-card-badge" id="myScheduleBadge" style="display: none;"></div>
+      </button>
+      <button class="schedule-toggle-card" id="reservationsToggle" data-tab="reservations" type="button">
+        <div class="toggle-card-label">Reservations</div>
+        <div class="toggle-card-badge" id="reservationsBadge" style="display: none;"></div>
+      </button>
     </div>
 
     <!-- Calendar -->
@@ -55,18 +48,24 @@
         <i class="bx bx-chevron-right"></i>
       </button>
     </div>
+    <!-- Empty state message under calendar -->
+    <div class="sessions-empty-message" id="sessionsEmptyMessage" style="display: none;"></div>
 
-    <!-- Sessions Tab Content -->
+    <!-- Sessions Content (horizontal scrollable) -->
     <div class="schedule-tab-content active" id="sessionsTabContent">
-      <div class="sessions-list-container" id="sessionsListContainer">
-        <!-- Reserved sessions will be loaded here -->
+      <div class="sessions-scroll-container">
+        <div class="sessions-list-container" id="sessionsListContainer">
+          <!-- Reserved sessions will be loaded here -->
+        </div>
       </div>
     </div>
 
-    <!-- Reservations Tab Content -->
+    <!-- Reservations Content (column layout) -->
     <div class="schedule-tab-content" id="reservationsTabContent">
-      <div class="reservations-list-container" id="reservationsListContainer">
-        <!-- Reservations will be loaded here -->
+      <div class="reservations-container">
+        <div class="reservations-list-container" id="reservationsListContainer">
+          <!-- Reservations will be loaded here -->
+        </div>
       </div>
     </div>
   </div>

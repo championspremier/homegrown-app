@@ -3,6 +3,7 @@
 // To reach src/auth/config/supabase.js, we need to go up 4 levels to src/, then into auth/
 import { initSupabase } from '../../../../auth/config/supabase.js';
 import { getAccountContext } from '../../../utils/account-context.js';
+import { showLoader, hideLoader } from '../../../utils/loader.js';
 
 // Initialize Supabase
 let supabase;
@@ -50,6 +51,9 @@ async function getActualUserId() {
 // Load player profile data from Supabase
 async function loadPlayerProfile() {
   if (!supabaseReady || !supabase) return;
+
+  const container = document.querySelector('.profile-content');
+  if (container) showLoader(container, 'Loading profile...');
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -107,6 +111,8 @@ async function loadPlayerProfile() {
   } catch (error) {
     console.error('Error loading player profile:', error);
     showMessage('playerFormMessage', 'Error loading profile data', 'error');
+  } finally {
+    if (container) hideLoader(container);
   }
 }
 
