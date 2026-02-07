@@ -1,0 +1,185 @@
+<div class="coach-dashboard">
+  <!-- Welcome Section -->
+  <div class="welcome-section">
+    <h1 class="welcome-message">
+      Welcome <span class="coach-name" id="coachName">Coach</span>
+    </h1>
+    <button class="notification-bell" id="notificationBell" type="button" aria-label="Notifications">
+      <i class="bx bx-bell"></i>
+    </button>
+  </div>
+
+  <!-- Schedule and Check-in Section -->
+  <div class="schedule-checkin-section">
+    <div class="section-header">
+      <h2 class="section-title">
+        <i class="bx bx-calendar"></i>
+        Player Check-in
+      </h2>
+      <div class="section-tabs">
+        <button class="tab-btn active" data-tab="full-schedule">Full schedule</button>
+        <button class="tab-btn" data-tab="my-day">My day</button>
+        <button class="tab-btn" data-tab="past">Past</button>
+      </div>
+    </div>
+    <p class="section-description">Make sure to check in players after a group or individual session for their points.</p>
+    
+    <div class="sessions-list" id="sessionsList">
+      <!-- Sessions will be loaded here -->
+    </div>
+  </div>
+
+  <!-- Important and Stats Sections -->
+  <div class="dashboard-bottom-sections">
+    <!-- Important Section -->
+    <div class="important-section">
+      <h2 class="section-title">Important</h2>
+      <div class="important-cards" id="importantCards">
+        <!-- Cards will be loaded here -->
+      </div>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="stats-section">
+      <div class="stats-header">
+        <h2 class="section-title">Stats</h2>
+        <div class="date-range-selector">
+          <button class="date-range-btn" id="dateRangeBtn">
+            <i class="bx bx-calendar"></i>
+            <span id="dateRangeText">Month to Date</span>
+            <i class="bx bx-chevron-down"></i>
+          </button>
+          <div class="date-range-dropdown" id="dateRangeDropdown">
+            <div class="date-range-options">
+              <button class="date-range-option" data-range="today">Today</button>
+              <button class="date-range-option" data-range="month-to-date">Month to Date</button>
+              <button class="date-range-option" data-range="quarter-to-date">Quarter to Date</button>
+              <button class="date-range-option" data-range="year-to-date">Year to Date</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stats-cards" id="statsCards">
+        <!-- Stats cards will be loaded here -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Session Detail Modal -->
+<div class="session-modal-overlay" id="sessionModalOverlay">
+  <div class="session-modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modalTitle">Session Details</h3>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button class="modal-edit-btn" id="editSessionBtn" type="button" style="display: none;">
+          <i class="bx bx-edit"></i>
+        </button>
+        <button class="modal-close" id="closeModalBtn">
+          <i class="bx bx-x"></i>
+        </button>
+      </div>
+    </div>
+    <div class="modal-content" id="modalContent">
+      <!-- Session card will be inserted here -->
+    </div>
+  </div>
+</div>
+
+<!-- Edit Menu Modal -->
+<div class="edit-menu-overlay" id="editMenuOverlay" aria-hidden="true">
+  <div class="edit-menu">
+    <button class="edit-menu-item" id="changeStaffBtn" type="button">
+      <i class="bx bx-user"></i>
+      <span>Change staff</span>
+    </button>
+    <button class="edit-menu-item" id="rescheduleBtn" type="button">
+      <i class="bx bx-calendar"></i>
+      <span>Reschedule</span>
+    </button>
+    <button class="edit-menu-item" id="cancelSessionBtn" type="button">
+      <i class="bx bx-trash"></i>
+      <span>Cancel</span>
+    </button>
+  </div>
+</div>
+
+<!-- Change Staff Modal -->
+<div class="change-staff-overlay" id="changeStaffOverlay" aria-hidden="true">
+  <div class="change-staff-modal">
+    <div class="change-staff-header">
+      <h3>Change staff</h3>
+      <button class="change-staff-close" id="closeChangeStaffBtn" type="button">
+        <i class="bx bx-x"></i>
+      </button>
+    </div>
+    <div class="change-staff-content" id="changeStaffContent">
+      <!-- Staff list will be inserted here -->
+    </div>
+    <div class="change-staff-footer">
+      <button class="change-staff-save" id="saveStaffBtn" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule Modal -->
+<div class="reschedule-overlay" id="rescheduleOverlay" aria-hidden="true">
+  <div class="reschedule-modal">
+    <div class="reschedule-header">
+      <h3>Reschedule</h3>
+      <button class="reschedule-close" id="closeRescheduleBtn" type="button">
+        <i class="bx bx-x"></i>
+      </button>
+    </div>
+    <div class="reschedule-content">
+      <div class="reschedule-field">
+        <label>When</label>
+        <div class="reschedule-inputs">
+          <input type="date" id="rescheduleDate" class="reschedule-date-input">
+          <input type="time" id="rescheduleTime" class="reschedule-time-input">
+        </div>
+      </div>
+    </div>
+    <div class="reschedule-footer">
+      <button class="reschedule-btn" id="saveRescheduleBtn" type="button" disabled>Reschedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Bottom Sheet -->
+<div class="notification-bottom-sheet" id="notificationBottomSheet" style="display: none;">
+  <div class="notification-bottom-sheet-handle"></div>
+  <div class="notification-bottom-sheet-header">
+    <button class="mark-all-read-btn" id="markAllReadBtn" title="Mark all as read">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" size="22" color="currentColor" strokeWidth="1.5" data-lucide="book-check" data-size="22" data-color="currentColor" class="lucide-icon"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"></path><path d="m9 9.5 2 2 4-4"></path></svg>
+    </button>
+    <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
+      <i class="bx bx-x"></i>
+    </button>
+  </div>
+  <div class="notification-bottom-sheet-content">
+    <div class="notification-content">
+      <!-- Notification content will be loaded here -->
+    </div>
+  </div>
+</div>
+
+<!-- Notification media lightbox (photo/video + full notification info) -->
+<div class="notification-media-lightbox" id="notificationMediaLightbox" role="dialog" aria-modal="true" aria-label="View attachment" style="display: none;">
+  <div class="notification-media-lightbox-backdrop"></div>
+  <div class="notification-media-lightbox-inner">
+    <button class="notification-media-lightbox-close" type="button" aria-label="Close">
+      <i class="bx bx-x"></i>
+    </button>
+    <div class="notification-media-lightbox-meta">
+      <div class="notification-media-lightbox-icon"></div>
+      <div class="notification-media-lightbox-text">
+        <div class="notification-media-lightbox-title"></div>
+        <div class="notification-media-lightbox-message"></div>
+        <div class="notification-media-lightbox-date"></div>
+      </div>
+    </div>
+    <img class="notification-media-lightbox-img" alt="" />
+    <video class="notification-media-lightbox-video" controls></video>
+  </div>
+</div>

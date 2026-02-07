@@ -1,0 +1,1373 @@
+/* 
+ * This CSS file uses CSS variables and base styles from layout.css
+ * Layout.css is loaded in index.html and provides:
+ * - CSS variables (--bg, --surface, --text, --border, --muted, --accent, --hover)
+ * - Base typography and layout styles
+ */
+
+/* Horizontal padding on content-area (scoped to parent home only) */
+.content-area {
+  padding-left: 10px;
+  padding-right: 10px;
+  box-sizing: border-box;
+}
+
+/* Instagram-style Header */
+.home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 100;
+  margin: none; /* Match top-bar margins to align with main-content width */
+  width: auto; /* Let it fill available space within margins */
+}
+
+.home-header-logo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.home-header-logo:hover {
+  opacity: 0.7;
+}
+
+.homegrown-logo {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.5px;
+  pointer-events: none;
+}
+
+.home-header-logo .account-switcher-icon {
+  font-size: 18px;
+  color: var(--text);
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+/* Ensure Lucide icons in account switcher use correct color */
+.home-header-logo .account-switcher-icon svg,
+.home-header-logo .account-switcher-icon.lucide-icon {
+  color: var(--text);
+}
+
+.home-header-logo .account-switcher-icon svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+.home-header-logo.active .account-switcher-icon {
+  transform: rotate(180deg);
+}
+
+.notification-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 50%;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.notification-bell:hover {
+  background: var(--hover);
+}
+
+.notification-bell:active {
+  transform: scale(0.95);
+}
+
+.notification-bell i {
+  font-size: 24px;
+  color: var(--text);
+}
+
+.notification-bell svg,
+.notification-bell .lucide-icon {
+  color: var(--text);
+}
+
+.notification-bell svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+/* Notification Badge - same as player home */
+.notification-badge {
+  position: absolute;
+  top: -1px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: none;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.notification-badge:empty {
+  display: none;
+}
+
+/* Account Switcher */
+.account-switcher {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.account-switcher-btn {
+  display: none; /* Hidden - logo is now the primary control */
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+}
+
+.account-switcher-btn:hover {
+  opacity: 0.7;
+}
+
+.account-switcher-name {
+  font-weight: 500;
+}
+
+.account-switcher-icon {
+  font-size: 18px;
+  transition: transform 0.2s ease;
+}
+
+.account-switcher-dropdown {
+  position: fixed !important;
+  top: 60px !important; /* Position below the header */
+  left: 50% !important;
+  transform: translateX(-50%) translateY(-10px) !important;
+  width: 200px;
+  /* 🍎 Apple Glass Core - Same as session-meta-oval */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.12)
+  ) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+  border: none !important;
+  border-radius: 12px;
+  box-shadow:
+    0 0 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+  z-index: 2147483647 !important; /* Maximum z-index value to ensure it's above everything */
+  isolation: isolate !important; /* Create new stacking context */
+  max-height: 0;
+  overflow: hidden;
+  display: none; /* Hidden by default */
+  will-change: transform, opacity; /* Optimize for animations */
+}
+
+.account-switcher-dropdown.is-open {
+  display: block !important; /* Override default display: none */
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.account-switcher-loading,
+.account-switcher-items {
+  padding: 12px 16px;
+}
+
+.account-switcher-loading {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  display: none; /* Hidden by default - will be shown only when loading */
+}
+
+.account-switcher-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+}
+
+.account-switcher-item:hover {
+  background: var(--hover);
+  color: var(--accent);
+}
+
+.account-switcher-item:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.account-switcher-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Light theme glass effect - Same as session-meta-oval */
+html[data-theme="light"] .account-switcher-dropdown {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.12)
+  );
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    0 0 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* Ensure dropdown is above leaderboard on all screen sizes, especially mobile */
+@media (max-width: 768px) {
+  .account-switcher-dropdown {
+    z-index: 2147483647 !important; /* Maximum z-index value */
+    isolation: isolate !important; /* Create new stacking context */
+  }
+
+  /* Calendar mobile fixes */
+  .calendar-header-container {
+    gap: 8px;
+    padding: 12px 0;
+  }
+
+  .calendar-nav-btn {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  .calendar-nav-btn i {
+    font-size: 16px;
+  }
+
+  .calendar-week-row {
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .calendar-day {
+    padding: 8px 2px;
+    min-width: 0;
+    flex: 0 0 auto;
+    width: calc((100% - 24px) / 7); /* 7 days with gaps */
+    max-width: calc((100% - 24px) / 7);
+  }
+
+  .day-label {
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+
+  .day-number {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+    min-width: 28px; /* Prevent shrinking below this */
+    min-height: 28px;
+  }
+}
+
+@media (max-width: 428px) {
+  /* iPhone-specific calendar fixes */
+  .calendar-header-container {
+    gap: 6px;
+    padding: 10px 0;
+  }
+
+  .calendar-nav-btn {
+    width: 24px;
+    height: 24px;
+  }
+
+  .calendar-nav-btn i {
+    font-size: 14px;
+  }
+
+  .calendar-week-row {
+    gap: 3px;
+  }
+
+  .calendar-day {
+    padding: 6px 1px;
+    width: calc((100% - 18px) / 7);
+    max-width: calc((100% - 18px) / 7);
+  }
+
+  .day-label {
+    font-size: 9px;
+    margin-bottom: 1px;
+  }
+
+  .day-number {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+    min-width: 24px;
+    min-height: 24px;
+  }
+}
+
+/* Parent home page styles */
+
+/* Schedule section - always visible, full width so calendar can use 100% - 20px */
+.sectionOne.mySchedule,
+#hiddenSchedule {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#hiddenSchedule {
+  margin-top: 10px;
+}
+
+/* Schedule Toggle Cards - Sliding Toggle Effect */
+.schedule-toggle-cards {
+  position: relative;
+  display: flex;
+  height: 80px;
+  margin-bottom: 20px;
+  justify-content: center;
+  width: 100%;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.schedule-toggle-card {
+  position: absolute;
+  width: 160px;
+  height: 80px;
+  padding: 20px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-align: center;
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+/* Left card (My Schedule) - starts centered */
+#myScheduleToggle {
+  left: calc(50% - 80px);
+  z-index: 2;
+}
+
+/* Right card (Reservations) - starts centered, behind */
+#reservationsToggle {
+  left: calc(50% - 80px);
+  z-index: 1;
+}
+
+/* Active state - centered, scaled up, elevated */
+.schedule-toggle-card.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  transform: translateX(0) scale(1.08);
+  z-index: 3;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+}
+
+/* When My Schedule is active */
+.schedule-toggle-cards.sessions-active #myScheduleToggle {
+  left: calc(50% - 80px);
+  transform: translateX(0) scale(1.08);
+  z-index: 3;
+}
+
+.schedule-toggle-cards.sessions-active #reservationsToggle {
+  left: calc(50% - 80px);
+  transform: translateX(-80px) scale(0.85);
+  opacity: 0.4;
+  z-index: 1;
+}
+
+/* When Reservations is active */
+.schedule-toggle-cards.reservations-active #reservationsToggle {
+  left: calc(50% - 80px);
+  transform: translateX(0) scale(1.08);
+  z-index: 3;
+}
+
+.schedule-toggle-cards.reservations-active #myScheduleToggle {
+  left: calc(50% - 80px);
+  transform: translateX(80px) scale(0.85);
+  opacity: 0.4;
+  z-index: 1;
+}
+
+/* Inactive state - default */
+.schedule-toggle-card:not(.active) {
+  opacity: 0.7;
+  transform: scale(0.95);
+}
+
+.schedule-toggle-card:hover:not(.active) {
+  background: var(--hover);
+  opacity: 0.85;
+}
+
+.toggle-card-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
+.schedule-toggle-card:not(.active) .toggle-card-label {
+  color: var(--text);
+}
+
+.toggle-card-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+/* Reservations card only: badge on top-left so it stays visible when card is behind */
+#reservationsToggle .toggle-card-badge {
+  right: auto;
+  left: 8px;
+}
+
+.schedule-toggle-card.active .toggle-card-badge {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+
+.schedule-toggle-card:not(.active) .toggle-card-badge {
+  background: var(--accent);
+  color: white;
+  opacity: 0.8;
+}
+
+/* Tab Content */
+.schedule-tab-content {
+  display: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  overflow: visible;
+}
+
+.schedule-tab-content.active {
+  display: block;
+}
+
+/* Add bottom spacing to the active tab content */
+.schedule-tab-content.active .sessions-scroll-container,
+.schedule-tab-content.active .reservations-container {
+  padding-bottom: 24px; /* Single source of bottom spacing */
+}
+
+/* Sessions/Reservations Scroll Container */
+.sessions-scroll-container {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  margin-bottom: 40px;
+  padding-bottom: 30px;
+}
+
+.sessions-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.sessions-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sessions-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.sessions-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Empty message under calendar */
+.sessions-empty-message {
+  text-align: center;
+  padding: 16px;
+  color: #EF4444;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+/* Sessions List - horizontal scrollable */
+.sessions-list-container {
+  display: flex;
+  gap: 16px;
+  padding: 0 4px;
+  min-width: min-content;
+}
+
+/* Reservations Container - horizontal scrollable */
+.reservations-container {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.reservations-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.reservations-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reservations-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.reservations-container::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Reservations List - horizontal row layout */
+.reservations-list-container {
+  display: flex;
+  gap: 16px;
+  padding: 0 4px;
+  min-width: min-content;
+}
+
+.reserved-session-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+/* Sessions cards - horizontal scrollable with fixed width */
+.sessions-list-container .reserved-session-card {
+  flex: 0 0 auto;
+  min-width: 280px;
+  max-width: 320px;
+  width: 280px;
+}
+
+/* Reservations cards - fixed width for horizontal scroll */
+.reservations-list-container .reserved-session-card {
+  flex: 0 0 auto;
+  min-width: 280px;
+  max-width: 320px;
+  width: 280px;
+}
+
+.reserved-session-card:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.session-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-time {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Make home page session-title more specific to prevent solo.css override */
+.reserved-session-card .session-title,
+.sessions-list-container .session-title,
+.reservations-list-container .session-title {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  text-shadow: none !important; /* Remove text-shadow from solo.css */
+}
+
+.session-details,
+.session-coach {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.session-details i,
+.session-coach i {
+  font-size: 16px;
+}
+
+.session-details .zoom-link {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.session-badge-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin-right: 0;
+  margin-bottom: 8px;
+}
+
+/* Hide RESERVED badge - badge now shows in toggle card */
+.session-badge-container .session-badge.reserved {
+  display: none;
+}
+
+.session-player-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: right;
+}
+
+.session-badge {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.session-badge.reserved {
+  background: #7ed321;
+  color: #000;
+}
+
+.cancel-reservation-btn {
+  align-self: flex-end;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.cancel-reservation-btn:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.loading-state,
+.empty-state,
+.error-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* Calendar Header Container - 100% width with 10px side spacing, content centered */
+.calendar-header-container,
+#parentHomeCalendar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  margin-left: 10px;
+  margin-right: 10px;
+  padding: 16px 0;
+  width: calc(100% - 20px);
+  max-width: calc(100% - 20px);
+  box-sizing: border-box;
+  overflow: hidden; /* Prevent overflow */
+}
+
+.calendar-nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.calendar-nav-btn:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.calendar-nav-btn i {
+  font-size: 20px;
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in calendar nav use correct color */
+.calendar-nav-btn svg,
+.calendar-nav-btn .lucide-icon {
+  color: var(--text);
+}
+
+.calendar-nav-btn svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+.calendar-week-row {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0; /* Allow flex item to shrink below content size */
+  overflow: hidden; /* Prevent overflow */
+  box-sizing: border-box;
+}
+
+.calendar-day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  background: transparent;
+  min-width: 0; /* Allow flex item to shrink */
+  box-sizing: border-box;
+  overflow: hidden; /* Prevent content overflow */
+}
+
+.day-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.day-number {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+
+.day-number.today {
+  background: var(--accent);
+  color: var(--text);
+  border: 1px solid var(--text);
+}
+
+.day-number.selected {
+  background: var(--hover);
+  color: var(--text);
+  font-weight: 700;
+  border: 1px solid var(--accent);
+}
+
+.day-number.past {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.calendar-day:hover .day-number:not(.today):not(.selected) {
+  background: var(--hover);
+}
+
+/* ========== Notification Bottom Sheet ========== */
+.notification-bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70vh;
+  min-height: 200px;
+  max-height: 70%;
+
+  /* 🍎 Apple Glass Core */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.12)
+  );
+
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+
+  border-radius: 24px 24px 0 0;
+
+  /* Subtle glass border */
+  border: 1px solid rgba(255, 255, 255, 0.25);
+
+  /* Soft Apple shadow */
+  box-shadow:
+    0 -6px 30px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  z-index: 10002;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  transition:
+    height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.notification-bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--muted);
+  border-radius: 2px;
+  margin: 12px auto 8px;
+  cursor: grab;
+  user-select: none;
+  z-index: 10003;
+  flex-shrink: 0;
+}
+
+.notification-bottom-sheet-handle:active {
+  cursor: grabbing;
+}
+
+.notification-bottom-sheet-header {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px 12px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.notification-bottom-sheet-header .mark-all-read-btn {
+  flex-shrink: 0;
+  order: 1;
+}
+
+.notification-bottom-sheet-header .notification-close-btn {
+  flex-shrink: 0;
+  order: 2;
+  margin-left: auto;
+}
+
+.notification-close-btn {
+  background: none;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notification-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.notification-close-btn:active {
+  transform: scale(0.95);
+}
+
+.notification-close-btn i {
+  font-size: 24px;
+  color: rgba(0, 0, 0, 0.8);
+  font-weight: bold;
+}
+
+/* Dark mode: use white icon */
+html[data-theme="dark"] .notification-close-btn i,
+html:not([data-theme]) .notification-close-btn i {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.notification-bottom-sheet-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  overflow-x: hidden;
+  display: block;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.mark-all-read-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.mark-all-read-btn:hover {
+  background: var(--hover);
+  transform: scale(1.05);
+}
+
+.mark-all-read-btn:active {
+  transform: scale(0.95);
+}
+
+.mark-all-read-btn i,
+.mark-all-read-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.mark-all-read-btn i {
+  font-size: 20px;
+}
+
+.notification-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  color: var(--text);
+  padding: 16px 16px 16px;
+  overflow-y: auto;
+  gap: 12px;
+}
+
+.notification-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.notification-item:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.notification-item.unread {
+  background: rgba(255, 255, 255, 0.7);
+  border-left: 4px solid var(--accent);
+}
+
+.notification-icon {
+  font-size: 24px;
+  color: var(--accent-solid, var(--text));
+  flex-shrink: 0;
+  min-width: 28px;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.notification-icon i.bx {
+  font-size: 24px;
+  color: inherit;
+  display: block;
+}
+
+/* Type-colored notification icons – set on i.bx with !important to override layout's global i.bx color */
+.notification-icon--information,
+.notification-icon--announcement { color: #EAB308 !important; }
+.notification-icon--information i.bx,
+.notification-icon--announcement i.bx { color: #EAB308 !important; }
+.notification-icon--cancellation { color: #DC2626 !important; }
+.notification-icon--cancellation i.bx { color: #DC2626 !important; }
+.notification-icon--merch { color: #2563EB !important; }
+.notification-icon--merch i.bx { color: #2563EB !important; }
+.notification-icon--popup_session { color: #16A34A !important; }
+.notification-icon--popup_session i.bx { color: #16A34A !important; }
+.notification-icon--time_change { color: #DC2626 !important; }
+.notification-icon--time_change i.bx { color: #DC2626 !important; }
+.notification-icon--veo_link { color: #16A34A !important; }
+.notification-icon--veo_link i.bx { color: #16A34A !important; }
+
+.notification-content-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #000;
+  margin-bottom: 4px;
+}
+.notification-title--red {
+  color: #DC2626 !important;
+}
+
+.notification-message {
+  font-size: 14px;
+  color: #000;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.notification-date {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.65);
+  opacity: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.notification-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* Attachment (photo/link/video) on flex-end, vertically centered */
+.notification-attachment {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notification-attachment-img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--bg-alt, rgba(0,0,0,0.04));
+}
+.notification-attachment-video {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-alt, rgba(0,0,0,0.06));
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 24px;
+}
+.notification-attachment-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--bg-alt, rgba(0,0,0,0.06));
+  color: var(--accent);
+  font-size: 22px;
+  text-decoration: none;
+}
+.notification-attachment-link:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+.notification-item:has(.notification-attachment-media) {
+  cursor: pointer;
+}
+.notification-attachment-media {
+  cursor: pointer;
+}
+
+/* Notification media lightbox — hidden by default; JS shows when opening */
+.notification-media-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10010;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.notification-media-lightbox[style*="display: flex"] {
+  display: flex;
+}
+.notification-media-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.notification-media-lightbox-inner {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 1;
+  gap: 16px;
+  overflow-y: auto;
+}
+.notification-media-lightbox-meta {
+  display: none;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  max-width: 90vw;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.notification-media-lightbox-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #fff;
+}
+.notification-media-lightbox-icon.notification-icon--cancellation,
+.notification-media-lightbox-icon.notification-icon--time_change { color: #DC2626 !important; }
+.notification-media-lightbox-icon.notification-icon--cancellation i.bx,
+.notification-media-lightbox-icon.notification-icon--time_change i.bx { color: #DC2626 !important; }
+.notification-media-lightbox-icon.notification-icon--information,
+.notification-media-lightbox-icon.notification-icon--announcement { color: #EAB308 !important; }
+.notification-media-lightbox-icon.notification-icon--information i.bx,
+.notification-media-lightbox-icon.notification-icon--announcement i.bx { color: #EAB308 !important; }
+.notification-media-lightbox-icon.notification-icon--merch { color: #2563EB !important; }
+.notification-media-lightbox-icon.notification-icon--merch i.bx { color: #2563EB !important; }
+.notification-media-lightbox-icon.notification-icon--popup_session,
+.notification-media-lightbox-icon.notification-icon--veo_link { color: #16A34A !important; }
+.notification-media-lightbox-icon.notification-icon--popup_session i.bx,
+.notification-media-lightbox-icon.notification-icon--veo_link i.bx { color: #16A34A !important; }
+.notification-media-lightbox-text {
+  flex: 1;
+  min-width: 0;
+}
+.notification-media-lightbox-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.notification-media-lightbox-title.notification-title--red { color: #DC2626 !important; }
+.notification-media-lightbox-message {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+.notification-media-lightbox-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.notification-media-lightbox-close {
+  position: absolute;
+  top: -44px;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background 0.2s;
+}
+.notification-media-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+.notification-media-lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.notification-media-lightbox-video {
+  max-width: 90vw;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.notification-content-old {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  color: var(--text);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .notification-bottom-sheet {
+    height: 75vh;
+    max-height: 75%;
+  }
+}
+
+@media (max-width: 435px) {
+  .notification-bottom-sheet {
+    border-radius: 20px 20px 0 0;
+    height: 80vh;
+    max-height: 80%;
+  }
+  
+  .notification-bottom-sheet-content {
+    padding: 0 16px 16px;
+  }
+  
+  .notification-bottom-sheet-header {
+    padding: 8px 10px 10px;
+  }
+  
+  .notification-close-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .notification-close-btn i {
+    font-size: 20px;
+  }
+  
+  .mark-all-read-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+

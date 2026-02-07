@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/app/layout/layout.css" />
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <title>Homegrown</title>
+  </head>
+  <body>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <img
+          class="img hgFooty desktop-logo"
+          src="/icons/hd.png"
+          alt="Homegrown logo"
+        />
+        <i class="bx bx-football bx-tada-hover mobile-logo"></i>
+      </div>
+      
+      <!-- Toggle button positioned half outside sidebar -->
+      <button
+        class="sidebar-toggle"
+        id="sidebarToggle"
+        type="button"
+        aria-label="Toggle sidebar"
+      >
+        <i class="bx bx-chevron-left toggle-chevron open-icon desktop-chevron"></i>
+        <i class="bx bx-chevron-right toggle-chevron closed-icon desktop-chevron" style="display: none;"></i>
+        <i class="bx bx-chevron-up toggle-chevron open-icon mobile-chevron" style="display: none;"></i>
+        <i class="bx bx-chevron-down toggle-chevron closed-icon mobile-chevron" style="display: none;"></i>
+      </button>
+      
+      <div class="sidebar-header-spacer"></div>
+
+      <nav class="icons">
+        <ul class="nav-list">
+          <li class="button active" title="Home">
+            <a href="#" data-page="home" class="nav-link" data-tooltip="Home">
+              <i class="bx bx-home"></i>
+              <span class="label">Home</span>
+            </a>
+          </li>
+          <li class="button" title="Schedule">
+            <a href="#" data-page="schedule" class="nav-link" data-tooltip="Schedule">
+              <i class="bx bx-calendar"></i>
+              <span class="label">Schedule</span>
+            </a>
+          </li>
+          <li class="button" title="Solo">
+            <a href="#" data-page="solo" class="nav-link" data-tooltip="Solo Trainings">
+              <i class="bx bx-football solo-icon-desktop"></i>
+              <img class="img solo-icon-mobile" src="/icons/hd.png" alt="Homegrown logo" style="display: none;" />
+              <span class="label">Solo</span>
+            </a>
+          </li>
+          <li class="button" title="Tracking">
+            <a href="#" data-page="tracking" class="nav-link" data-tooltip="Tracking">
+              <i class="bx bx-chart"></i>
+              <span class="label">Tracking</span>
+            </a>
+          </li>
+          <li class="button" title="Profile">
+            <a href="#" data-page="profile" class="nav-link" data-tooltip="Profile">
+              <i class="bx bx-user"></i>
+              <span class="label">Profile</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+
+    <main class="main-content">
+      <div class="top-bar">
+        <div class="leaderboard-container" id="leaderboardContainer">
+          <!-- Leaderboard will be loaded here -->
+        </div>
+      </div>
+      <div class="content-area" id="contentArea"></div>
+    </main>
+
+    <!-- Suppress harmless ResizeObserver errors -->
+    <script>
+      // Suppress the harmless "ResizeObserver loop completed with undelivered notifications" error
+      // This is a known browser quirk and doesn't indicate an actual problem
+      const originalError = window.onerror;
+      window.addEventListener('error', (e) => {
+        if (e.message && e.message.includes('ResizeObserver loop completed with undelivered notifications')) {
+          e.stopImmediatePropagation();
+          return true;
+        }
+      }, true);
+    </script>
+    <script src="/app/layout/layout.js" type="module" defer></script>
+  </body>
+</html>
+

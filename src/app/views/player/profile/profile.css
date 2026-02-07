@@ -1,0 +1,385 @@
+/* 
+ * This CSS file uses CSS variables and base styles from layout.css
+ * Layout.css is loaded in index.html and provides:
+ * - CSS variables (--bg, --surface, --text, --border, --muted, --accent, --hover)
+ * - Base typography and layout styles
+ */
+
+/* Profile page styles */
+.profile-container {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.profile-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  gap: 20px;
+}
+
+.profile-header h1 {
+  margin: 0;
+  flex: 1;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 20px;
+}
+
+.theme-toggle:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme-toggle:active {
+  /* No transform on active */
+}
+
+.theme-toggle i {
+  font-size: 20px;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-btn:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.logout-btn:active {
+  /* No transform on active */
+}
+
+.logout-btn i {
+  font-size: 18px;
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in logout button use correct color */
+.logout-btn svg,
+.logout-btn .lucide-icon {
+  color: var(--text);
+}
+
+.logout-btn svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+.theme-toggle i {
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in theme toggle use correct color */
+.theme-toggle svg,
+.theme-toggle .lucide-icon {
+  color: var(--text);
+}
+
+.theme-toggle svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+/* Disable all animations and transforms on bx icons */
+.bx,
+.bx *,
+.theme-toggle .bx,
+.logout-btn .bx {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+.theme-toggle:hover .bx,
+.logout-btn:hover .bx {
+  animation: none !important;
+  transform: none !important;
+}
+
+.theme-toggle:active .bx,
+.logout-btn:active .bx {
+  animation: none !important;
+  transform: none !important;
+}
+
+.profile-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.profile-section h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 24px 0;
+  width: 100%;
+  text-align: center;
+}
+
+/* Photo Upload Section */
+.photo-upload-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.photo-preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.photo-preview {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 3px solid var(--border);
+}
+
+.profile-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.photo-placeholder i {
+  font-size: 60px;
+  opacity: 0.5;
+}
+
+.photo-edit-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.photo-edit-btn:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.photo-edit-btn i {
+  font-size: 18px;
+}
+
+/* Profile Form */
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label span {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.form-label input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.form-label input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
+}
+
+.form-label input:read-only {
+  background: var(--surface);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.form-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.btn-primary {
+  padding: 12px 24px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.form-message {
+  font-size: 0.9rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  min-height: 20px;
+}
+
+.form-message.success {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.form-message.error {
+  background: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .profile-container {
+    padding: 20px;
+  }
+
+  .profile-section {
+    padding: 24px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-primary {
+    width: 100%;
+  }
+}
+
+/* Profile photo sizes for different contexts */
+.profile-photo-nav {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-photo-leaderboard {
+  width: 65px;
+  height: 65px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+

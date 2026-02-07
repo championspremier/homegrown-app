@@ -1,0 +1,2227 @@
+/* 
+ * Solo Sessions Page Styles
+ * TikTok-style vertical video feed with horizontal scroll tabs
+ */
+
+.solo-container {
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  background: transparent;
+}
+
+/* ========== Horizontal Scroll Tabs ========== */
+.solo-tabs {
+  position: fixed;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  width: 90% !important;
+  z-index: 1000;
+  display: flex !important;
+  gap: 16px;
+  padding: 12px 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  background: transparent !important;
+  backdrop-filter: none;
+  box-sizing: border-box;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* On desktop, account for sidebar to keep tabs within main-content */
+@media (min-width: 901px) {
+  .solo-tabs {
+    left: 220px; /* Sidebar width when open */
+    width: calc(100% - 220px);
+  }
+  
+  body:has(.sidebar.closed) .solo-tabs {
+    left: 80px; /* Sidebar width when closed */
+    width: calc(100% - 80px);
+  }
+}
+
+.solo-tabs::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* On desktop, account for sidebar to keep tabs within main-content */
+@media (min-width: 901px) {
+  .solo-tabs {
+    left: 220px; /* Sidebar width when open */
+    width: calc(100% - 220px);
+  }
+  
+  body:has(.sidebar.closed) .solo-tabs {
+    left: 80px; /* Sidebar width when closed */
+    width: calc(100% - 80px);
+  }
+}
+
+.solo-tab {
+  flex: 0 0 auto !important;
+  padding: 8px 20px;
+  background: transparent !important;
+  border: none;
+  color: white !important;
+  font-size: 15px !important;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  position: relative;
+  opacity: 0.8 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  visibility: visible !important;
+  display: inline-flex !important;
+  pointer-events: auto !important;
+}
+
+.solo-tab:hover {
+  opacity: 0.9 !important;
+  color: white !important;
+}
+
+.solo-tab.active {
+  font-size: 16px !important;
+  opacity: 1 !important;
+  color: white !important;
+  border-bottom: none;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.solo-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 2px;
+  background: var(--accent);
+}
+
+/* ========== Vertical Video Feed ========== */
+.solo-video-feed {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+}
+
+.solo-video-item {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.solo-video-wrapper {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.solo-video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* Handle vertical videos (1080x1920) - zoom to fit */
+.solo-video-player.vertical-video {
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+}
+
+/* For very tall videos, ensure they fill the screen */
+@media (orientation: portrait) {
+  .solo-video-player.vertical-video {
+    min-width: 100%;
+    min-height: 100%;
+    object-fit: cover;
+  }
+}
+
+/* Handle landscape videos (1920x1080) */
+.solo-video-player.landscape-video {
+  object-fit: contain;
+  width: 100%;
+  height: 100%;
+}
+
+/* On mobile, show landscape rotation button for landscape videos */
+@media (max-width: 768px) {
+  .solo-video-player.landscape-video ~ .solo-rotate-landscape {
+    display: flex !important;
+    opacity: .7;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    transition: all 0.2s ease;
+    &:hover {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+  }
+}
+
+/* ========== Video Overlays ========== */
+.solo-video-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 20px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.solo-video-info {
+  flex: 1;
+  max-width: 70%;
+  text-align: left;
+  margin-bottom: 0;
+  margin-top: 0;
+}
+
+.solo-video-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.solo-username {
+  font-weight: 600;
+  color: #fff;
+  font-size: 16px;
+}
+
+.solo-timestamp {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.solo-video-caption {
+  margin-bottom: 8px;
+}
+
+.solo-caption-text {
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Duration Timer */
+.solo-video-duration {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  pointer-events: none;
+}
+
+.solo-duration-text {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+/* Landscape Rotation Button */
+.solo-rotate-landscape {
+  position: absolute;
+  top: 60%;
+  right: 5px;
+  z-index: 15;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.solo-rotate-landscape i {
+  font-size: 24px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Thumbnail Preview (bottom) */
+.solo-thumbnail-preview {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  width: 200px;
+  height: 112px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  opacity: 0;
+  animation: fadeInThumbnail 0.3s ease forwards;
+}
+
+@keyframes fadeInThumbnail {
+  to {
+    opacity: 1;
+  }
+}
+
+.solo-thumbnail-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Hide hashtags (removed but keeping CSS for backward compatibility) */
+.solo-video-hashtags {
+  display: none;
+}
+
+/* ========== Right Side Actions ========== */
+.solo-video-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.solo-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.2s ease;
+  padding: 0;
+}
+
+.solo-action-btn:hover {
+  transform: scale(1.1);
+}
+
+.solo-action-btn i {
+  font-size: 28px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.solo-action-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.solo-profile-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  overflow: hidden;
+}
+
+.solo-profile-icon i {
+  font-size: 24px;
+  color: var(--bg);
+}
+
+/* ========== Video Controls ========== */
+.solo-video-controls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.solo-play-pause {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  opacity: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.solo-play-pause .bx-play{
+  color: #ffffff;
+  opacity: .7;
+}
+
+.solo-play-pause .bx-pause{
+  color: #ffffff;
+  opacity: .7;
+}
+
+.solo-video-wrapper:hover .solo-play-pause {
+  opacity: 1;
+}
+
+.solo-play-pause:hover {
+  background: none;
+  transform: scale(1.1);
+}
+
+.solo-play-pause i {
+  font-size: 28px;
+  margin-left: 4px; /* Slight offset for play icon */
+}
+
+.solo-play-pause.playing i {
+  margin-left: 0;
+}
+
+/* ========== Placeholder ========== */
+.solo-video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  color: var(--muted);
+  text-align: center;
+  padding: 40px;
+}
+
+.solo-video-placeholder p {
+  margin: 8px 0;
+  font-size: 16px;
+}
+
+.solo-placeholder-subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+/* ========== Skill Selection UI ========== */
+.skill-selection-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  background: var(--bg);
+  z-index: 1;
+  overflow-y: auto;
+  padding: 20px;
+  padding-top: 60px; /* Space for tabs */
+  margin: 0;
+}
+
+.back-to-tabs-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: all 0.2s ease;
+}
+
+.back-to-tabs-btn:hover {
+  background: var(--hover);
+}
+
+.skill-selection-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+.skill-selection-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skill-card {
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+  position: relative;
+  min-height: 200px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.skill-card-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.skill-card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.6));
+  z-index: 1;
+}
+
+.skill-card-content {
+  padding: 20px;
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.skill-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.skill-card:hover .skill-card-overlay {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.5));
+}
+
+.skill-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.skill-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.skill-card.selected .skill-card-name {
+  color: white;
+}
+
+.skill-card-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  width: 100%;
+}
+
+.skill-card.selected .skill-card-subtitle {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Fallback for cards without thumbnails */
+.skill-card:not(:has(.skill-card-background)):not([style*="background-image"]) {
+  background: var(--surface);
+}
+
+.skill-card:not(:has(.skill-card-background)):not([style*="background-image"]) .skill-card-name {
+  color: var(--text);
+  text-shadow: none;
+}
+
+.skill-card:not(:has(.skill-card-background)):not([style*="background-image"]) .skill-card-subtitle {
+  color: var(--muted);
+  text-shadow: none;
+}
+
+.skill-card:not(:has(.skill-card-background)):not([style*="background-image"]) .skill-card-overlay {
+  display: none;
+}
+
+/* ========== Mobile Responsiveness ========== */
+@media (max-width: 768px) {
+  /* Ensure solo container goes to top on mobile */
+  body.solo-page-active .content-area,
+  body.solo-page-active .main-content {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .solo-container {
+    /* Account for bottom navigation bar on mobile */
+    height: calc(100vh - 80px);
+    height: calc(100dvh - 80px);
+    min-height: calc(100vh - 80px);
+    min-height: calc(100dvh - 80px);
+    margin: 0 !important;
+    padding: 0 !important;
+    position: absolute;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+  
+  .solo-tabs {
+    padding: 10px 16px;
+    gap: 12px;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+  }
+  
+  .skill-selection-container {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    padding-top: 60px; /* Space for tabs on mobile */
+    margin: 0 !important;
+  }
+  
+  .skill-selection-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+  }
+  
+  .skill-card {
+    padding: 16px;
+  }
+  
+  .skill-selection-title {
+    font-size: 20px;
+  }
+  
+  .solo-video-item {
+    height: calc(100vh - 80px);
+    height: calc(100dvh - 80px);
+  }
+
+  .solo-tab {
+    padding: 6px 16px;
+    font-size: 13px !important;
+    opacity: 0.8 !important;
+    visibility: visible !important;
+  }
+  
+  .solo-tab.active {
+    opacity: 1 !important;
+  }
+
+  .solo-video-overlay {
+    padding: 16px;
+  }
+
+  .solo-video-info {
+    max-width: 75%;
+    margin-bottom: 40px;
+  }
+
+  .solo-username {
+    font-size: 14px;
+  }
+
+  .solo-caption-text {
+    font-size: 13px;
+  }
+
+  .solo-action-btn .bx-heart {
+    font-size: 24px;
+    color: #ffffff;
+    opacity: .7;
+  }
+
+  .solo-profile-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .solo-profile-icon i {
+    font-size: 20px;
+  }
+
+  .solo-video-actions {
+    gap: 16px;
+    margin-bottom: 60px;
+  }
+}
+
+/* ========== Drills Container ========== */
+.drills-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 100px 20px 20px;
+  background: var(--bg);
+}
+
+/* ========== Session Hero Section (Collapsed - Multiple Heroes) ========== */
+.session-hero {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: linear-gradient(135deg, var(--accent) 0%, rgba(211, 175, 55, 0.7) 100%);
+}
+
+.session-hero:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.session-hero-image,
+.session-hero-video-poster {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.session-hero-video-poster {
+  pointer-events: none;
+}
+
+.session-hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.6) 100%);
+  z-index: 2;
+}
+
+.session-hero-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  color: white;
+  z-index: 3;
+}
+
+.session-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.session-hero-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  background: var(--accent);
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.session-hero-subskill {
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.session-hero-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.session-hero-level {
+  font-size: 12px;
+  opacity: 0.9;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.session-hero-duration {
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* ========== Session Modal ========== */
+.session-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.session-modal {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  background: var(--bg);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.session-modal-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  z-index: 10001;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
+}
+
+.session-modal-close,
+.session-modal-fullscreen {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.session-modal-close:hover,
+.session-modal-fullscreen:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.session-modal-close i,
+.session-modal-fullscreen i {
+  font-size: 24px;
+}
+
+.session-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========== Session Video Container ========== */
+.session-video-container {
+  position: relative;
+  width: 100%;
+  background: #000;
+  aspect-ratio: 9 / 16; /* Vertical video aspect ratio */
+  max-height: 60vh;
+  overflow: hidden;
+}
+
+.session-hero-video-expanded {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.session-video-thumbnail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.session-video-play-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.session-video-play-btn:hover {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 1);
+}
+
+.session-video-play-btn i {
+  font-size: 40px;
+  color: var(--accent);
+  margin-left: 4px; /* Slight offset for play icon */
+}
+
+/* ========== Session Hero Content Expanded ========== */
+.session-hero-content-expanded {
+  padding: 20px;
+  text-align: center;
+  background: var(--bg);
+  flex: 1;
+  overflow-y: auto;
+}
+
+.session-hero-content-expanded {
+  margin-top: 20px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+/* ========== Session Detail Page ========== */
+.session-detail-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  background: #000;
+}
+
+.session-detail-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.session-detail-back {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.session-detail-back:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.session-detail-back i {
+  font-size: 24px;
+}
+
+/* Video Background */
+.session-video-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.session-background-image,
+.session-background-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Add to Schedule Button - Top Right */
+.session-add-to-schedule-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(15px) saturate(180%);
+  -webkit-backdrop-filter: blur(15px) saturate(180%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.session-add-to-schedule-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+}
+
+.session-add-to-schedule-btn:active {
+  transform: scale(0.95);
+}
+
+.session-add-to-schedule-btn i {
+  font-size: 28px;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Tooltip for Add to Schedule Button */
+.session-add-tooltip {
+  position: absolute;
+  top: 60px;
+  right: 0;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1002;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.session-add-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 20px;
+  border: 6px solid transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.85);
+}
+
+/* Glass Play Button - Overlay on background video */
+.session-glass-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.session-glass-play-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translate(-50%, -50%) scale(1.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+.session-glass-play-btn:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+.session-glass-play-btn i {
+  font-size: 36px;
+  color: white;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  margin-left: 4px; /* Slight offset for play icon visual balance */
+}
+
+/* Warm-up Video Container */
+.session-warmup-video-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999; /* Below bottom sheet (1002) but above background (1) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* Allow clicks to pass through to bottom sheet */
+}
+
+.session-warmup-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: auto; /* Video itself can receive events */
+}
+
+.session-warmup-video-container .session-warmup-play-pause-btn {
+  pointer-events: auto; /* Play/pause button can receive events */
+}
+
+/* Warm-up Video Play/Pause Button */
+.session-warmup-play-pause-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 70px;
+  height: 70px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(15px) saturate(180%);
+  -webkit-backdrop-filter: blur(15px) saturate(180%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.session-warmup-play-pause-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.session-warmup-play-pause-btn:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+.session-warmup-play-pause-btn i {
+  font-size: 32px;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  margin-left: 3px; /* Slight offset for play icon */
+}
+
+/* Play/Pause button for background video */
+.session-video-play-pause-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 50%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.session-video-play-pause-btn:hover {
+  opacity: 0.8;
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.session-video-play-pause-btn:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+.session-video-play-pause-btn i {
+  font-size: 32px;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Draggable Bottom Sheet */
+.session-bottom-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100px; /* Start at minimal level */
+  min-height: 100px;
+  max-height: 90%;
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease, box-shadow 0.3s ease;
+  overflow: hidden;
+}
+
+/* Level 1: Transparent background, only oval visible */
+.session-bottom-sheet[data-level="1"] {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/* Level 2 & 3: Normal background */
+.session-bottom-sheet[data-level="2"] {
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  right: 20px;
+
+  height: 100px;
+  min-height: 100px;
+  max-height: 90%;
+
+  /* 🍎 Apple Glass Core */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.12)
+  );
+
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+
+  border-radius: 24px 24px 0 0;
+
+  /* Subtle glass border */
+  border: 1px solid rgba(255, 255, 255, 0.25);
+
+  /* Soft Apple shadow */
+  box-shadow:
+    0 -6px 30px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  transition:
+    height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.session-bottom-sheet[data-level="3"] {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  height: 100px;
+  min-height: 100px;
+  max-height: 90%;
+
+  /* 🍎 Apple Glass Core */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.12)
+  );
+
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+
+  border-radius: 24px 24px 0 0;
+
+  /* Subtle glass border */
+  border: 1px solid rgba(255, 255, 255, 0.25);
+
+  /* Soft Apple shadow */
+  box-shadow:
+    0 -6px 30px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  transition:
+    height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.session-bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--muted);
+  border-radius: 2px;
+  margin: 0 auto;
+  cursor: grab;
+  user-select: none;
+  z-index: 10030;
+}
+
+.session-bottom-sheet-handle:active {
+  cursor: grabbing;
+}
+
+.session-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, opacity 0.3s ease;
+  z-index: 1003;
+}
+
+/* Hide close button in Level 1 */
+.session-bottom-sheet[data-level="1"] .session-close-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Show close button in Level 2 & 3 */
+.session-bottom-sheet[data-level="2"] .session-close-btn,
+.session-bottom-sheet[data-level="3"] .session-close-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.session-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.session-close-btn:active {
+  transform: scale(0.95);
+}
+
+.session-close-btn i {
+  font-size: 24px;
+  color: rgba(0, 0, 0, 0.8);
+  font-weight: bold;
+}
+
+/* Dark mode: use white icon */
+html[data-theme="dark"] .session-close-btn i,
+html:not([data-theme]) .session-close-btn i {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.session-bottom-sheet-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  overflow-x: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Level 1: Center the oval meta */
+.session-bottom-sheet[data-level="1"] .session-bottom-sheet-content {
+  overflow: hidden;
+  padding: 8px 20px 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Level 2 & 3: Normal content layout */
+.session-bottom-sheet[data-level="2"] .session-bottom-sheet-content,
+.session-bottom-sheet[data-level="3"] .session-bottom-sheet-content {
+  display: block;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+/* Minimal View: Oval Meta Display (Level 1) */
+.session-meta-oval {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  /* 🍎 Apple Glass Core */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.12)
+  );
+
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+
+  border-radius: 50%;
+
+  /* Subtle glass border */
+  border: none;
+
+  /* Soft Apple shadow */
+  box-shadow:
+    0 0 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  border-radius: 50px;
+  padding: 8px 20px 12px;
+  margin: 0 auto;
+  width: 70%;
+  min-width: 200px;
+  position: relative;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.session-meta-oval:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* Handle inside oval - at the top */
+.session-meta-oval .session-bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+  margin: 0;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+  order: -1; /* Place handle at the top */
+  display: block;
+  z-index: 1;
+}
+
+.session-meta-oval .session-bottom-sheet-handle:active {
+  cursor: grabbing;
+}
+
+/* Meta items row - displays meta items horizontally */
+
+.session-meta-oval .session-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.session-meta-oval .session-meta-item i,
+.session-meta-oval .session-meta i {
+  font-size: 16px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.session-meta-oval .session-meta {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.session-meta-oval .session-meta-item span,
+.session-meta-oval .session-meta span {
+  font-weight: 600;
+  color: white;
+}
+
+/* Full Content View (Level 2 & 3) */
+.session-full-content {
+  padding-top: 8px;
+}
+
+/* Handle outside oval (Level 2 & 3) */
+.session-bottom-sheet[data-level="2"] .session-bottom-sheet-handle,
+.session-bottom-sheet[data-level="3"] .session-bottom-sheet-handle {
+  opacity: 1;
+  margin: 12px auto;
+  display: block;
+}
+
+/* Ensure handle is visible by default */
+.session-bottom-sheet-handle {
+  display: block;
+}
+
+/* Hide the handle that's outside the oval in Level 1 */
+.session-bottom-sheet[data-level="1"] > .session-bottom-sheet-handle {
+  display: none;
+}
+
+/* ========== Session Modal (Old - keeping for reference) ========== */
+.session-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.session-modal {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  background: var(--bg);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.session-modal-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  z-index: 10001;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
+}
+
+.session-modal-close,
+.session-modal-fullscreen {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.session-modal-close:hover,
+.session-modal-fullscreen:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.session-modal-close i,
+.session-modal-fullscreen i {
+  font-size: 24px;
+}
+
+.session-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ========== Session Video Container ========== */
+.session-video-container {
+  position: relative;
+  width: 100%;
+  background: #000;
+  aspect-ratio: 9 / 16; /* Vertical video aspect ratio */
+  max-height: 60vh;
+  overflow: hidden;
+}
+
+.session-hero-video-expanded {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.session-video-thumbnail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.session-video-play-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.session-video-play-btn:hover {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 1);
+}
+
+.session-video-play-btn i {
+  font-size: 40px;
+  color: var(--accent);
+  margin-left: 4px; /* Slight offset for play icon */
+}
+
+.session-category-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(10px);
+}
+
+.session-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.session-meta {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  color: white;
+  padding: 20px;
+}
+
+.session-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: white;
+}
+
+.session-meta-item i,
+.session-meta i {
+  font-size: 18px;
+  color: white;
+}
+
+/* Ensure icons are white in all levels */
+.session-bottom-sheet[data-level="1"] .session-meta-item i,
+.session-bottom-sheet[data-level="1"] .session-meta i,
+.session-bottom-sheet[data-level="2"] .session-meta-item i,
+.session-bottom-sheet[data-level="2"] .session-meta i,
+.session-bottom-sheet[data-level="3"] .session-meta-item i,
+.session-bottom-sheet[data-level="3"] .session-meta i {
+  color: white !important;
+}
+
+/* ========== Drill Sections ========== */
+.drill-section {
+  margin-bottom: 16px;
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.drill-section-header {
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.drill-section-header:hover {
+  background: var(--hover);
+}
+
+.drill-section-header[data-expandable="true"] {
+  cursor: pointer;
+}
+
+.drill-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.expand-icon {
+  font-size: 20px;
+  transition: transform 0.2s ease;
+  color: var(--accent);
+}
+
+.drill-section-content {
+  padding: 0 20px 20px;
+}
+
+.no-drills {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ========== Drill Item Row ========== */
+.drill-item-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+.drill-item-row:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.drill-thumbnail {
+  flex: 0 0 120px;
+  width: 120px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  position: relative;
+}
+
+.drill-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drill-thumbnail-image,
+.drill-thumbnail-video-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drill-thumbnail-video-poster {
+  pointer-events: auto;
+}
+
+.drill-thumbnail-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 1;
+  transition: background 0.2s ease;
+  pointer-events: none;
+}
+
+.drill-thumbnail:hover .drill-thumbnail-overlay {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.drill-thumbnail-text {
+  color: white;
+  font-size: 8px;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.drill-thumbnail:hover .drill-thumbnail-text {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.drill-thumbnail-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.drill-thumbnail-placeholder i {
+  font-size: 32px;
+}
+
+.drill-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.drill-title {
+  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drill-title h4 {
+  margin: 0 0 8px 0;
+}
+
+.drill-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.drill-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.drill-meta-item i {
+  font-size: 14px;
+}
+
+.drill-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.drill-coaching-points-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.drill-coaching-points-btn:hover {
+  background: rgba(211, 175, 55, 0.9);
+  transform: translateY(-1px);
+}
+
+.drill-coaching-points-btn i {
+  font-size: 18px;
+}
+
+/* ========== Coaching Points Modal ========== */
+.coaching-points-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.coaching-points-modal {
+  background: var(--surface);
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.coaching-points-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.coaching-points-modal-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.close-coaching-modal {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.close-coaching-modal:hover {
+  color: var(--accent);
+}
+
+.coaching-points-modal-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.coaching-points-modal-content p {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* ========== Mobile Responsiveness for Drills ========== */
+@media (max-width: 768px) {
+  .drills-container {
+    padding: 100px 16px 16px;
+  }
+
+  .session-hero {
+    height: 250px;
+    margin-bottom: 20px;
+  }
+
+  .session-title {
+    font-size: 24px;
+  }
+
+  .session-meta {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    padding-bottom: 20px;
+  }
+
+  .drill-item-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .drill-thumbnail {
+    width: 100%;
+    height: 180px;
+  }
+
+  .drill-info {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .drill-coaching-points-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .coaching-points-modal {
+    max-height: 90vh;
+  }
+  
+}
+
+/* Solo Session Schedule Modal */
+.solo-schedule-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+}
+
+.solo-schedule-modal {
+  background: var(--bg);
+  border-radius: 20px;
+  padding: 30px;
+  max-width: 400px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.solo-schedule-modal-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s ease;
+  color: var(--text);
+}
+
+.solo-schedule-modal-close:hover {
+  background: var(--surface);
+}
+
+.solo-schedule-modal-close i {
+  font-size: 24px;
+}
+
+.solo-schedule-modal h2 {
+  margin: 0 0 10px 0;
+  font-size: 24px;
+  color: var(--text);
+}
+
+.solo-schedule-session-title {
+  margin: 0 0 20px 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.solo-schedule-modal .form-group {
+  margin-bottom: 20px;
+}
+
+.solo-schedule-modal .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.solo-schedule-modal .form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  transition: border-color 0.2s ease;
+}
+
+.solo-schedule-modal .form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.solo-schedule-modal .form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.solo-schedule-modal .btn-primary,
+.solo-schedule-modal .btn-secondary {
+  flex: 1;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.solo-schedule-modal .btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.solo-schedule-modal .btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.solo-schedule-modal .btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.solo-schedule-modal .btn-secondary:hover {
+  background: var(--bg);
+}

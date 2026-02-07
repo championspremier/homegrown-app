@@ -1,0 +1,2 @@
+// Coach Payments page scripts
+

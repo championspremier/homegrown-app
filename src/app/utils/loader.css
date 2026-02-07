@@ -1,0 +1,131 @@
+/* Loading Indicator Styles */
+
+.loader-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  min-height: 100px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.loader-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.loader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.loader-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.loader-dot-1 {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  animation-delay: 0s;
+}
+
+.loader-dot-2 {
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  animation-delay: 0.2s;
+}
+
+.loader-dot-3 {
+  background: linear-gradient(135deg, #06b6d4, #14b8a6);
+  animation-delay: 0.4s;
+}
+
+.loader-dot-4 {
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  animation-delay: 0.6s;
+}
+
+.loader-dot-5 {
+  background: linear-gradient(135deg, #ec4899, #f43f5e);
+  animation-delay: 0.8s;
+}
+
+.loader-message {
+  display: none; /* Circles only; no lettering for parent, player, coach */
+}
+
+/* Overlay loader (full screen) */
+.loader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loader-overlay .loader-container {
+  background: none;
+  gap: 0;
+}
+
+.loader-overlay .loader-message {
+  color: var(--text);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .loader-dot-1 {
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  }
+  
+  .loader-dot-2 {
+    background: linear-gradient(135deg, #c084fc, #f472b6);
+  }
+  
+  .loader-dot-3 {
+    background: linear-gradient(135deg, #22d3ee, #2dd4bf);
+  }
+  
+  .loader-dot-4 {
+    background: linear-gradient(135deg, #a78bfa, #c084fc);
+  }
+  
+  .loader-dot-5 {
+    background: linear-gradient(135deg, #f472b6, #fb7185);
+  }
+  
+  .loader-overlay .loader-container {
+    background: var(--surface, #1f2937);
+  }
+  
+  .loader-overlay .loader-message {
+    color: var(--text, #f9fafb);
+  }
+}

@@ -1,0 +1,89 @@
+<div class="people-page">
+  <!-- Page Header -->
+  <div class="people-header">
+    <h1 class="page-title">People</h1>
+    <button class="add-person-btn" id="addPersonBtn" type="button">
+      <i class="bx bx-plus"></i>
+      <span>Person</span>
+    </button>
+  </div>
+
+  <!-- Tabs and Search Bar -->
+  <div class="people-controls">
+    <div class="people-tabs">
+      <button class="people-tab-btn" data-tab="members" type="button">Members</button>
+      <button class="people-tab-btn" data-tab="leads" type="button">Leads</button>
+      <button class="people-tab-btn active" data-tab="staff" type="button">Staff</button>
+    </div>
+    
+    <div class="people-search-controls">
+      <div class="search-container">
+        <i class="bx bx-search search-icon"></i>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search staff" />
+      </div>
+      <button class="icon-btn" id="filterBtn" type="button" aria-label="Filter">
+        <i class="bx bx-filter"></i>
+      </button>
+      <button class="icon-btn" id="downloadBtn" type="button" aria-label="Download">
+        <i class="bx bx-download"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Staff Table -->
+  <div class="people-table-container">
+    <table class="people-table" id="peopleTable">
+      <thead>
+        <tr>
+          <th class="checkbox-col">
+            <input type="checkbox" id="selectAllCheckbox" />
+          </th>
+          <th class="name-col sortable" data-sort="name">
+            Name
+            <i class="bx bx-sort sort-icon"></i>
+          </th>
+          <th class="type-col sortable" data-sort="type" id="typeColumnHeader" style="display: none;">
+            Type
+            <i class="bx bx-sort sort-icon"></i>
+          </th>
+          <th class="plan-col sortable" data-sort="plan" id="planColumnHeader" style="display: none;">
+            Plan
+            <i class="bx bx-sort sort-icon"></i>
+          </th>
+          <th class="status-col sortable" data-sort="status" id="statusColumnHeader" style="display: none;">
+            Status
+            <i class="bx bx-sort sort-icon"></i>
+          </th>
+          <th class="role-col sortable" data-sort="role" id="roleColumnHeader">
+            Role
+            <i class="bx bx-sort sort-icon"></i>
+          </th>
+          <th class="checkin-col sortable" data-sort="last_checkin">
+            Last check-in
+            <i class="bx bx-sort sort-icon"></i>
+          </th>
+          <th class="actions-col"></th>
+        </tr>
+      </thead>
+      <tbody id="peopleTableBody">
+        <!-- Staff rows will be populated here -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="people-pagination">
+    <div class="pagination-info" id="paginationInfo">
+      Showing 1 to 0 of 0
+    </div>
+    <div class="pagination-controls">
+      <button class="pagination-btn" id="prevPageBtn" type="button" disabled>
+        <i class="bx bx-chevron-left"></i>
+      </button>
+      <span class="pagination-page" id="currentPage">Page 1 of 1</span>
+      <button class="pagination-btn" id="nextPageBtn" type="button" disabled>
+        <i class="bx bx-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+</div>

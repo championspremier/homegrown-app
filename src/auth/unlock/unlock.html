@@ -8,7 +8,7 @@
       href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./unlock.css" />
+    <link rel="stylesheet" href="/auth/unlock/unlock.css" />
   </head>
   <body>
     <main class="unl-wrap">
@@ -18,7 +18,7 @@
         <img
           id="unl-logo"
           class="unl-logo"
-          src="../../../public/icons/hd.png"
+          src="/icons/hd.png"
           alt="Homegrown Development Logo"
         />
       </section>
@@ -26,7 +26,7 @@
       <!-- Right: Headline + Slider -->
       <section class="unl-right">
         <h1 class="unl-h1">
-          Improve your <span class="unl-accent">Game IQ</span>
+          Improve <span class="unl-accent" id="unl-accent-text">Game IQ</span>
         </h1>
 
         <div class="unl-sliderRow">
@@ -42,25 +42,20 @@
             tabindex="0"
           >
             <div id="unl-fill" class="unl-fill"></div>
-            <div id="unl-dot" class="unl-dot" aria-hidden="true">
+            <!-- Cue content inside track, behind dot -->
+            <div class="unl-cue">
+              <span class="unl-cue-sheen" aria-hidden="true"></span>
+              <i class="bx bx-chevrons-right"></i>
+              <span>Slide the <strong>dot</strong> to begin</span>
+            </div>
+            <div id="unl-dot" class="unl-dot">
               <i class="bx bx-chevron-right"></i>
             </div>
           </div>
-
-          <!-- Cue -->
-          <div class="unl-cue">
-            <span class="unl-cue-sheen" aria-hidden="true"></span>
-            <i class="bx bx-chevrons-right"></i>
-            <span>Slide the <strong>dot</strong> to begin</span>
-          </div>
         </div>
-
-        <p class="unl-meta">
-          <span class="unl-pill">Tip</span> Drag, tap, or use ← → keys.
-        </p>
       </section>
     </main>
 
-    <script src="./unlock.js" defer></script>
+    <script type="module" src="/auth/unlock/unlock.js"></script>
   </body>
 </html>

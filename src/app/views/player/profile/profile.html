@@ -1,0 +1,81 @@
+<div class="profile-container">
+  <div class="profile-header">
+    <h1>Profile</h1>
+    <div class="profile-actions">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">
+        <i class="bx bx-sun"></i>
+      </button>
+      <button class="logout-btn" id="logoutBtn" type="button" aria-label="Logout">
+        <i class="bx bx-log-out"></i>
+        <span>Logout</span>
+      </button>
+    </div>
+  </div>
+  <div class="profile-content">
+    <!-- Photo Upload Section -->
+    <div class="profile-section">
+      <h2>Profile Photo</h2>
+      <div class="photo-upload-section">
+        <div class="photo-preview-container">
+          <div class="photo-preview" id="photoPreview">
+            <img id="profilePhoto" src="" alt="Profile photo" class="profile-photo-img" style="display: none;">
+            <div class="photo-placeholder" id="photoPlaceholder">
+              <i class="bx bx-user"></i>
+            </div>
+          </div>
+          <button type="button" class="photo-edit-btn" id="photoEditBtn">
+            <i class="bx bx-camera"></i>
+            <span>Edit Photo</span>
+          </button>
+        </div>
+        <input type="file" id="photoInput" accept="image/*" style="display: none;">
+        <div id="photoMessage" class="form-message"></div>
+      </div>
+    </div>
+
+    <!-- Profile Form Section -->
+    <div class="profile-section">
+      <h2>Edit Player Account</h2>
+      <form id="editPlayerForm" class="profile-form">
+        <div class="form-row">
+          <label class="form-label">
+            <span>First Name</span>
+            <input type="text" id="playerFirstName" name="firstName" required="">
+          </label>
+          <label class="form-label">
+            <span>Last Name</span>
+            <input type="text" id="playerLastName" name="lastName" required="">
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>Email</span>
+            <input type="email" id="playerEmail" name="email" required="" readonly="">
+            <small class="form-hint">Email cannot be changed</small>
+          </label>
+          <label class="form-label">
+            <span>Phone Number</span>
+            <input type="tel" id="playerPhone" name="phone">
+          </label>
+        </div>
+        
+        <div class="form-row">
+          <label class="form-label">
+            <span>Birth Year</span>
+            <input type="number" id="playerBirthYear" name="birthYear" min="2000" max="2016" required="">
+            <small class="form-hint">Year of birth (2000-2016)</small>
+          </label>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="savePlayerBtn">
+            <span>Save Changes</span>
+          </button>
+          <div id="playerFormMessage" class="form-message"></div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+

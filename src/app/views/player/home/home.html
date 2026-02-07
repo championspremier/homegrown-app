@@ -1,96 +1,173 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="home.css" />
-    <link rel="stylesheet" href="../../../layout/layout.css" />
-    <link
-      href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
-      rel="stylesheet"
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Racing+Sans+One&family=Zalando+Sans+Expanded:ital,wght@0,200..900;1,200..900&display=swap"
-      rel="stylesheet"
-    />
-    <title>Homegrown</title>
-  </head>
-  <body>
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <img
-          class="img"
-          src="../../../../../../public/icons/hd.png"
-          alt="Homegrown logo"
-        />
-        <button
-          class="theme-toggle"
-          id="themeToggle"
-          type="button"
-          aria-label="Toggle theme"
-        >
-          <i class="bx bx-sun bx-spin-hover"></i>
-        </button>
-      </div>
+<!-- Instagram-style Header -->
+<div class="home-header">
+  <!-- Left: Account Switcher -->
+  <div class="account-switcher">
+    <button class="account-switcher-btn" id="accountSwitcherBtn" type="button" aria-expanded="false" aria-haspopup="true">
+      <span class="account-switcher-name" id="accountSwitcherName">Loading...</span>
+    </button>
+    <div class="account-switcher-dropdown" id="accountSwitcherDropdown" role="menu">
+      <div class="account-switcher-loading" id="accountSwitcherLoading">Loading accounts...</div>
+      <div class="account-switcher-items" id="accountSwitcherItems" style="display: none;"></div>
+    </div>
+  </div>
+  
+  <!-- Center: Homegrown Logo (clickable to show accounts) -->
+  <div class="home-header-logo" id="homeHeaderLogo">
+    <h1 class="homegrown-logo">Homegrown</h1>
+    <i class="bx bx-chevron-down account-switcher-icon"></i>
+  </div>
+  
+  <!-- Right: Notification Bell -->
+  <button class="notification-bell" id="notificationBell" type="button" aria-label="Notifications">
+    <i class="bx bx-bell"></i>
+  </button>
+</div>
 
-      <!-- CHANGE SIDEBAR CONTENT HERE -->
-      <nav class="icons">
-        <ul class="nav-list">
-          <li class="button" title="Home">
-            <a href="#" class="nav-link">
-              <i class="bx bx-home bx-tada-hover"></i>
-              <span class="label">Home</span>
-            </a>
-          </li>
-          <li class="button" title="Schedule">
-            <a href="#" class="nav-link">
-              <i class="bx bx-calendar bx-tada-hover"></i>
-              <span class="label">Schedule</span>
-            </a>
-          </li>
-          <li class="button" title="Solo">
-            <a href="#" class="nav-link">
-              <i class="bx bx-football bx-tada-hover"></i>
-              <span class="label">Solo</span>
-            </a>
-          </li>
-          <li class="button" title="Tracking">
-            <a href="#" class="nav-link">
-              <i class="bx bx-chart bx-tada-hover"></i>
-              <span class="label">Tracking</span>
-            </a>
-          </li>
-          <li class="button" title="Profile">
-            <a href="#" class="nav-link">
-              <i class="bx bx-user bx-tada-hover"></i>
-              <span class="label">Profile</span>
-            </a>
-          </li>
-        </ul>
-      </nav>
-    </aside>
+<!-- My Schedule, Quiz -->
+<div class="sectionOne mySchedule">
+  <div id="hiddenSchedule">
+    <!-- Toggle Cards for My Schedule and Reservations -->
+    <div class="schedule-toggle-cards">
+      <button class="schedule-toggle-card active" id="myScheduleToggle" data-tab="sessions" type="button">
+        <div class="toggle-card-label">My Schedule</div>
+        <div class="toggle-card-badge" id="myScheduleBadge" style="display: none;"></div>
+      </button>
+      <button class="schedule-toggle-card" id="reservationsToggle" data-tab="reservations" type="button">
+        <div class="toggle-card-label">Reservations</div>
+        <div class="toggle-card-badge" id="reservationsBadge" style="display: none;"></div>
+      </button>
+    </div>
 
-    <!-- CHANGE MAIN CONTENT HERE -->
-    <main class="main-content">
-      <!-- Leaderboard -->
-      <div class="top-bar">
-        <div class="players">
-          <div class="player-circle-img">
-            <div class="player-leader-position" aria-label="Leaderboard rank">
-              1
-            </div>
-          </div>
-          <div class="player-name">Stan</div>
+    <!-- Calendar -->
+    <div class="calendar-header-container" id="playerHomeCalendar">
+      <button class="calendar-nav-btn" id="playerHomeCalendarPrev" type="button">
+        <i class="bx bx-chevron-left"></i>
+      </button>
+      <div class="calendar-week-row" id="playerHomeCalendarWeek"></div>
+      <button class="calendar-nav-btn" id="playerHomeCalendarNext" type="button">
+        <i class="bx bx-chevron-right"></i>
+      </button>
+    </div>
+    <!-- Empty state message under calendar -->
+    <div class="sessions-empty-message" id="sessionsEmptyMessage" style="display: none;"></div>
+
+    <!-- Sessions Content (horizontal scrollable) -->
+    <div class="schedule-tab-content active" id="sessionsTabContent">
+      <div class="sessions-scroll-container">
+        <div class="sessions-list-container" id="sessionsListContainer">
+          <!-- Reserved sessions will be loaded here -->
         </div>
       </div>
+    </div>
 
-      <!-- My Schedule, Quiz -->
-      <div class="content-area"></div>
-    </main>
+    <!-- Reservations Content (column layout) -->
+    <div class="schedule-tab-content" id="reservationsTabContent">
+      <div class="reservations-container">
+        <div class="reservations-list-container" id="reservationsListContainer">
+          <!-- Reservations will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-    <script src="home.js"></script>
-    <script src="../../../layout/layout.js"></script>
-  </body>
-</html>
+<div class="objectives-quiz-section">
+  <!-- Tab Container -->
+  <div class="tab-container">
+    <!-- Tab List -->
+    <div class="tab-list-wrapper">
+      <div class="tab-list" role="tablist" aria-label="Objectives and Quiz tabs">
+        <button 
+          class="tab-button" 
+          role="tab" 
+          aria-selected="false" 
+          aria-controls="objectives-panel" 
+          id="objectives-tab"
+          data-tab="objectives"
+          type="button"
+        >
+          Objectives
+        </button>
+        <button 
+          class="tab-button" 
+          role="tab" 
+          aria-selected="false" 
+          aria-controls="quiz-panel" 
+          id="quiz-tab"
+          data-tab="quiz"
+          type="button"
+        >
+          Quiz
+        </button>
+      </div>
+    </div>
+    
+    <!-- Tab Panels -->
+    <div class="tab-panels">
+      <!-- Objectives Panel -->
+      <div 
+        class="tab-panel" 
+        role="tabpanel" 
+        id="objectives-panel" 
+        aria-labelledby="objectives-tab"
+      >
+        <div class="current-focus-header">
+          <h1>CURRENT FOCUS: <span class="curriculum-focus-text">Loading...</span></h1>
+        </div>
+        <div class="objectives-content" id="objectivesContent">
+          <!-- Current objectives loaded here via loadObjectives(); blank until coach sends -->
+        </div>
+      </div>
+      
+      <!-- Quiz Panel -->
+      <div 
+        class="tab-panel" 
+        role="tabpanel" 
+        id="quiz-panel" 
+        aria-labelledby="quiz-tab"
+      >
+        <div class="quiz-content">
+          <!-- Quiz content will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Bottom Sheet -->
+<div class="notification-bottom-sheet" id="notificationBottomSheet" style="display: none;">
+  <div class="notification-bottom-sheet-handle"></div>
+  <div class="notification-bottom-sheet-header">
+    <button class="mark-all-read-btn" id="markAllReadBtn" title="Mark all as read">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" size="22" color="currentColor" strokeWidth="1.5" data-lucide="book-check" data-size="22" data-color="currentColor" class="lucide-icon"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"></path><path d="m9 9.5 2 2 4-4"></path></svg>
+    </button>
+    <button class="notification-close-btn" type="button" aria-label="Close notifications" id="notificationCloseBtn">
+      <i class="bx bx-x"></i>
+    </button>
+  </div>
+  <div class="notification-bottom-sheet-content">
+    <div class="notification-content">
+      <!-- Notification content will be loaded here -->
+    </div>
+  </div>
+</div>
+
+<!-- Notification media lightbox (photo/video + full notification info) -->
+<div class="notification-media-lightbox" id="notificationMediaLightbox" role="dialog" aria-modal="true" aria-label="View attachment" style="display: none;">
+  <div class="notification-media-lightbox-backdrop"></div>
+  <div class="notification-media-lightbox-inner">
+    <button class="notification-media-lightbox-close" type="button" aria-label="Close">
+      <i class="bx bx-x"></i>
+    </button>
+    <div class="notification-media-lightbox-meta">
+      <div class="notification-media-lightbox-icon"></div>
+      <div class="notification-media-lightbox-text">
+        <div class="notification-media-lightbox-title"></div>
+        <div class="notification-media-lightbox-message"></div>
+        <div class="notification-media-lightbox-date"></div>
+      </div>
+    </div>
+    <img class="notification-media-lightbox-img" alt="" />
+    <video class="notification-media-lightbox-video" controls></video>
+  </div>
+</div>

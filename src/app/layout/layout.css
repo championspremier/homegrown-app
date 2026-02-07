@@ -1,11 +1,22 @@
+/* Import Skeleton Loader Styles */
+@import url('../utils/skeleton.css');
+/* Import Loader (for Supabase fetch states) */
+@import url('../utils/loader.css');
+
 /* ========== THEME VARIABLES ========== */
 :root {
-  --bg: #0b0b0b;
-  --surface: #101010;
+  --bg: rgb(25, 25, 25);
+  --surface: rgb(32, 32, 32);
   --text: #ffffff;
   --border: #818181;
   --muted: #9ca3af;
-  --accent: rgb(94, 89, 58);
+  --accent: linear-gradient(
+    135deg,
+    #FFE9A3 0%,
+    #D3AF37 40%,
+    #9F7C19 100%
+  );
+  --accent-solid: #D3AF37; /* solid color for borders, from gradient */
   --hover: rgba(188, 188, 188, 0.1);
 }
 
@@ -15,7 +26,13 @@ html[data-theme="light"] {
   --text: #111111;
   --border: #bebebe;
   --muted: #6b7280;
-  --accent: #325463;
+  --accent: linear-gradient(
+    135deg,
+    #7bb8d4 0%,
+    #5fa4c4 45%,
+    #3b82f6 100%
+  );
+  --accent-solid: #3b82f6; /* solid color for borders, from gradient */
   --hover: rgba(111, 111, 111, 0.05);
 }
 
@@ -25,10 +42,11 @@ html[data-theme="light"] {
 body {
   margin: 0;
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Zalando Sans Expanded', 'Racing Sans One', sans-serif;
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
 }
 
 /* ========== SIDEBAR ========== */
@@ -39,15 +57,50 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  transition: width 300ms ease, transform 300ms ease;
+  position: relative;
+  z-index: 1000;
+  overflow: visible;
+}
+
+/* Hide Solo navigation for parents */
+body[data-role="parent"] .button[title="Solo"],
+body[data-role="parent"] .button[title="Solo"] *,
+body[data-role="parent"] .nav-link[data-page="solo"],
+body[data-role="parent"] .nav-link[data-page="solo"] *,
+body[data-role="parent"] li:has(.nav-link[data-page="solo"]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.sidebar.closed {
+  width: 80px;
 }
 
 .sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;   /* keeps toggle next to logo */
+  justify-content: center;
   gap: 12px;
   padding: 12px;
-  overflow: hidden;                  /* lets the toggle slide off-screen cleanly */
+  position: relative;
+}
+
+/* Keep logo visible when sidebar is closed */
+.sidebar.closed .sidebar-header .img {
+  width: 40px;
+  height: 40px;
+}
+
+.sidebar-header-spacer {
+  height: 60px; /* Space for toggle button */
 }
 
 .img {
@@ -66,24 +119,86 @@ html[data-theme="light"] .img {
   filter: invert(1) brightness(0.9) contrast(1.05);
 }
 
-/* Toggle button next to image */
-.theme-toggle {
-  display: inline-flex;
+/* Mobile logo (football icon) - hidden on desktop */
+.mobile-logo {
+  display: none !important;
+  font-size: 40px;
+  color: var(--text);
+}
+
+/* Desktop logo - visible on desktop */
+.desktop-logo {
+  display: block !important;
+}
+
+/* Sidebar toggle button - positioned half outside sidebar */
+.sidebar-toggle {
+  position: absolute;
+  right: -20px;
+  top: 12px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 36px;
-  border: 1px solid var(--border);
-  background: transparent;
+  z-index: 10001;
+  transition: background 200ms ease, border-color 200ms ease, transform 300ms ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-toggle:hover {
+  background: var(--hover);
+}
+
+.toggle-chevron {
+  font-size: 20px;
+  transition: opacity 200ms ease;
   color: var(--text);
-  border-radius: 10px;
-  cursor: pointer;
-  flex-shrink: 0;                    /* don’t let it squish */
-  transition: opacity 200ms ease, border-color 120ms ease;
+}
+
+/* Ensure Lucide icons in sidebar toggle use correct color */
+.toggle-chevron svg,
+.toggle-chevron.lucide-icon {
+  color: var(--text);
+}
+
+.toggle-chevron svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+/* Hide all mobile chevrons by default (desktop) */
+.sidebar-toggle .mobile-chevron {
+  display: none !important;
+}
+
+/* Desktop: Show left chevron when open, hide right */
+@media (min-width: 769px) {
+  .sidebar:not(.closed) .sidebar-toggle .desktop-chevron.open-icon {
+    display: block !important;
+  }
+
+  .sidebar:not(.closed) .sidebar-toggle .desktop-chevron.closed-icon {
+    display: none !important;
+  }
+
+  /* Desktop: Show right chevron when closed, hide left */
+  .sidebar.closed .sidebar-toggle .desktop-chevron.open-icon {
+    display: none !important;
+  }
+
+  .sidebar.closed .sidebar-toggle .desktop-chevron.closed-icon {
+    display: block !important;
+  }
 }
 
 /* ========== NAV ========== */
-.icons { padding: 8px 6px; }
+.icons { padding: 0; }
 
 .nav-list {
   width: 100%;
@@ -106,18 +221,24 @@ html[data-theme="light"] .img {
   transition: background 120ms ease, color 120ms ease;
 }
 
-.nav-list li:hover {
+/* Removed hover effect for better mobile compatibility */
+
+.nav-list li.active {
+  /* No background or border - clean look */
+}
+
+.button { 
+  padding: 0;
+  width: 100%;
+} /* we'll pad the link instead */
+
+.button:hover .nav-link {
   background: var(--hover);
 }
 
-.nav-list li.active {
-  background: rgba(173, 50, 50, 0.08);
-}
-
-.button { padding: 0; } /* we’ll pad the link instead */
 .nav-link {
-  width: auto;
-    display: flex;
+  width: 100%;
+  display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -129,6 +250,64 @@ html[data-theme="light"] .img {
 
 .nav-link .bx { font-size: 22px; }
 
+/* Lucide icon styles */
+.nav-link .lucide-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.nav-link .lucide-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  color: inherit;
+}
+
+.nav-link .lucide-icon svg,
+.nav-link .lucide-icon svg path {
+  color: inherit;
+  stroke: currentColor;
+}
+
+.nav-link .lucide-icon-filled svg {
+  fill: currentColor;
+  stroke-width: 0;
+}
+
+.nav-link .lucide-icon-filled svg path {
+  fill: currentColor;
+  stroke-width: 0;
+}
+
+/* Profile photo in sidebar nav */
+.nav-link .profile-photo-nav {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: none; /* Hidden by default, shown when photo exists */
+}
+
+.nav-link:has(.profile-photo-nav) .bx,
+.nav-link:has(.profile-photo-nav) svg[data-lucide="user"],
+.nav-link:has(.profile-photo-nav) svg.lucide-icon {
+  display: none !important; /* Hide icon when photo exists (Boxicons or Lucide) */
+}
+
+.nav-link:has(.profile-photo-nav) .profile-photo-nav {
+  display: block;
+}
+
+/* Solo Create icon (HD.png) in sidebar nav */
+.nav-link .solo-create-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: none; /* Hidden by default, shown when active via JavaScript */
+}
+
 /* The text label next to the icon */
 .nav-link .label {
   font-size: 14px;
@@ -138,10 +317,166 @@ html[data-theme="light"] .img {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
+/* Hide labels when sidebar is closed */
+.sidebar.closed .nav-link .label {
+  opacity: 0;
+  transform: translateX(-6px);
+  position: absolute;
+  pointer-events: none;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+}
+
+/* Center icons when sidebar is closed */
+.sidebar.closed .nav-link {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar.closed .nav-list {
+  align-items: center;
+}
+
 
 /* Boxicons base */
 .bx {
   font-size: 22px;
+  color: var(--text);
+  transition: transform 200ms ease, color 200ms ease;
+  display: inline-block;
+}
+
+/* Active state: filled icon in white */
+.nav-list li.active .bx,
+.nav-list li.active .bxs {
+  color: var(--text);
+  transition: color 200ms ease;
+}
+
+/* Ensure active navigation icons are visible with proper stroke */
+.nav-list li.active .lucide-icon-filled,
+.nav-list li.active .lucide-icon-filled svg,
+.nav-list li.active svg.lucide-icon,
+.nav-list li.active svg[data-lucide] {
+  stroke-width: 2.5px !important;
+  fill: currentColor !important;
+}
+
+.nav-list li.active .lucide-icon-filled path,
+.nav-list li.active svg.lucide-icon path,
+.nav-list li.active svg[data-lucide] path {
+  stroke-width: 2.5px !important;
+  fill: currentColor !important;
+}
+
+/* Chart icons should never use fill - override general rules */
+.nav-list li.active svg[data-lucide*="chart"],
+.nav-list li.active .lucide-icon[data-lucide*="chart"] {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+.nav-list li.active svg[data-lucide*="chart"] path,
+.nav-list li.active .lucide-icon[data-lucide*="chart"] path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Circle-dot, calendar, and house icons should also use stroke-only */
+.nav-list li.active svg[data-lucide="circle-dot"],
+.nav-list li.active .lucide-icon[data-lucide="circle-dot"],
+.nav-list li.active svg[data-lucide="calendar"],
+.nav-list li.active .lucide-icon[data-lucide="calendar"],
+.nav-list li.active svg[data-lucide="house"],
+.nav-list li.active .lucide-icon[data-lucide="house"] {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+.nav-list li.active svg[data-lucide="circle-dot"] path,
+.nav-list li.active .lucide-icon[data-lucide="circle-dot"] path,
+.nav-list li.active svg[data-lucide="calendar"] path,
+.nav-list li.active .lucide-icon[data-lucide="calendar"] path,
+.nav-list li.active svg[data-lucide="house"] path,
+.nav-list li.active .lucide-icon[data-lucide="house"] path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Ensure chart-column-increasing (tracking) icon is visible when active */
+.nav-list li.active svg[data-lucide="chart-column-increasing"],
+.nav-list li.active .lucide-icon[data-lucide="chart-column-increasing"] {
+  stroke-width: 2.5px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.nav-list li.active svg[data-lucide="chart-column-increasing"] path,
+.nav-list li.active .lucide-icon[data-lucide="chart-column-increasing"] path {
+  stroke-width: 2.5px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Ensure all Lucide icons use theme colors */
+.lucide-icon,
+.lucide-icon svg {
+  color: var(--text);
+}
+
+.lucide-icon svg path {
+  stroke: currentColor;
+}
+
+/* Ensure icons in buttons and links use theme colors */
+button svg,
+button .lucide-icon,
+a svg,
+a .lucide-icon,
+i.bx svg,
+i.bxs svg {
+  color: var(--text);
+}
+
+button svg path,
+a svg path,
+i.bx svg path,
+i.bxs svg path {
+  stroke: currentColor;
+  fill: none;
+}
+
+/* Global icon color fix - ensure all icons are visible */
+i.bx,
+i.bxs,
+svg.lucide-icon {
+  color: var(--text) !important;
+}
+
+i.bx svg,
+i.bxs svg,
+svg.lucide-icon {
+  color: inherit !important;
+}
+
+i.bx svg path,
+i.bxs svg path,
+svg.lucide-icon path {
+  stroke: currentColor !important;
+}
+
+/* Ensure filled icons (bxs-*) also get the active styling */
+.nav-list li.active .bxs-home,
+.nav-list li.active .bxs-calendar,
+.nav-list li.active .bxs-chart,
+.nav-list li.active .bxs-user,
+.nav-list li.active .bxs-football {
   color: var(--text);
 }
 
@@ -152,38 +487,173 @@ html[data-theme="light"] .img {
   background: var(--bg);
   display: flex;
   flex-direction: column;
+  transition: margin-left 300ms ease;
+  margin-left: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable; /* Reserve space for scrollbar to prevent layout shift */
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) transparent; /* Transparent track, visible thumb */
+}
+
+/* Webkit scrollbar styles for transparent background */
+.main-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.main-content::-webkit-scrollbar-track {
+  background: transparent; /* Transparent track */
+}
+
+.main-content::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.main-content::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+  opacity: 0.8;
+}
+
+/* Adjust main content when sidebar is open */
+body:has(.sidebar:not(.closed)) .main-content {
+  margin-left: 0;
 }
 
 .top-bar {
   height: 120px;
-  background: var(--surface);
-  margin: 0 40px 0 40px;
+  background: var(--bg);
+  margin: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Theme toggle in top-bar */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 200ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.theme-toggle:hover {
+  background: var(--hover);
+}
+
+.theme-toggle i {
+  color: var(--text);
+}
+
+/* Ensure Lucide icons in theme toggle use correct color */
+.theme-toggle svg,
+.theme-toggle .lucide-icon {
+  color: var(--text);
+}
+
+.theme-toggle svg path {
+  stroke: currentColor;
+  fill: none;
 }
 
 .content-area {
-  flex: 1;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 5px;
+  padding: 20px 0;
+  overflow: visible;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Base styles for content loaded into content-area - full width so all views (coach home, schedule, people, etc.) use full area */
+.content-area > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.content-area h1,
+.content-area h2,
+.content-area h3,
+.content-area h4,
+.content-area h5,
+.content-area h6 {
+  color: var(--text);
+  margin: 0.5em 0;
+  font-family: inherit;
+}
+
+.content-area p {
+  color: var(--text);
+  margin: 0.5em 0;
+}
+
+.content-area button,
+.content-area a {
+  color: var(--text);
 }
 
 /* ========== Player Leaderboard ========== */
-.players {
-  width: 80px;
-  height: 100px;
-  border: none;
+.leaderboard-container {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: none;
+  width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.leaderboard-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.leaderboard-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.leaderboard-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.leaderboard-container::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+.player-leaderboard-item {
+  display: flex;
   flex-direction: column;
-  font-size: 14px;
-  font-weight: bold;
-  color: var(--text);
-  margin: 10px;
-  background-color:  var(--surface);
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  width: 80px;
+  flex-shrink: 0;
   cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.player-leaderboard-item:hover {
+  transform: translateY(-2px);
 }
 
 .player-circle-img {
-  position: relative;                 /* <-- key */
+  position: relative;
   width: 65px;
   height: 65px;
   display: grid;
@@ -191,10 +661,26 @@ html[data-theme="light"] .img {
   border-radius: 50%;
   background-color: var(--muted);
   margin: 10px 0;
-  overflow: visible;                  /* ensure badge can sit outside edge */
+  overflow: visible; /* Changed to visible so position badge isn't clipped */
 }
 
-/* if you use a real <img> inside */
+/* Clip photo to circle using border-radius on the photo itself */
+.player-circle-img > .profile-photo-leaderboard,
+.player-circle-img > .player-avatar-initials {
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.player-avatar-initials {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 0;
+}
+
 .player-circle-img .avatar {
   width: 100%;
   height: 100%;
@@ -202,65 +688,313 @@ html[data-theme="light"] .img {
   border-radius: 50%;
 }
 
-/* mini circle badge */
+.profile-photo-leaderboard {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+  display: block !important;
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 1;
+  position: relative;
+  overflow: hidden; /* Clip photo to circle */
+}
+
+/* mini circle badge - MUST be on top of photos, but below account switcher dropdown */
 .player-leader-position {
-  position: absolute;
-  top: -6px;                          /* position on top edge */
-  right: -6px;                        /* move to top-right; change to left for top-left */
+  position: absolute !important;
+  top: -6px;
+  right: -6px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--accent);         /* badge fill */
-  border: none;    /* nice ring */
+  background: var(--accent);
+  border: none;
   color: var(--text);
   font-size: 12px;
+  font-weight: 600;
   line-height: 1;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  opacity: 0.85;                      /* requested opacity */
+  opacity: 0.85;
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
-  z-index: 2;
+  z-index: 99 !important; /* Higher than photo to ensure it's always visible, but lower than account switcher dropdown */
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
 }
 
 .player-name {
-  margin-top: 0;
-  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
 }
 
-/* ========== UTILS / SMALL SCREENS ========== */
+.player-points {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.leaderboard-loading,
+.leaderboard-error,
+.leaderboard-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ========== UTILS / SMALL SCREENS (Tablet) ========== */
 @media (max-width: 900px) {
+  /* Sidebar always icon-only (80px) - no open/close */
   .sidebar { 
-    width: 72px;
-    transition: ease-in-out width 200ms; 
+    width: 80px !important; /* Always 80px - icon-only */
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    transform: translateX(0) !important; /* Always fully visible */
+  }
+
+  .sidebar.closed {
+    width: 80px !important; /* Same width whether closed or not */
+    transform: translateX(0) !important; /* Always fully visible */
+  }
+
+  /* Hide toggle button in this media range - use more specific selector */
+  .sidebar .sidebar-toggle,
+  #sidebarToggle,
+  button.sidebar-toggle,
+  button#sidebarToggle {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    z-index: -1 !important;
+  }
+
+  /* Remove spacer since toggle is hidden */
+  .sidebar-header-spacer {
+    display: none !important;
+  }
+
+  /* Main content always has margin for 80px sidebar */
+  .main-content {
+    margin-left: 80px; /* Always 80px margin */
+    transition: none; /* No transition needed */
   }
 
   .sidebar-header {
-    justify-content: left;       /* center the logo when collapsed */
+    justify-content: center;
   }
 
-  /* slide the toggle off-canvas on narrow width */
-  .theme-toggle {
-    transform: translateX(140%);
-    opacity: 0;
-    pointer-events: none;
+  .nav-list { 
+    align-items: center; 
+  }
+  
+  .nav-link { 
+    justify-content: center; 
+    padding: 10px;
+    position: relative; /* For tooltip positioning */
   }
 
-  .nav-list { align-items: center; }
-  .nav-link { justify-content: center; padding: 10px; }
-
-  /* Hide the text labels (keep icons centered) */
+  /* Always hide labels - icons only */
   .nav-link .label {
+    display: none !important;
+  }
+
+  /* Tooltip styles - always show on hover */
+  .nav-link::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 6px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.875rem;
+    white-space: nowrap;
     opacity: 0;
-    transform: translateX(-6px);
-    position: absolute;      /* removes it from layout flow */
     pointer-events: none;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    height: 1px;
-    width: 1px;
-    overflow: hidden;
+    transition: opacity 0.2s ease;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .nav-link:hover::before {
+    opacity: 1;
+  }
+}
+
+/* ========== MOBILE / IPHONE SIZE ========== */
+@media (max-width: 768px) {
+  body {
+    flex-direction: column;
+    padding-bottom: 80px; /* Space for bottom sidebar */
+  }
+
+  .sidebar {
+    width: 100% !important;
+    height: 80px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    flex-direction: row;
+    z-index: 1000;
+    transform: none !important;
+    margin: 0;
+  }
+
+  /* Sidebar always open on mobile - ignore closed class */
+  .sidebar.closed {
+    transform: none !important;
+    width: 100% !important;
+  }
+
+  /* Hide sidebar header completely on mobile */
+  .sidebar-header {
+    display: none !important;
+  }
+
+  .sidebar-header-spacer {
+    display: none;
+  }
+
+  /* Hide desktop logo, show mobile logo */
+  .desktop-logo {
+    display: none !important;
+  }
+
+  .mobile-logo {
+    display: none !important;
+  }
+
+  /* Replace Solo link football icon with hd.png on mobile */
+  .nav-link .solo-icon-desktop {
+    display: inline-block;
+  }
+
+  .nav-link .solo-icon-mobile {
+    display: none !important;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: contain;
+    filter: none;
+  }
+
+  /* LIGHT MODE: flip white mono logo to black in Solo link */
+  html[data-theme="light"] .nav-link .solo-icon-mobile {
+    filter: invert(1) brightness(0.9) contrast(1.05);
+  }
+
+  /* On mobile, hide football icon and show hd.png */
+  .nav-link[data-page="solo"] .solo-icon-desktop {
+    display: none !important;
+  }
+
+  .nav-link[data-page="solo"] .solo-icon-mobile {
+    display: block !important;
+  }
+
+  /* Navigation horizontal layout */
+  .icons {
+    width: 100% !important;
+    padding: 0;
+    flex: 1;
+  }
+
+  .nav-list {
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    height: 100%;
+    width: 100% !important;
+    gap: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .nav-list li {
+    flex: 1 1 0 !important;
+    height: 100%;
+    padding: 0;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .nav-link {
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center;
+    width: 100% !important;
+    height: 100%;
+    padding: 8px 4px;
+    gap: 4px;
+  }
+
+  .nav-link .bx {
+    font-size: 24px;
+  }
+  
+  .nav-link .lucide-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .nav-link .label {
+    font-size: 11px;
+    opacity: 1 !important;
+    position: static !important;
+    transform: none !important;
+    clip: auto !important;
+    clip-path: none !important;
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+  }
+
+  /* Hide toggle button on mobile - not needed */
+  .sidebar-toggle {
+    display: none !important;
+  }
+
+  /* Main content adjustments */
+  .main-content {
+    margin-left: 0;
+    margin-bottom: 0;
+    width: 100%;
+  }
+
+  .top-bar {
+    margin: none;
   }
 }

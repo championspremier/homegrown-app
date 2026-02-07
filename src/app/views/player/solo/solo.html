@@ -1,0 +1,88 @@
+<div class="solo-container">
+  <!-- Horizontal Scroll Tabs (no wrapper) -->
+  <div class="solo-tabs" id="soloTabs">
+    <button class="solo-tab active" data-tab="start-here" type="button">Start Here</button>
+    <button class="solo-tab" data-tab="technical" type="button">Technical</button>
+    <button class="solo-tab" data-tab="physical" type="button">Physical</button>
+    <button class="solo-tab" data-tab="mental" type="button">Mental</button>
+    <button class="solo-tab" data-tab="tactical" type="button">Tactical</button>
+  </div>
+
+  <!-- Skill Selection UI (hidden by default) -->
+  <div class="skill-selection-container" id="skillSelectionContainer" style="display: none;">
+    <h2 class="skill-selection-title" id="skillSelectionTitle"></h2>
+    <div class="skill-selection-grid" id="skillSelectionGrid">
+      <!-- Skills will be dynamically loaded here -->
+    </div>
+  </div>
+
+  <!-- Vertical Scrolling Video Feed -->
+  <div class="solo-video-feed" id="soloVideoFeed">
+    <!-- Videos will be dynamically loaded here -->
+    <!-- Placeholder for now -->
+    <div class="solo-video-placeholder">
+      <p>No videos available yet</p>
+      <p class="solo-placeholder-subtitle">Videos will appear here based on your selected category</p>
+    </div>
+  </div>
+
+  <!-- Drills Container (for Technical/Physical/Mental tabs) -->
+  <div class="drills-container" id="drillsContainer" style="display: none;">
+    <!-- Sessions and drills will be dynamically loaded here -->
+  </div>
+</div>
+
+<!-- Video Player Template (will be cloned for each video) -->
+<template id="soloVideoTemplate">
+  <div class="solo-video-item">
+    <div class="solo-video-wrapper">
+      <video class="solo-video-player" preload="metadata" playsinline>
+        <source src="" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+      
+      <!-- Video Overlays -->
+      <div class="solo-video-overlay">
+        <!-- Left Side: User Info & Caption -->
+        <div class="solo-video-info">
+          <div class="solo-video-user">
+            <span class="solo-username">Homegrown</span>
+          </div>
+          <div class="solo-video-caption">
+            <span class="solo-caption-text"></span>
+          </div>
+        </div>
+
+        <!-- Right Side: Interaction Buttons -->
+        <div class="solo-video-actions">
+          <button class="solo-action-btn" type="button" aria-label="Like">
+            <i class="bx bx-heart"></i>
+            <span class="solo-action-count">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Video Controls -->
+      <div class="solo-video-controls">
+        <button class="solo-play-pause" type="button" aria-label="Play/Pause">
+          <i class="bx bx-play"></i>
+        </button>
+      </div>
+      
+      <!-- Duration Timer -->
+      <div class="solo-video-duration">
+        <span class="solo-duration-text">0:00</span>
+      </div>
+      
+      <!-- Landscape Rotation Button (for horizontal videos) -->
+      <button class="solo-rotate-landscape" type="button" aria-label="Rotate to landscape" style="display: none;">
+        <i class='bx bx-fullscreen' style='color:#ffffff'></i> 
+      </button>
+      
+      <!-- Thumbnail Preview (bottom) -->
+      <div class="solo-thumbnail-preview" style="display: none;">
+        <img class="solo-thumbnail-img" src="" alt="Video thumbnail">
+      </div>
+    </div>
+  </div>
+</template>

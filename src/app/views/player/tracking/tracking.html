@@ -1,0 +1,97 @@
+<div class="tracking-container">
+  <div class="tracking-pillar-cards" role="tablist" aria-label="Curriculum pillars: Technical, Tactical, Physical, Mental">
+    <button class="tracking-pillar-card active" id="pillarTechnical" data-pillar="technical" type="button" aria-selected="true">
+      <span class="tracking-pillar-label">Technical</span>
+    </button>
+    <button class="tracking-pillar-card" id="pillarTactical" data-pillar="tactical" type="button" aria-selected="false">
+      <span class="tracking-pillar-label">Tactical</span>
+    </button>
+    <button class="tracking-pillar-card" id="pillarPhysical" data-pillar="physical" type="button" aria-selected="false">
+      <span class="tracking-pillar-label">Physical</span>
+    </button>
+    <button class="tracking-pillar-card" id="pillarMental" data-pillar="mental" type="button" aria-selected="false">
+      <span class="tracking-pillar-label">Mental</span>
+    </button>
+  </div>
+  <div class="tracking-spider-wrapper" id="trackingSpiderWrapper" aria-label="Curriculum progress spider chart">
+    <div class="tracking-spider-inner">
+      <svg class="tracking-spider-svg" id="trackingSpiderSvg" viewBox="0 0 240 240" role="img" aria-label="Spider chart: Build-out, Middle Third, Final Third, Wide Play">
+        <!-- Grid and polygon rendered by JS -->
+      </svg>
+      <div class="tracking-spider-legend" id="trackingSpiderLegend" aria-hidden="true"></div>
+    </div>
+  </div>
+  <div class="tab-list-wrapper">
+    <div class="tab-list" role="tablist" aria-label="Points, Quiz, and Objectives tabs">
+      <button class="tab-button" role="tab" aria-selected="false" aria-controls="points-panel" id="points-tab" data-tab="points" type="button">
+        Points
+      </button>
+      <button class="tab-button" role="tab" aria-selected="false" aria-controls="quiz-panel" id="quiz-tab" data-tab="quiz" type="button">
+        Quiz
+      </button>
+      <button class="tab-button" role="tab" aria-selected="false" aria-controls="objectives-panel" id="objectives-tab" data-tab="objectives" type="button">
+        Objectives
+      </button>
+    </div>
+  </div>
+
+  <div class="tab-panels">
+    <!-- Points Panel -->
+    <div class="tab-panel" role="tabpanel" id="points-panel" aria-labelledby="points-tab">
+      <div class="points-summary">
+        <div class="current-quarter-card">
+          <h2>Current Quarter</h2>
+          <div class="quarter-info" id="currentQuarterInfo">
+            <span id="quarterLabel">Q1 2025</span>
+          </div>
+          <div class="points-display">
+            <div class="total-points" id="totalPoints">0</div>
+            <div class="points-label">Total Points</div>
+          </div>
+          <div class="leaderboard-position" id="leaderboardPosition">
+            <i class="bx bx-trophy"></i>
+            <span>Position: <span id="positionValue">—</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="points-history-section">
+        <div class="section-header">
+          <h2>Points History</h2>
+          <div class="quarter-selector">
+            <button class="quarter-btn active" data-quarter="current">Current Quarter</button>
+            <button class="quarter-btn" data-quarter="history">History</button>
+          </div>
+        </div>
+
+        <div class="points-history-content" id="pointsHistoryContent">
+          <!-- Points transactions will be loaded here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Quiz Panel -->
+    <div class="tab-panel" role="tabpanel" id="quiz-panel" aria-labelledby="quiz-tab">
+      <div class="quiz-history-section">
+        <div class="section-header">
+          <h2>Quiz History</h2>
+        </div>
+        <div class="quiz-history-content" id="quizHistoryContent">
+          <!-- Quiz answers will be loaded here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Objectives Panel -->
+    <div class="tab-panel" role="tabpanel" id="objectives-panel" aria-labelledby="objectives-tab">
+      <div class="objectives-history-section">
+        <div class="section-header">
+          <h2>Objectives History</h2>
+        </div>
+        <div class="objectives-history-content" id="objectivesHistoryContent">
+          <!-- Past objectives will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
